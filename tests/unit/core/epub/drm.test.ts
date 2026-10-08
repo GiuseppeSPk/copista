@@ -1,7 +1,8 @@
+import { strToU8, zipSync } from 'fflate';
 import { describe, expect, it } from 'vitest';
 import { detectDrm } from '../../../../src/core/epub/drm';
 import { openZip, readText } from '../../../../src/core/epub/zip';
-import { NotAnEpubError } from '../../../../src/core/errors';
+import { MalformedBookError, NotAnEpubError } from '../../../../src/core/errors';
 import { EPUB, OTHER } from '../../../fixtures/catalog';
 import { encryption, epubZip } from '../../../fixtures/epub-builder';
 
@@ -10,6 +11,27 @@ describe('openZip', () => {
     expect(() => openZip(OTHER.notAZip())).toThrow(NotAnEpubError);
     expect(() => openZip(OTHER.pdf())).toThrow(NotAnEpubError);
     expect(() => openZip(new Uint8Array())).toThrow(NotAnEpubError);
+  });
+
+  /** A stored archive whose headers claim each entry unpacks to `claimed` bytes. */
+  function forgedZip(names: string[], claimed: number): Uint8Array {
+    const zip = zipSync(
+      Object.fromEntries(names.map((name) => [name, [strToU8('x'), { level: 0 }]])),
+    );
+    const view = new DataView(zip.buffer, zip.byteOffset, zip.byteLength);
+    for (let at = 0; at + 4 <= zip.length; at++) {
+      const signature = view.getUint32(at, true);
+      if (signature === 0x04034b50) view.setUint32(at + 22, claimed, true);
+      if (signature === 0x02014b50) view.setUint32(at + 24, claimed, true);
+    }
+    return zip;
+  }
+
+  it('refuses an archive that would unpack to more than the limits', () => {
+    expect(() => openZip(forgedZip(['a.bin'], 300 * 1024 * 1024))).toThrow(MalformedBookError);
+    const many = Array.from({ length: 6 }, (_, i) => `part${i}.bin`);
+    expect(() => openZip(forgedZip(many, 190 * 1024 * 1024))).toThrow(MalformedBookError);
+    expect(readText(openZip(forgedZip(['a.bin'], 1)), 'a.bin')).toBe('x');
   });
 
   it('reads UTF-8 and UTF-16 text and strips the byte order mark', () => {
