@@ -1,0 +1,287 @@
+import { fractionForPage, pageForFraction } from './location';
+
+export type ShowTarget = { fraction: number } | { fragment: string };
+
+export interface PaginatorEvents {
+  onInternalLink(key: string): void;
+}
+
+/** How long show() waits for fonts and images before laying out anyway. */
+const SETTLE_TIMEOUT_MS = 5000;
+
+const LAYOUT_STYLE_ID = 'copista-pagination';
+
+const LINK_SELECTOR = '[data-copista-href], [data-copista-external]';
+
+interface Frame {
+  element: HTMLIFrameElement;
+  doc: Document;
+}
+
+function srcdocLoaded(element: HTMLIFrameElement): Promise<Document> {
+  return new Promise((resolve) => {
+    const onLoad = () => {
+      const doc = element.contentDocument;
+      if (doc === null || doc.URL !== 'about:srcdoc') return;
+      element.removeEventListener('load', onLoad);
+      resolve(doc);
+    };
+    element.addEventListener('load', onLoad);
+  });
+}
+
+/** Resolves once the document's images are decoded and its fonts loaded, or after a timeout. */
+async function settle(doc: Document): Promise<void> {
+  const images = [...doc.images].map((img) => {
+    if (img.loading === 'lazy') img.loading = 'eager';
+    return img.decode().catch(() => undefined);
+  });
+  const fonts = doc.fonts.ready.then(() => undefined);
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<void>((resolve) => {
+    timer = setTimeout(resolve, SETTLE_TIMEOUT_MS);
+  });
+  await Promise.race([Promise.all([...images, fonts]), timeout]);
+  clearTimeout(timer);
+}
+
+/**
+ * Shows one chapter page at a time. The chapter lives in an iframe sandboxed
+ * without scripts; its body is laid out in columns exactly one frame wide, and
+ * turning a page scrolls the frame by one column.
+ *
+ * WebKit runs no event listener at all inside a frame sandboxed without
+ * scripts, so pointer input lands on a transparent layer in this document
+ * instead, which finds the link under the pointer in the frame.
+ */
+export class Paginator {
+  private frame: Frame | null = null;
+  private currentPage = 0;
+  private count = 0;
+  /** Width of one page, which is also the distance between two columns. */
+  private pageWidth = 0;
+  private cancelPending: (() => void) | null = null;
+  private relayoutQueued = false;
+  private readonly observer: ResizeObserver;
+  private readonly inputLayer: HTMLDivElement;
+
+  constructor(
+    private readonly host: HTMLElement,
+    private readonly events: PaginatorEvents,
+  ) {
+    if (getComputedStyle(host).position === 'static') host.style.position = 'relative';
+    this.inputLayer = document.createElement('div');
+    this.inputLayer.style.cssText = 'position: absolute; inset: 0; z-index: 1;';
+    this.inputLayer.addEventListener('click', (event) => {
+      const link = this.linkAt(event.clientX, event.clientY);
+      if (link !== null) {
+        event.preventDefault();
+        this.follow(link);
+      }
+    });
+    this.inputLayer.addEventListener('mousemove', (event) => {
+      this.inputLayer.style.cursor = this.linkAt(event.clientX, event.clientY) ? 'pointer' : '';
+    });
+    host.append(this.inputLayer);
+    this.observer = new ResizeObserver(() => this.queueRelayout());
+    this.observer.observe(host);
+  }
+
+  get page(): number {
+    return this.currentPage;
+  }
+
+  get pageCount(): number {
+    return this.count;
+  }
+
+  fraction(): number {
+    return fractionForPage(this.currentPage, this.count);
+  }
+
+  /** Replaces the shown chapter; the old one stays visible until the new one is laid out. */
+  async show(srcdoc: string, target: ShowTarget): Promise<void> {
+    this.cancelPending?.();
+    const element = document.createElement('iframe');
+    element.setAttribute('sandbox', 'allow-same-origin');
+    element.setAttribute('title', 'Book page');
+    element.style.cssText =
+      'position: absolute; top: 0; left: 0; border: 0; display: block; visibility: hidden;';
+    element.srcdoc = srcdoc;
+    let cancelled = false;
+    const cancel = new Promise<null>((resolve) => {
+      this.cancelPending = () => {
+        cancelled = true;
+        element.remove();
+        resolve(null);
+      };
+    });
+    const loaded = srcdocLoaded(element);
+    this.host.insertBefore(element, this.inputLayer);
+    const doc = await Promise.race([loaded, cancel]);
+    if (doc === null) return;
+    this.applyLayout({ element, doc }, null);
+    await settle(doc);
+    if (cancelled) return;
+    this.cancelPending = null;
+
+    const previous = this.frame;
+    this.frame = { element, doc };
+    this.listen(doc);
+    this.layout();
+    this.currentPage =
+      'fragment' in target
+        ? this.pageOfFragment(target.fragment)
+        : pageForFraction(target.fraction, this.count);
+    this.scroll();
+    element.style.visibility = '';
+    previous?.element.remove();
+  }
+
+  next(): boolean {
+    if (this.currentPage >= this.count - 1) return false;
+    this.currentPage++;
+    this.scroll();
+    return true;
+  }
+
+  prev(): boolean {
+    if (this.currentPage <= 0) return false;
+    this.currentPage--;
+    this.scroll();
+    return true;
+  }
+
+  /** Lays the chapter out again for the host's current size, staying at the same fraction. */
+  relayout(): Promise<void> {
+    if (this.frame !== null) {
+      const fraction = this.fraction();
+      this.layout();
+      this.currentPage = pageForFraction(fraction, this.count);
+      this.scroll();
+    }
+    return Promise.resolve();
+  }
+
+  destroy(): void {
+    this.observer.disconnect();
+    this.cancelPending?.();
+    this.cancelPending = null;
+    this.frame?.element.remove();
+    this.inputLayer.remove();
+    this.frame = null;
+    this.currentPage = 0;
+    this.count = 0;
+  }
+
+  private queueRelayout(): void {
+    if (this.relayoutQueued) return;
+    this.relayoutQueued = true;
+    requestAnimationFrame(() => {
+      this.relayoutQueued = false;
+      void this.relayout();
+    });
+  }
+
+  /** Measures the page count at the host's size, then widens the body to exactly that many pages. */
+  private layout(): void {
+    const frame = this.frame!;
+    this.applyLayout(frame, null);
+    const body = frame.doc.body;
+    const range = frame.doc.createRange();
+    range.selectNodeContents(body);
+    const contentRight = range.getBoundingClientRect().right - body.getBoundingClientRect().left;
+    this.count = Math.max(1, Math.ceil(contentRight / this.pageWidth));
+    this.applyLayout(frame, this.count);
+  }
+
+  /**
+   * Sizes the frame to the host and writes the column rules into the chapter
+   * document. With `pages` set, the body is exactly that many pages wide so
+   * the last page can scroll fully into view.
+   */
+  private applyLayout(frame: Frame, pages: number | null): void {
+    const rect = this.host.getBoundingClientRect();
+    const width = Math.max(1, Math.floor(rect.width));
+    const height = Math.max(1, Math.floor(rect.height));
+    frame.element.style.width = `${width}px`;
+    frame.element.style.height = `${height}px`;
+    const gap = Math.round(Math.min(48, Math.max(16, width * 0.06)));
+    const padding = Math.round(Math.min(40, Math.max(12, height * 0.05)));
+    const bodyWidth = pages === null ? 'auto' : `${pages * width}px`;
+    const css = [
+      `html { margin: 0 !important; padding: 0 !important; height: ${height}px !important;` +
+        ' overflow: hidden !important; scroll-behavior: auto !important; }',
+      `body { box-sizing: border-box !important; margin: 0 !important; height: ${height}px !important;` +
+        ` width: ${bodyWidth} !important; min-width: 0 !important; max-width: none !important;` +
+        ` padding: ${padding}px ${gap / 2}px !important; column-width: ${width - gap}px !important;` +
+        ` column-gap: ${gap}px !important; column-fill: auto !important; overflow: visible !important; }`,
+      `img, svg, video { max-height: ${height - 2 * padding}px !important; break-inside: avoid; }`,
+    ].join('\n');
+    let style = frame.doc.getElementById(LAYOUT_STYLE_ID);
+    if (style === null) {
+      style = frame.doc.createElement('style');
+      style.id = LAYOUT_STYLE_ID;
+      frame.doc.head.append(style);
+    }
+    style.textContent = css;
+    this.pageWidth = width;
+  }
+
+  private pageOfFragment(fragment: string): number {
+    const doc = this.frame!.doc;
+    const target = doc.getElementById(fragment) ?? doc.getElementsByName(fragment)[0];
+    if (target === undefined || target === null) return 0;
+    const rect = target.getClientRects()[0] ?? target.getBoundingClientRect();
+    const x = rect.left - doc.body.getBoundingClientRect().left;
+    return Math.min(this.count - 1, Math.max(0, Math.floor(x / this.pageWidth)));
+  }
+
+  private scroll(): void {
+    const scroller = this.frame?.doc.scrollingElement;
+    if (scroller) scroller.scrollLeft = this.currentPage * this.pageWidth;
+  }
+
+  /** The link shown at a point of the viewport, if any. */
+  private linkAt(clientX: number, clientY: number): Element | null {
+    if (this.frame === null) return null;
+    const rect = this.frame.element.getBoundingClientRect();
+    const hit = this.frame.doc.elementFromPoint(clientX - rect.left, clientY - rect.top);
+    return hit?.closest(LINK_SELECTOR) ?? null;
+  }
+
+  private follow(link: Element): void {
+    const internal = link.getAttribute('data-copista-href');
+    if (internal !== null) {
+      this.events.onInternalLink(internal);
+    } else {
+      window.open(link.getAttribute('data-copista-external')!, '_blank', 'noopener,noreferrer');
+    }
+  }
+
+  /**
+   * Listeners inside the frame, where the browser runs them: a link activated
+   * from the keyboard, and scrolls the frame makes by itself.
+   */
+  private listen(doc: Document): void {
+    doc.addEventListener('click', (event) => this.onClick(event));
+    // Focus and find-in-page can scroll the frame: snap to the nearest page.
+    doc.addEventListener('scroll', () => {
+      const scroller = doc.scrollingElement;
+      if (this.frame?.doc !== doc || scroller === null || this.pageWidth === 0) return;
+      if (Math.abs(scroller.scrollLeft - this.currentPage * this.pageWidth) < 1) return;
+      const page = Math.round(scroller.scrollLeft / this.pageWidth);
+      this.currentPage = Math.min(this.count - 1, Math.max(0, page));
+      this.scroll();
+    });
+  }
+
+  private onClick(event: MouseEvent): void {
+    const target = event.target as Element | null;
+    if (target === null || !('closest' in target)) return;
+    const link = target.closest(LINK_SELECTOR);
+    if (link === null) return;
+    event.preventDefault();
+    this.follow(link);
+  }
+}
