@@ -2,15 +2,9 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { bigEpub, DOCX, EPUB, OTHER } from '../tests/fixtures/catalog';
+import { kebab } from '../tests/fixtures/names';
 
 const OUT = join('tests', 'fixtures', 'generated');
-
-function kebab(key: string): string {
-  return key
-    .replace(/([a-z0-9])([A-Z])/g, '$1-$2')
-    .replace(/([A-Z])([A-Z][a-z])/g, '$1-$2')
-    .toLowerCase();
-}
 
 mkdirSync(OUT, { recursive: true });
 const groups: Array<[Record<string, () => Uint8Array>, string]> = [
