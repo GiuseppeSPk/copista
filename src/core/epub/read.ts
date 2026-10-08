@@ -1,10 +1,11 @@
 import { DrmProtectedError, MalformedBookError, NotAnEpubError } from '../errors';
-import type { Book, BookWarning, Chapter, Resource } from '../model/book';
+import type { Book, BookWarning, Chapter, Resource, TocEntry } from '../model/book';
 import { resolveHref } from '../paths';
 import { mapCssUrls, mapHtmlRefs, type RefMapper } from '../refs';
 import { sanitizeCss, sanitizeHtml } from '../sanitize';
 import { detectDrm } from './drm';
-import { parsePackage, type ManifestItem } from './package';
+import { parsePackage, type ManifestItem, type PackageDocument } from './package';
+import { firstHeading, parseNav, parseNcx, titlesFromToc, tocFromHeadings } from './toc';
 import { bodyHtml, parseXhtml, parseXml, XHTML_NS } from './xml';
 import { decodeText, openZip, readText, type Zip } from './zip';
 
@@ -98,6 +99,30 @@ function readChapter(
   };
 }
 
+/** The nav, else the NCX, else a list built from headings (with a warning). */
+function readToc(
+  zip: Zip,
+  pkg: PackageDocument,
+  chapters: Chapter[],
+  warnings: Set<BookWarning>,
+): TocEntry[] {
+  const chapterIndex = new Map(chapters.map((c, i) => [c.href, i]));
+  const read = (href: string | undefined): string | undefined => {
+    const bytes = href === undefined ? undefined : lookup(zip, href);
+    return bytes === undefined ? undefined : decodeText(bytes);
+  };
+  const nav = read(pkg.navHref);
+  const fromNav =
+    nav === undefined || pkg.navHref === undefined ? [] : parseNav(nav, pkg.navHref, chapterIndex);
+  if (fromNav.length > 0) return fromNav;
+  const ncx = read(pkg.ncxHref);
+  const fromNcx =
+    ncx === undefined || pkg.ncxHref === undefined ? [] : parseNcx(ncx, pkg.ncxHref, chapterIndex);
+  if (fromNcx.length > 0) return fromNcx;
+  warnings.add('toc-generated');
+  return tocFromHeadings(chapters);
+}
+
 function titleFromFileName(fileName: string | undefined): string {
   const title = (fileName ?? '').replace(/\.[^./\\]*$/, '').trim();
   return title !== '' ? title : 'Untitled';
@@ -161,7 +186,14 @@ export async function readEpub(data: Uint8Array, opts: { fileName?: string } = {
   if (meta.title === '') meta.title = titleFromFileName(opts.fileName);
   if (meta.layout === 'pre-paginated') warnings.add('fixed-layout');
 
-  const book: Book = { meta, chapters, toc: [], resources, warnings: [...warnings] };
+  const toc = readToc(zip, pkg, chapters, warnings);
+  const titles = titlesFromToc(toc);
+  chapters.forEach((chapter, i) => {
+    const title = titles.get(i) ?? firstHeading(chapter.html);
+    if (title !== undefined) chapter.title = title;
+  });
+
+  const book: Book = { meta, chapters, toc, resources, warnings: [...warnings] };
   const cover = pkg.coverCandidates.find((href) => resources.has(href));
   if (cover !== undefined) book.cover = cover;
   return book;
