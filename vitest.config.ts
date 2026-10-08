@@ -7,8 +7,15 @@ export default defineConfig({
     include: ['tests/unit/**/*.test.ts'],
     coverage: {
       provider: 'v8',
-      include: ['src/**/*.ts'],
-      exclude: ['src/main.ts'],
+      include: [
+        'src/core/**/*.ts',
+        'src/reader/**/*.ts',
+        'src/storage/**/*.ts',
+        'src/rooms/**/*.ts',
+      ],
+      // Browser-only: layout needs a real engine, so Playwright covers these.
+      exclude: ['src/reader/paginator.ts', 'src/rooms/lectorium/controller.ts'],
+      thresholds: { lines: 90, branches: 80 },
     },
   },
 });

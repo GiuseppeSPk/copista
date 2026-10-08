@@ -34,6 +34,7 @@ test('opens the big book in under 5 seconds', async ({ page }) => {
     const book = await window.engine.readEpub(data);
     return { ms: performance.now() - start, chapters: book.chapters.length };
   });
+  test.info().annotations.push({ type: 'open-ms', description: result.ms.toFixed(0) });
   expect(result.chapters).toBeGreaterThan(0);
   expect(result.ms).toBeLessThan(5000);
 });
