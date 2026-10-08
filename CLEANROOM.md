@@ -33,3 +33,7 @@ Each entry names the document and what it was used for.
   structure, WordprocessingML paragraphs, runs, numbering and inline pictures.
 - RFC 3986 (URI syntax) and the WHATWG URL Standard: resolving relative hrefs.
 - W3C PNG specification (third edition): the minimal PNG writer used by tests.
+- DOMPurify README and its hook documentation (https://github.com/cure53/DOMPurify):
+  configuring the HTML sanitizer.
+- MDN Web Docs, CSS `url()`, `@import` and the `srcset` attribute: what the
+  sanitizer has to inspect for references outside the book.
