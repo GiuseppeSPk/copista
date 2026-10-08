@@ -1,2 +1,4 @@
+import { start } from './ui/start';
+
 const app = document.getElementById('app');
-if (app) app.textContent = 'Copista';
+if (app) start(app);

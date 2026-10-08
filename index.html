@@ -7,10 +7,23 @@
       http-equiv="Content-Security-Policy"
       content="default-src 'self'; img-src 'self' blob: data:; font-src 'self' blob: data:; style-src 'self' blob: 'unsafe-inline'; connect-src 'self'; frame-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'none'"
     />
+    <meta
+      name="description"
+      content="Read EPUB books and convert between EPUB, Word, Markdown, text and PDF, entirely in your browser."
+    />
+    <meta name="theme-color" content="#f6f1e7" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#1d1915" media="(prefers-color-scheme: dark)" />
+    <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <title>Copista</title>
   </head>
   <body>
-    <div id="app"></div>
+    <div id="app">
+      <noscript
+        >Copista needs JavaScript to run. Nothing is sent anywhere: it runs on your
+        device.</noscript
+      >
+    </div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

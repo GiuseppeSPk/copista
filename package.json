@@ -12,7 +12,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && svelte-check --tsconfig ./tsconfig.json --fail-on-warnings",
     "lint": "eslint . && prettier --check .",
     "format": "prettier --write .",
     "test": "vitest run",
@@ -20,7 +20,8 @@
     "test:corpus": "tsx scripts/fetch-corpus.ts && vitest run -c vitest.corpus.config.ts",
     "fixtures": "tsx scripts/make-fixtures.ts",
     "epubcheck": "tsx scripts/epubcheck.ts",
-    "licenses": "tsx scripts/check-licenses.ts"
+    "licenses": "tsx scripts/check-licenses.ts",
+    "icons": "tsx scripts/make-icons.ts"
   },
   "dependencies": {
     "dompurify": "^3.4.16",
@@ -31,8 +32,10 @@
     "turndown": "^7.2.4"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
     "@eslint/js": "^10.0.1",
     "@playwright/test": "^1.64.0",
+    "@sveltejs/vite-plugin-svelte": "^7.3.1",
     "@types/jsdom": "^30.0.0",
     "@types/node": "^22.20.5",
     "@types/turndown": "^5.0.6",
@@ -41,10 +44,14 @@
     "fake-indexeddb": "^6.2.5",
     "jsdom": "^29.1.1",
     "prettier": "^3.9.9",
+    "prettier-plugin-svelte": "^4.1.1",
+    "svelte": "^5.57.2",
+    "svelte-check": "^4.7.6",
     "tsx": "^4.23.15",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.71.1",
     "vite": "^8.3.4",
+    "vite-plugin-pwa": "^2.0.0",
     "vitest": "^5.0.3"
   }
 }

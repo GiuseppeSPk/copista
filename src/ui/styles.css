@@ -1,0 +1,613 @@
+/* Plain beta styling. The final design comes later. */
+
+:root {
+  color-scheme: light dark;
+  --bg: #f6f1e7;
+  --ink: #2b2118;
+  --muted: #6f604f;
+  --line: #d8cbb4;
+  --accent: #8a3b1f;
+  --card: #fffaf0;
+  --ok: #33662f;
+  --error: #9b2c12;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1d1915;
+    --ink: #eadfcd;
+    --muted: #b0a088;
+    --line: #3d342b;
+    --accent: #e08a5f;
+    --card: #26211c;
+    --ok: #9ccc8c;
+    --error: #f0997a;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font:
+    16px/1.5 Georgia,
+    'Times New Roman',
+    serif;
+}
+
+#app {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* The reader fills the window; the other rooms scroll. */
+#app:has(.lectorium) {
+  height: 100dvh;
+}
+
+a {
+  color: var(--accent);
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+.skip {
+  position: absolute;
+  left: 8px;
+  top: -48px;
+  z-index: 10;
+  padding: 8px 12px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+
+.skip:focus {
+  top: 8px;
+}
+
+/* Header and room navigation */
+
+.masthead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 20px;
+  padding: 10px 20px;
+  border-bottom: 1px solid var(--line);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink);
+  font-size: 20px;
+  letter-spacing: 0.06em;
+  text-decoration: none;
+}
+
+.masthead nav {
+  margin-left: auto;
+}
+
+.masthead ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.masthead nav a {
+  display: grid;
+  padding: 4px 12px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: var(--ink);
+  text-decoration: none;
+  line-height: 1.25;
+}
+
+.masthead nav a small {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.masthead nav a:hover {
+  border-color: var(--line);
+}
+
+.masthead nav a[aria-current='page'] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--bg);
+}
+
+.masthead nav a[aria-current='page'] small {
+  color: inherit;
+}
+
+main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+main:focus {
+  outline: none;
+}
+
+/* Rooms */
+
+.room {
+  width: 100%;
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 18px 20px 32px;
+}
+
+h1 {
+  margin: 0 0 4px;
+  font-size: 24px;
+}
+
+h2 {
+  margin: 24px 0 8px;
+  font-size: 18px;
+}
+
+.lead,
+.hint,
+.muted,
+.empty {
+  color: var(--muted);
+}
+
+.lead {
+  margin: 0 0 16px;
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+button,
+select,
+input[type='text'],
+.button {
+  font: inherit;
+  font-size: 15px;
+  padding: 6px 12px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--card);
+  color: var(--ink);
+}
+
+button,
+select,
+.button {
+  cursor: pointer;
+}
+
+button:hover:not(:disabled),
+.button:hover {
+  border-color: var(--accent);
+}
+
+button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.button {
+  position: relative;
+  display: inline-block;
+}
+
+/* The file input stays focusable; the label is what shows. */
+.button input[type='file'] {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.button:has(input:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--bg);
+}
+
+.danger {
+  border-color: var(--error);
+  color: var(--error);
+}
+
+button.link {
+  padding: 2px 0;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  text-align: left;
+}
+
+button.link:hover {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
+.notices p {
+  margin: 8px 0;
+}
+
+.ok {
+  color: var(--ok);
+}
+
+.error {
+  color: var(--error);
+}
+
+.details {
+  margin: 0 0 8px;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.panel {
+  margin: 12px 0;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--card);
+}
+
+.panel p {
+  margin: 0 0 8px;
+}
+
+.fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 8px 0 12px;
+}
+
+.fields label {
+  display: grid;
+  gap: 4px;
+  min-width: min(260px, 100%);
+}
+
+.targets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.targets button {
+  min-width: 100px;
+}
+
+.prose {
+  max-width: 40em;
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 4px 16px;
+}
+
+.facts dt {
+  color: var(--muted);
+}
+
+.facts dd {
+  margin: 0;
+}
+
+/* Bibliotheca */
+
+.shelf {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 16px;
+  margin: 16px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.card {
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--card);
+}
+
+.card .cover {
+  display: block;
+  aspect-ratio: 2 / 3;
+  overflow: hidden;
+  border-radius: 4px;
+  background: var(--line);
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.card .cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.card .cover span {
+  display: grid;
+  place-items: center;
+  height: 100%;
+  padding: 8px;
+  font-size: 14px;
+  text-align: center;
+}
+
+.card h2 {
+  margin: 0;
+  font-size: 15px;
+  overflow-wrap: anywhere;
+}
+
+.card .authors {
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.card .actions {
+  display: flex;
+  gap: 6px;
+}
+
+.card .actions button {
+  flex: 1;
+  padding: 4px 6px;
+  font-size: 14px;
+}
+
+/* Lectorium */
+
+.lectorium {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+  max-width: none;
+  padding-bottom: 12px;
+}
+
+.reading-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  margin-bottom: 10px;
+}
+
+.reading-bar h1 {
+  font-size: 20px;
+  overflow-wrap: anywhere;
+}
+
+.reading-bar .toolbar {
+  margin: 0 0 0 auto;
+}
+
+.group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.size {
+  min-width: 3.5em;
+  color: var(--muted);
+  font-size: 14px;
+  text-align: center;
+}
+
+.panel-toggle {
+  display: none;
+}
+
+.reading {
+  flex: 1;
+  position: relative;
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  gap: 16px;
+  min-height: 0;
+}
+
+.reading aside {
+  overflow: auto;
+  padding-right: 10px;
+  border-right: 1px solid var(--line);
+  font-size: 15px;
+}
+
+.reading aside h2:first-child {
+  margin-top: 0;
+}
+
+.contents {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.marks {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.marks li {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.marks small {
+  margin-left: 6px;
+  color: var(--muted);
+}
+
+.marks .remove {
+  margin-left: auto;
+  padding: 0 8px;
+}
+
+.page-area {
+  display: grid;
+  grid-template-rows: 1fr auto;
+  gap: 8px;
+  min-height: 0;
+}
+
+.pages {
+  position: relative;
+  min-height: 300px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+
+.page-nav {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.where {
+  flex: 1;
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+  text-align: center;
+}
+
+@media (max-width: 700px) {
+  .room {
+    padding: 14px 16px 24px;
+  }
+
+  .masthead {
+    padding: 8px 16px;
+  }
+
+  .masthead nav {
+    margin-left: 0;
+    width: 100%;
+  }
+
+  .masthead ul {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+  }
+
+  .masthead nav a {
+    padding: 4px 6px;
+    font-size: 14px;
+    text-align: center;
+  }
+
+  .masthead nav a small {
+    display: none;
+  }
+
+  .panel-toggle {
+    display: inline-block;
+  }
+
+  .reading-bar .toolbar {
+    margin-left: 0;
+  }
+
+  .reading {
+    grid-template-columns: 1fr;
+  }
+
+  .reading aside {
+    display: none;
+  }
+
+  .reading.panel-open aside {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    display: block;
+    padding: 12px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: var(--bg);
+  }
+
+  .where .chapter {
+    display: none;
+  }
+}
+
+/* Shown while a file is dragged over the page. */
+.drop-veil {
+  position: fixed;
+  inset: 12px;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  border: 3px dashed var(--accent);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  color: var(--accent);
+  font-size: 22px;
+  pointer-events: none;
+}
