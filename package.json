@@ -1,0 +1,49 @@
+{
+  "name": "copista",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Read and convert e-books in the browser. Nothing leaves your device.",
+  "license": "MIT",
+  "author": "Giuseppe Spicchiarello",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint . && prettier --check .",
+    "format": "prettier --write .",
+    "test": "vitest run",
+    "test:e2e": "playwright test",
+    "test:corpus": "tsx scripts/fetch-corpus.ts && vitest run -c vitest.corpus.config.ts",
+    "fixtures": "tsx scripts/make-fixtures.ts",
+    "epubcheck": "tsx scripts/write-outputs.ts && tsx scripts/epubcheck.ts",
+    "licenses": "tsx scripts/check-licenses.ts"
+  },
+  "dependencies": {
+    "dompurify": "^3.4.16",
+    "fflate": "^0.8.3",
+    "idb": "^8.0.4",
+    "mammoth": "^1.13.0",
+    "marked": "^18.1.0",
+    "turndown": "^7.2.4"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.64.0",
+    "@types/node": "^22.20.5",
+    "@types/turndown": "^5.0.6",
+    "@vitest/coverage-v8": "^5.0.3",
+    "eslint": "^10.12.0",
+    "fake-indexeddb": "^6.2.5",
+    "jsdom": "^29.1.1",
+    "prettier": "^3.9.9",
+    "tsx": "^4.23.15",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.71.1",
+    "vite": "^8.3.4",
+    "vitest": "^5.0.3"
+  }
+}

@@ -9,3 +9,5 @@ tests/fixtures/generated/
 .claude/settings.local.json
 .env
 .env.*
+.cache/
+tests/fixtures/output/
