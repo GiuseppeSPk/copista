@@ -10,6 +10,9 @@ export interface BookRecord {
   addedAt: number;
 }
 
+/** A library entry without its file, as the shelf lists it. */
+export type BookSummary = Omit<BookRecord, 'fileBlob'>;
+
 export interface ProgressRecord {
   bookId: string;
   spineIndex: number;
@@ -57,8 +60,29 @@ interface SettingRecord {
   value: unknown;
 }
 
+// Blobs are kept as plain bytes: WebKit refuses Blobs in IndexedDB in private
+// sessions. The book file lives in its own store so listing the shelf does not
+// read every file.
+interface StoredBytes {
+  bytes: ArrayBuffer;
+  type: string;
+}
+
+interface StoredBook {
+  id: string;
+  title: string;
+  authors: string[];
+  addedAt: number;
+  cover?: StoredBytes;
+}
+
+interface StoredFile extends StoredBytes {
+  id: string;
+}
+
 interface CopistaSchema extends DBSchema {
-  books: { key: string; value: BookRecord };
+  books: { key: string; value: StoredBook };
+  files: { key: string; value: StoredFile };
   progress: { key: string; value: ProgressRecord };
   bookmarks: { key: string; value: BookmarkRecord; indexes: { byBook: string } };
   settings: { key: string; value: SettingRecord };
@@ -70,6 +94,7 @@ function db(): Promise<IDBPDatabase<CopistaSchema>> {
   connection ??= openDB<CopistaSchema>(DB_NAME, DB_VERSION, {
     upgrade(database) {
       database.createObjectStore('books', { keyPath: 'id' });
+      database.createObjectStore('files', { keyPath: 'id' });
       database.createObjectStore('progress', { keyPath: 'bookId' });
       const bookmarks = database.createObjectStore('bookmarks', { keyPath: 'id' });
       bookmarks.createIndex('byBook', 'bookId');
@@ -109,28 +134,72 @@ async function write(neededBytes: number, run: () => Promise<unknown>): Promise<
   }
 }
 
+async function toBytes(blob: Blob): Promise<StoredBytes> {
+  return { bytes: await blob.arrayBuffer(), type: blob.type };
+}
+
+function toBlob(stored: StoredBytes): Blob {
+  return new Blob([stored.bytes], { type: stored.type });
+}
+
+function toSummary(stored: StoredBook): BookSummary {
+  const { id, title, authors, addedAt, cover } = stored;
+  return cover
+    ? { id, title, authors, addedAt, coverBlob: toBlob(cover) }
+    : { id, title, authors, addedAt };
+}
+
 export async function putBook(rec: BookRecord): Promise<void> {
+  const { id, title, authors, addedAt } = rec;
+  const book: StoredBook = { id, title, authors, addedAt };
+  if (rec.coverBlob) book.cover = await toBytes(rec.coverBlob);
+  const file: StoredFile = { id, ...(await toBytes(rec.fileBlob)) };
   const database = await db();
-  await write(rec.fileBlob.size + (rec.coverBlob?.size ?? 0), () => database.put('books', rec));
+  await write(rec.fileBlob.size + (rec.coverBlob?.size ?? 0), async () => {
+    const tx = database.transaction(['books', 'files'], 'readwrite');
+    try {
+      await Promise.all([
+        tx.objectStore('books').put(book),
+        tx.objectStore('files').put(file),
+        tx.done,
+      ]);
+    } catch (error) {
+      // A put that throws before the transaction settles must not leave half a book behind.
+      tx.done.catch(() => undefined);
+      try {
+        tx.abort();
+      } catch {
+        // Already finished or aborted.
+      }
+      throw error;
+    }
+  });
 }
 
 export async function getBook(id: string): Promise<BookRecord | undefined> {
-  return (await db()).get('books', id);
+  const tx = (await db()).transaction(['books', 'files']);
+  const [book, file] = await Promise.all([
+    tx.objectStore('books').get(id),
+    tx.objectStore('files').get(id),
+  ]);
+  if (!book || !file) return undefined;
+  return { ...toSummary(book), fileBlob: toBlob(file) };
 }
 
-/** Every book in the library, newest first. */
-export async function listBooks(): Promise<BookRecord[]> {
+/** Every book in the library, newest first, without the files. */
+export async function listBooks(): Promise<BookSummary[]> {
   const books = await (await db()).getAll('books');
-  return books.sort((a, b) => b.addedAt - a.addedAt);
+  return books.sort((a, b) => b.addedAt - a.addedAt).map(toSummary);
 }
 
 /** Removes a book together with its reading progress and bookmarks, all or nothing. */
 export async function deleteBook(id: string): Promise<void> {
-  const tx = (await db()).transaction(['books', 'progress', 'bookmarks'], 'readwrite');
+  const tx = (await db()).transaction(['books', 'files', 'progress', 'bookmarks'], 'readwrite');
   const bookmarks = tx.objectStore('bookmarks');
   const marks = await bookmarks.index('byBook').getAllKeys(id);
   await Promise.all([
     tx.objectStore('books').delete(id),
+    tx.objectStore('files').delete(id),
     tx.objectStore('progress').delete(id),
     ...marks.map((key) => bookmarks.delete(key)),
     tx.done,

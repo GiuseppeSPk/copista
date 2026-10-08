@@ -11,6 +11,7 @@ import {
   putBook,
   putSetting,
   type BookRecord,
+  type BookSummary,
 } from '../../storage/db';
 
 export interface ShelfBook {
@@ -30,7 +31,7 @@ export interface ImportResult {
 const EPUB_MEDIA_TYPE = 'application/epub+zip';
 const PERSIST_SETTING = 'persistRequested';
 
-function toShelf(rec: BookRecord): ShelfBook {
+function toShelf(rec: BookSummary): ShelfBook {
   const { id, title, authors, coverBlob, addedAt } = rec;
   return coverBlob ? { id, title, authors, coverBlob, addedAt } : { id, title, authors, addedAt };
 }

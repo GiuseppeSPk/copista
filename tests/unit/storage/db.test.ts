@@ -30,6 +30,32 @@ function bookmark(
   return { id, bookId, spineIndex, fraction, snippet: `${id} text`, createdAt: 0 };
 }
 
+/** Every record in every store, read past the module, as the browser keeps it. */
+async function rawRecords(): Promise<Record<string, unknown[]>> {
+  const db = await new Promise<IDBDatabase>((resolve) => {
+    const request = indexedDB.open('copista');
+    request.onsuccess = () => resolve(request.result);
+  });
+  const names = [...db.objectStoreNames];
+  const tx = db.transaction(names);
+  const all = await Promise.all(
+    names.map(
+      (name) =>
+        new Promise<unknown[]>((resolve) => {
+          const request = tx.objectStore(name).getAll();
+          request.onsuccess = () => resolve(request.result as unknown[]);
+        }),
+    ),
+  );
+  db.close();
+  return Object.fromEntries(names.map((name, i) => [name, all[i]!]));
+}
+
+function holdsBlob(value: unknown): boolean {
+  if (value instanceof Blob) return true;
+  return typeof value === 'object' && value !== null && Object.values(value).some(holdsBlob);
+}
+
 describe('storage', () => {
   beforeEach(deleteAllStorage);
 
@@ -40,7 +66,13 @@ describe('storage', () => {
       request.onsuccess = () => resolve(request.result);
     });
     expect(db.version).toBe(1);
-    expect([...db.objectStoreNames].sort()).toEqual(['bookmarks', 'books', 'progress', 'settings']);
+    expect([...db.objectStoreNames].sort()).toEqual([
+      'bookmarks',
+      'books',
+      'files',
+      'progress',
+      'settings',
+    ]);
     db.close();
   });
 
@@ -50,6 +82,29 @@ describe('storage', () => {
     expect((await listBooks()).map((b) => b.id)).toEqual(['b', 'a']);
     expect(await (await getBook('a'))!.fileBlob.text()).toBe('aa');
     expect(await getBook('missing')).toBeUndefined();
+  });
+
+  it('keeps no Blob in the database, since WebKit private sessions refuse them', async () => {
+    await putBook({
+      ...book('a', 1),
+      fileBlob: new Blob(['abc'], { type: 'application/epub+zip' }),
+      coverBlob: new Blob(['png'], { type: 'image/png' }),
+    });
+    const raw = await rawRecords();
+    expect(raw.books).toHaveLength(1);
+    expect(holdsBlob(raw)).toBe(false);
+    const back = (await getBook('a'))!;
+    expect(back.fileBlob.type).toBe('application/epub+zip');
+    expect(await back.fileBlob.text()).toBe('abc');
+    expect(back.coverBlob!.type).toBe('image/png');
+    expect(await back.coverBlob!.text()).toBe('png');
+  });
+
+  it('lists the library without loading the book files', async () => {
+    await putBook({ ...book('a', 1), coverBlob: new Blob(['png'], { type: 'image/png' }) });
+    const [listed] = await listBooks();
+    expect(listed).not.toHaveProperty('fileBlob');
+    expect(await listed!.coverBlob!.text()).toBe('png');
   });
 
   it('deletes a book with its progress and bookmarks only', async () => {
@@ -71,6 +126,7 @@ describe('storage', () => {
       updatedAt: 1,
     });
     expect((await listBookmarks('b')).map((m) => m.id)).toEqual(['b1', 'b2']);
+    expect((await rawRecords()).files).toHaveLength(1);
   });
 
   it('orders bookmarks by spine index then fraction', async () => {
