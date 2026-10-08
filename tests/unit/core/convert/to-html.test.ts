@@ -28,6 +28,18 @@ describe('toHtml', () => {
     );
   });
 
+  it('forbids the page from loading anything outside itself', async () => {
+    const book = await readEpub(EPUB.epub3Nav());
+    for (const html of [toHtml(book), toHtml(book, { print: true })]) {
+      const doc = new DOMParser().parseFromString(html, 'text/html');
+      const csp = doc.querySelector('meta[http-equiv="Content-Security-Policy"]');
+      expect(csp?.getAttribute('content')).toBe(
+        "default-src 'none'; img-src data:; font-src data:; media-src data:; style-src 'unsafe-inline'",
+      );
+      expect(doc.head.firstElementChild!.getAttribute('charset')).toBe('utf-8');
+    }
+  });
+
   it('adds page rules for printing', async () => {
     const book = await readEpub(EPUB.epub3Nav());
     const print = toHtml(book, { print: true });

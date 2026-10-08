@@ -1,5 +1,5 @@
 import DOMPurify from 'dompurify';
-import { mapCssUrls } from './refs';
+import { mapCssUrls, unescapeCss } from './refs';
 
 const FORBID_TAGS = [
   'script',
@@ -18,7 +18,7 @@ const FORBID_TAGS = [
   'embed',
 ];
 
-const RESOURCE_ATTRIBUTES = new Set(['src', 'srcset', 'poster', 'xlink:href']);
+const RESOURCE_ATTRIBUTES = new Set(['src', 'srcset', 'poster', 'xlink:href', 'background']);
 const LINK_SCHEMES = new Set(['http', 'https', 'mailto']);
 
 /**
@@ -60,20 +60,71 @@ function internalCssRef(ref: string): string | null {
   return scheme === null || scheme === 'data' ? ref : null;
 }
 
-const BLOCKED_IMPORT = /@import\s+url\("about:invalid"\)[^;]*;?/gi;
+const FETCHING_SCHEMES = new Set(['//', 'http', 'https', 'ftp', 'ws', 'wss', 'file']);
+
+/** A string that names another site, as image-set() and src() may use one. */
+function isRemoteString(value: string): boolean {
+  const scheme = schemeOf(value);
+  return scheme !== null && FETCHING_SCHEMES.has(scheme);
+}
+
+/** Comments, strings and escapes: the tokens that can hide a url() or an @import. */
+const CSS_HIDING =
+  /\/\*[\s\S]*?(?:\*\/|$)|"((?:[^"\\\n]|\\[\s\S])*)"?|'((?:[^'\\\n]|\\[\s\S])*)'?|\\([0-9a-f]{1,6})[ \t\n\r\f]?|\\([^\n])/gi;
+
+/**
+ * Drops comments and decodes escapes that spell a letter, digit, '-' or '_'
+ * outside strings, so that `@\69mport` or `\75 rl(` read as what the browser sees.
+ */
+function normalizeCss(css: string): string {
+  return css.replace(
+    CSS_HIDING,
+    (token, _dq?: string, _sq?: string, hex?: string, char?: string) => {
+      if (token.startsWith('/*')) return ' ';
+      const code = hex === undefined ? undefined : parseInt(hex, 16);
+      const decoded =
+        code === undefined ? char : code <= 0x10ffff ? String.fromCodePoint(code) : '';
+      return decoded !== undefined && /^[\w-]$/.test(decoded) ? decoded : token;
+    },
+  );
+}
+
+function blockRemoteStrings(css: string): string {
+  return css.replace(CSS_HIDING, (token, dq?: string, sq?: string) => {
+    const body = dq ?? sq;
+    return body !== undefined && isRemoteString(unescapeCss(body)) ? '"about:invalid"' : token;
+  });
+}
+
+// The removals below never cross a quote or a backslash, so strings stay strings.
+const BLOCKED_IMPORT = /@import\s*url\("about:invalid"\)[^;{}"'\\]*;?/gi;
 const SCRIPTED_DECLARATION =
-  /(?:-moz-binding|behavior)\s*:[^;}]*;?|[-\w]+\s*:[^;{}]*expression\s*\([^;}]*;?/gi;
+  /(?:-moz-binding|behavior)\s*:[^;}"'\\]*;?|[-\w]+\s*:[^;{}"'\\]*expression\s*\([^;}"'\\]*;?/gi;
+
+function sanitizeCssOnce(css: string): string {
+  const mapped = mapCssUrls(normalizeCss(css), internalCssRef).replace(BLOCKED_IMPORT, '');
+  return blockRemoteStrings(mapped)
+    .replace(SCRIPTED_DECLARATION, '')
+    .replace(/expression\s*\(|-moz-binding|behavior\s*:/gi, ' ');
+}
+
+const MAX_CSS_PASSES = 8;
 
 /**
  * Makes a stylesheet or a style attribute safe to render: imports from outside
- * the book are dropped, other external url() values become about:invalid, and
- * declarations that could run script in old engines are removed.
+ * the book are dropped, other external url() values and remote strings become
+ * about:invalid, and declarations that could run script in old engines are
+ * removed. A removal can join two pieces into a new reference, so the passes
+ * repeat until nothing changes; a stylesheet that never settles is dropped.
  */
 export function sanitizeCss(css: string): string {
-  return mapCssUrls(css, internalCssRef)
-    .replace(BLOCKED_IMPORT, '')
-    .replace(SCRIPTED_DECLARATION, '')
-    .replace(/expression\s*\(|-moz-binding|behavior\s*:/gi, '');
+  let current = css;
+  for (let pass = 0; pass < MAX_CSS_PASSES; pass++) {
+    const next = sanitizeCssOnce(current);
+    if (next === current) return next;
+    current = next;
+  }
+  return '';
 }
 
 let purifier: ReturnType<typeof DOMPurify> | undefined;
@@ -92,6 +143,9 @@ function getPurifier(): ReturnType<typeof DOMPurify> {
       data.keepAttr = isAllowedLink(value);
     } else if (RESOURCE_ATTRIBUTES.has(name) || name === 'href') {
       data.keepAttr = isAllowedResource(value);
+    } else if (/url\(|image-set\(/i.test(normalizeCss(value))) {
+      // SVG presentation attributes such as fill, filter and mask take CSS values.
+      data.attrValue = sanitizeCss(value);
     }
   });
   purifier = instance;
@@ -105,6 +159,7 @@ function getPurifier(): ReturnType<typeof DOMPurify> {
 export function sanitizeHtml(html: string): string {
   return getPurifier().sanitize(html, {
     FORBID_TAGS,
+    FORBID_ATTR: ['action', 'formaction'],
     // hspace and vspace carry only image margins; the EPUB writer turns them into CSS.
     ADD_ATTR: ['epub:type', 'hspace', 'vspace'],
   });

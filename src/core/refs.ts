@@ -41,23 +41,53 @@ export function mapHtmlRefs(html: string, map: RefMapper): string {
   return template.innerHTML;
 }
 
-const CSS_REF =
-  /url\(\s*(?:"([^"]*)"|'([^']*)'|([^)"'\s]*))\s*\)|@import\s+(?:"([^"]*)"|'([^']*)')/gi;
+const CSS_ESCAPE = String.raw`\\(?:[0-9a-fA-F]{1,6}[ \t\n\r\f]?|[^\n])`;
+const CSS_DQ = String.raw`"((?:[^"\\\n]|\\[\s\S])*)"?`;
+const CSS_SQ = String.raw`'((?:[^'\\\n]|\\[\s\S])*)'?`;
+const CSS_BARE = String.raw`((?:[^)"'\s\\]|${CSS_ESCAPE})*)`;
+
+/**
+ * url() and @import references, plus the comments, strings and escapes that
+ * are matched whole so that nothing inside them is taken for a reference.
+ * A missing closing quote or parenthesis is accepted, as browsers accept it at
+ * the end of a stylesheet.
+ */
+const CSS_REF = new RegExp(
+  String.raw`url\(\s*(?:${CSS_DQ}|${CSS_SQ}|${CSS_BARE})\s*\)?|@import\s*(?:${CSS_DQ}|${CSS_SQ})` +
+    String.raw`|\/\*[\s\S]*?(?:\*\/|$)|"(?:[^"\\\n]|\\[\s\S])*"?|'(?:[^'\\\n]|\\[\s\S])*'?|${CSS_ESCAPE}`,
+  'gi',
+);
+
+/** Decodes the backslash escapes of a CSS string or url() value. */
+export function unescapeCss(value: string): string {
+  return value.replace(
+    /\\(?:([0-9a-f]{1,6})(?:\r\n|[ \t\n\r\f])?|(\n)|([\s\S]))/gi,
+    (_, hex?: string, newline?: string, char?: string) => {
+      if (newline !== undefined) return '';
+      if (char !== undefined) return char;
+      const code = parseInt(hex!, 16);
+      return code === 0 || code > 0x10ffff ? '�' : String.fromCodePoint(code);
+    },
+  );
+}
 
 function cssUrl(ref: string, map: RefMapper): string {
   const mapped = map(ref) ?? 'about:invalid';
   return `url("${mapped.replace(/["\\\n]/g, (c) => (c === '\n' ? '\\a ' : '\\' + c))}")`;
 }
 
-/** Applies `map` to every url() and @import string in a stylesheet. */
+/**
+ * Applies `map` to every url() and @import string in a stylesheet. The mapper
+ * receives the reference with its escapes decoded.
+ */
 export function mapCssUrls(css: string, map: RefMapper): string {
   return css.replace(
     CSS_REF,
     (match, dq?: string, sq?: string, bare?: string, importDq?: string, importSq?: string) => {
       const importRef = importDq ?? importSq;
-      if (importRef !== undefined) return `@import ${cssUrl(importRef, map)}`;
+      if (importRef !== undefined) return `@import ${cssUrl(unescapeCss(importRef), map)}`;
       const ref = dq ?? sq ?? bare;
-      return ref === undefined ? match : cssUrl(ref, map);
+      return ref === undefined ? match : cssUrl(unescapeCss(ref), map);
     },
   );
 }

@@ -4,6 +4,9 @@ import { sanitizeCss, sanitizeHtml } from '../sanitize';
 
 const EXTERNAL = /^[a-z][a-z0-9+.-]*:/i;
 const PRINT_CSS = '@page { margin: 2cm }\nsection.chapter { break-before: page }';
+// Everything the page shows is inlined, so it never needs to load anything else.
+const PAGE_POLICY =
+  "default-src 'none'; img-src data:; font-src data:; media-src data:; style-src 'unsafe-inline'";
 
 function escapeText(text: string): string {
   return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -132,6 +135,7 @@ export function toHtml(book: Book, opts: { print?: boolean } = {}): string {
     `<html${lang}>`,
     '<head>',
     '<meta charset="utf-8">',
+    `<meta http-equiv="Content-Security-Policy" content="${PAGE_POLICY}">`,
     '<meta name="viewport" content="width=device-width, initial-scale=1">',
     ...(opts.print ? ['<meta name="color-scheme" content="light">'] : []),
     `<title>${escapeText(book.meta.title)}</title>`,

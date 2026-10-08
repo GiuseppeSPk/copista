@@ -45,6 +45,19 @@ describe('sanitizeHtml', () => {
     expect(clean).toContain('href="OEBPS/ch2.xhtml#n1"');
     expect(clean).toContain('href="mailto:a@example.org"');
   });
+
+  it('drops external references from legacy and SVG presentation attributes', () => {
+    const clean = sanitizeHtml(
+      '<table background="https://e.invalid/t.png"><tr><td background="OEBPS/t.png">t</td></tr></table>' +
+        '<svg><rect fill="url(https://e.invalid/p#g)" stroke="url(#local)" ' +
+        'filter="u\\72l(https://e.invalid/f)" mask="url( \'https://e.invalid/m\' )"/></svg>' +
+        '<p action="https://e.invalid/a">p</p>',
+    );
+    expect(clean).not.toContain('e.invalid');
+    expect(clean).toContain('<td background="OEBPS/t.png">');
+    expect(clean).toContain('stroke="url(&quot;#local&quot;)"');
+    expect(clean).toContain('<p>p</p>');
+  });
 });
 
 describe('sanitizeCss', () => {
@@ -56,5 +69,33 @@ describe('sanitizeCss', () => {
     expect(css).toContain('@import url("OEBPS/css/b.css")');
     expect(css).toContain('p{color:red}');
     for (const bad of ['expression(', '-moz-binding']) expect(css).not.toContain(bad);
+  });
+
+  it.each([
+    '@import"https://e.invalid/a.css";',
+    '@import/**/"https://e.invalid/a.css";',
+    '@\\69mport "https://e.invalid/a.css";',
+    '@IMPORT url(https://e.invalid/a.css) screen;',
+    'p{background:\\75 rl(https://e.invalid/a.png)}',
+    'p{background:url("https://e.invalid/a\\".png")}',
+    "p{background:image-set('https://e.invalid/a.png' 1x)}",
+    'p{background:-webkit-image-set("https://e.invalid/a.png" 1x)}',
+    '@font-face{src:src("https://e.invalid/f.woff")}',
+    'p{background:url(https\\3a //e.invalid/a.png)}',
+    'p{background:url("https\\3a //e.invalid/a.png")}',
+    'p{background:url(//e.invalid/a.png)}',
+    'p{background:url(/**/https://e.invalid/a.png)}',
+  ])('leaves no external reference in %s', (input) => {
+    expect(sanitizeCss(input)).not.toContain('e.invalid');
+  });
+
+  it('keeps internal references written with comments and escapes', () => {
+    const css = sanitizeCss(
+      '@import/**/"OEBPS/b.css"; p{b\\61 ckground:url( OEBPS/i.png )/* note */;color:red}',
+    );
+    expect(css).toContain('@import url("OEBPS/b.css")');
+    expect(css).toContain('background:url("OEBPS/i.png")');
+    expect(css).toContain('color:red');
+    expect(css).not.toContain('note');
   });
 });
