@@ -5,6 +5,7 @@ import { writeEpub } from '../../../../src/core/epub/write';
 import { htmlToXhtml } from '../../../../src/core/epub/xhtml';
 import { parseXml } from '../../../../src/core/epub/xml';
 import { EPUB, type EpubFixture, textOf } from '../../../fixtures/catalog';
+import { epubZip, nav, opf, xhtml } from '../../../fixtures/epub-builder';
 import { READ_EXPECTATIONS } from '../../../fixtures/expectations';
 
 const OPS_NS = 'http://www.idpf.org/2007/ops';
@@ -160,6 +161,26 @@ describe('writeEpub', () => {
     const { zip } = await legacyOutput();
     expect(strFromU8(zip['EPUB/content.opf']!)).not.toMatch(/search-key-map|smil/);
     expect(Object.keys(zip).filter((p) => /search-key-map|\.smil$/.test(p))).toEqual([]);
+  });
+
+  it('converts a book whose spine lists the same file twice', async () => {
+    const twice = epubZip({
+      'OEBPS/content.opf': opf({
+        title: 'Twice',
+        items: [
+          { id: 'nav', href: 'nav.xhtml', mediaType: 'application/xhtml+xml', properties: 'nav' },
+          { id: 'a', href: 'ch1.xhtml', mediaType: 'application/xhtml+xml' },
+          { id: 'b', href: 'ch1.xhtml', mediaType: 'application/xhtml+xml' },
+        ],
+        spine: ['a', 'b'],
+      }),
+      'OEBPS/nav.xhtml': nav([{ label: 'One', href: 'ch1.xhtml' }]),
+      'OEBPS/ch1.xhtml': xhtml('One', '<p>Only once.</p>'),
+    });
+    const book = await readEpub(twice);
+    expect([...book.resources.keys()].filter((key) => key.endsWith('ch1.xhtml'))).toEqual([]);
+    const again = await readEpub(writeEpub(book));
+    expect(again.chapters.map((c) => textOf(c.html))).toEqual(['Only once.']);
   });
 
   it('writes well-formed XML for every readable fixture', async () => {

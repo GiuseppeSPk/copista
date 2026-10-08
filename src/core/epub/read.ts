@@ -141,21 +141,22 @@ export async function readEpub(data: Uint8Array, opts: { fileName?: string } = {
   const warnings = new Set<BookWarning>();
 
   const chapterItems: ManifestItem[] = [];
-  const chapterIds = new Set<string>();
+  const chapterHrefs = new Set<string>();
   for (const idref of pkg.spine) {
     const item = pkg.manifest.get(idref);
     if (item === undefined) {
       warnings.add('missing-resource');
       continue;
     }
-    if (!CHAPTER_TYPES.has(item.mediaType) || chapterIds.has(idref)) continue;
-    chapterIds.add(idref);
+    // A file listed twice, under one id or two, is read once.
+    if (!CHAPTER_TYPES.has(item.mediaType) || chapterHrefs.has(item.href)) continue;
+    chapterHrefs.add(item.href);
     chapterItems.push(item);
   }
 
   const resources = new Map<string, Resource>();
   for (const item of pkg.manifest.values()) {
-    if (chapterIds.has(item.id) || resources.has(item.href)) continue;
+    if (chapterHrefs.has(item.href) || resources.has(item.href)) continue;
     if (obfuscated.has(item.href)) {
       warnings.add('obfuscated-fonts-ignored');
       continue;
