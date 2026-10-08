@@ -37,3 +37,53 @@ test('opens the big book in under 5 seconds', async ({ page }) => {
   expect(result.chapters).toBeGreaterThan(0);
   expect(result.ms).toBeLessThan(5000);
 });
+
+for (const target of ['docx', 'md', 'txt', 'html'] as const) {
+  test(`converts an EPUB to ${target}`, async ({ page }) => {
+    const outcome = await page.evaluate(
+      (t) =>
+        window.engine.convertOutcome(
+          { url: '/tests/fixtures/generated/epub3-nav.epub' },
+          'b.epub',
+          t,
+        ),
+      target,
+    );
+    expect(outcome.kind).toBe('file');
+    expect(outcome.fileName).toBe(`Fixture Three.${target}`);
+    expect(outcome.size).toBeGreaterThan(0);
+  });
+}
+
+test('prepares an EPUB for printing to PDF', async ({ page }) => {
+  const outcome = await page.evaluate(() =>
+    window.engine.convertOutcome(
+      { url: '/tests/fixtures/generated/epub3-nav.epub' },
+      'b.epub',
+      'pdf',
+    ),
+  );
+  expect(outcome).toMatchObject({ kind: 'print', printable: true });
+  expect(outcome.size).toBeGreaterThan(0);
+});
+
+const TO_EPUB = {
+  'a Word document': {
+    source: { url: '/tests/fixtures/generated/basic.docx' },
+    name: 'basic.docx',
+  },
+  Markdown: { source: { text: '# One\n\nText.\n\n# Two\n\nMore.' }, name: 'notes.md' },
+  'plain text': { source: { text: 'CHAPTER I\n\nHi.\n\nCHAPTER II\n\nBye.' }, name: 'notes.txt' },
+};
+
+for (const [label, { source, name }] of Object.entries(TO_EPUB)) {
+  test(`converts ${label} to an EPUB that reopens`, async ({ page }) => {
+    const outcome = await page.evaluate(([s, n]) => window.engine.convertOutcome(s, n, 'epub'), [
+      source,
+      name,
+    ] as const);
+    expect(outcome.kind).toBe('file');
+    expect(outcome.size).toBeGreaterThan(0);
+    expect(outcome.chapters).toBeGreaterThan(0);
+  });
+}
