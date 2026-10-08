@@ -37,3 +37,17 @@ Each entry names the document and what it was used for.
   configuring the HTML sanitizer.
 - MDN Web Docs, CSS `url()`, `@import` and the `srcset` attribute: what the
   sanitizer has to inspect for references outside the book.
+
+## Test corpus
+
+`npm run test:corpus` downloads 25 public-domain books listed in
+`tests/corpus.json` and checks that the reader opens each of them. The files
+are not stored in the repository.
+
+- Standard Ebooks (https://standardebooks.org), 20 titles. Standard Ebooks
+  dedicates its own work on each edition to the public domain under CC0 1.0;
+  the underlying texts are in the public domain in the USA.
+- Project Gutenberg (https://www.gutenberg.org), 5 titles, fetched from the
+  Project Gutenberg Literary Archive Foundation server `gutenberg.pglaf.org`,
+  which serves the same files. The texts are in the public domain in the USA
+  and are distributed under the Project Gutenberg License.

@@ -34,3 +34,18 @@ jobs:
       - run: npm ci
       - run: npx playwright install --with-deps chromium webkit
       - run: npm run test:e2e
+
+  corpus:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/cache@v4
+        with:
+          path: tests/fixtures/corpus
+          key: corpus-${{ hashFiles('tests/corpus.json') }}
+      - run: npm ci
+      - run: npm run test:corpus

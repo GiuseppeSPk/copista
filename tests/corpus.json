@@ -1,0 +1,177 @@
+[
+  {
+    "id": "se-middlemarch",
+    "source": "standardebooks",
+    "url": "https://standardebooks.org/ebooks/george-eliot/middlemarch/downloads/george-eliot_middlemarch.epub?source=download",
+    "sha256": "cc2f7d8113f526335de81455b5bea9d3750a935f4b751cbdc6a191b3138ffcc8",
+    "license": "CC0-1.0 (Standard Ebooks edition); public domain text"
+  },
+  {
+    "id": "se-war-and-peace",
+    "source": "standardebooks",
+    "url": "https://standardebooks.org/ebooks/leo-tolstoy/war-and-peace/louise-maude_aylmer-maude/downloads/leo-tolstoy_war-and-peace_louise-maude_aylmer-maude.epub?source=download",
+    "sha256": "07cc66a9fa72c3ca28ee01510a4acc972778b575d50821f5523fbbc8146ba411",
+    "license": "CC0-1.0 (Standard Ebooks edition); public domain text"
+  },
+  {
+    "id": "se-leaves-of-grass",
+    "source": "standardebooks",
+    "url": "https://standardebooks.org/ebooks/walt-whitman/leaves-of-grass/downloads/walt-whitman_leaves-of-grass.epub?source=download",
+    "sha256": "c97c69c8f6b77142a25197e19f57c9965f97747c0cf527b2d030183012b96466",
+    "license": "CC0-1.0 (Standard Ebooks edition); public domain text"
+  },
+  {
+    "id": "se-keats-poetry",
+    "source": "standardebooks",
+    "url": "https://standardebooks.org/ebooks/john-keats/poetry/downloads/john-keats_poetry.epub?source=download",
+    "sha256": "16fdaf56bc27ed4614d20ee235be8c4566b12b990843e939e1da99b1b0c7fb94",
+    "license": "CC0-1.0 (Standard Ebooks edition); public domain text"
+  },
+  {
+    "id": "se-hamlet",
+    "source": "standardebooks",
+    "url": "https://standardebooks.org/ebooks/william-shakespeare/hamlet/downloads/william-shakespeare_hamlet.epub?source=download",
+    "sha256": "2a1b004e0970db7dcecf230cca104b371b381296cded6a1921beda2aaa95cc1e",
+    "license": "CC0-1.0 (Standard Ebooks edition); public domain text"
+  },
+  {
+    "id": "se-earnest",
+    "source": "standardebooks",
+    "url": "https://standardebooks.org/ebooks/oscar-wilde/the-importance-of-being-earnest/downloads/oscar-wilde_the-importance-of-being-earnest.epub?source=download",
+    "sha256": "1b9d41ec39fdcd23c939fb60f7d8191ff51ea9a4b40d106c63a1e1c172691064",
+    "license": "CC0-1.0 (Standard Ebooks edition); public domain text"
+  },
+  {
+    "id": "se-divine-comedy",
+    "source": "standardebooks",
+    "url": "https://standardebooks.org/ebooks/dante-alighieri/the-divine-comedy/henry-wadsworth-longfellow/downloads/dante-alighieri_the-divine-comedy_henry-wadsworth-longfellow.epub?source=download",
+    "sha256": "0967637b28326932bdac0738703bc4b7dc6f508574a67c38ee6f55a8f74a1c16",
+    "license": "CC0-1.0 (Standard Ebooks edition); public domain text"
+  },
+  {
+    "id": "se-meditations",
+    "source": "standardebooks",
+    "url": "https://standardebooks.org/ebooks/marcus-aurelius/meditations/george-long/downloads/marcus-aurelius_meditations_george-long.epub?source=download",
+    "sha256": "c2b77e9daa37694b978f78f9ae2d801fd263be533af187e8b36b7da28845e0c8",
+    "license": "CC0-1.0 (Standard Ebooks edition); public domain text"
+  },
+  {
+    "id": "se-alice",
+    "source": "standardebooks",
+    "url": "https://standardebooks.org/ebooks/lewis-carroll/alices-adventures-in-wonderland/john-tenniel/downloads/lewis-carroll_alices-adventures-in-wonderland_john-tenniel.epub?source=download",
+    "sha256": "8f957fd0c7fabc290f8a423ea2f9a2d2215291514f5f9959d23cbb91f4bc0c7f",
+    "license": "CC0-1.0 (Standard Ebooks edition); public domain text"
+  },
+  {
+    "id": "se-wizard-of-oz",
+    "source": "standardebooks",
+    "url": "https://standardebooks.org/ebooks/l-frank-baum/the-wonderful-wizard-of-oz/downloads/l-frank-baum_the-wonderful-wizard-of-oz.epub?source=download",
+    "sha256": "be8f7802b737cf2f402960d4c691238ccd51b67de0cd69b909e35a2108da47a3",
+    "license": "CC0-1.0 (Standard Ebooks edition); public domain text"
+  },
+  {
+    "id": "se-sherlock-holmes",
+    "source": "standardebooks",
+    "url": "https://standardebooks.org/ebooks/arthur-conan-doyle/the-adventures-of-sherlock-holmes/downloads/arthur-conan-doyle_the-adventures-of-sherlock-holmes.epub?source=download",
+    "sha256": "644ab66744e64b03915d0d1ee6167c1de1b7a17f0544c81fc31ad4ad3585d59c",
+    "license": "CC0-1.0 (Standard Ebooks edition); public domain text"
+  },
+  {
+    "id": "se-poe-short-fiction",
+    "source": "standardebooks",
+    "url": "https://standardebooks.org/ebooks/edgar-allan-poe/short-fiction/downloads/edgar-allan-poe_short-fiction.epub?source=download",
+    "sha256": "cf5bf1c5fae87049415c552eaae8951126de9324a5aee714a3c0458cdf3dbc38",
+    "license": "CC0-1.0 (Standard Ebooks edition); public domain text"
+  },
+  {
+    "id": "se-crime-and-punishment",
+    "source": "standardebooks",
+    "url": "https://standardebooks.org/ebooks/fyodor-dostoevsky/crime-and-punishment/constance-garnett/downloads/fyodor-dostoevsky_crime-and-punishment_constance-garnett.epub?source=download",
+    "sha256": "99854bf732c46a4d2bf657bf80dc3f48a42ed34b2d622edc5411a0221ea3828f",
+    "license": "CC0-1.0 (Standard Ebooks edition); public domain text"
+  },
+  {
+    "id": "se-iliad",
+    "source": "standardebooks",
+    "url": "https://standardebooks.org/ebooks/homer/the-iliad/william-cullen-bryant/downloads/homer_the-iliad_william-cullen-bryant.epub?source=download",
+    "sha256": "2dcf8921e448ce92b0dc7265621b4c47d518831073d82d2da342fa9d18581399",
+    "license": "CC0-1.0 (Standard Ebooks edition); public domain text"
+  },
+  {
+    "id": "se-origin-of-species",
+    "source": "standardebooks",
+    "url": "https://standardebooks.org/ebooks/charles-darwin/the-origin-of-species/downloads/charles-darwin_the-origin-of-species.epub?source=download",
+    "sha256": "604810db31d2493d3f256c9801930cd943c600437a83b2b22869af1b118c9da1",
+    "license": "CC0-1.0 (Standard Ebooks edition); public domain text"
+  },
+  {
+    "id": "se-pride-and-prejudice",
+    "source": "standardebooks",
+    "url": "https://standardebooks.org/ebooks/jane-austen/pride-and-prejudice/downloads/jane-austen_pride-and-prejudice.epub?source=download",
+    "sha256": "85814417c1a74d2ca7f3b077b47454d0cfc728392d40d846d1c97d44f24c5279",
+    "license": "CC0-1.0 (Standard Ebooks edition); public domain text"
+  },
+  {
+    "id": "se-frankenstein",
+    "source": "standardebooks",
+    "url": "https://standardebooks.org/ebooks/mary-shelley/frankenstein/downloads/mary-shelley_frankenstein.epub?source=download",
+    "sha256": "0b5c070e2cde4d8bb36ef707f9d024465b00d0c49c078f0a148270f55b8c8780",
+    "license": "CC0-1.0 (Standard Ebooks edition); public domain text"
+  },
+  {
+    "id": "se-moby-dick",
+    "source": "standardebooks",
+    "url": "https://standardebooks.org/ebooks/herman-melville/moby-dick/downloads/herman-melville_moby-dick.epub?source=download",
+    "sha256": "5d9c3ddb9d4cda136605ebfd1415f22fa30fd312872346bd8dda6be4c4c47d82",
+    "license": "CC0-1.0 (Standard Ebooks edition); public domain text"
+  },
+  {
+    "id": "se-dracula",
+    "source": "standardebooks",
+    "url": "https://standardebooks.org/ebooks/bram-stoker/dracula/downloads/bram-stoker_dracula.epub?source=download",
+    "sha256": "568ee9d37b2cc12dfd5e24ebf7b16ae71a805e269af159dc836647751739340a",
+    "license": "CC0-1.0 (Standard Ebooks edition); public domain text"
+  },
+  {
+    "id": "se-time-machine",
+    "source": "standardebooks",
+    "url": "https://standardebooks.org/ebooks/h-g-wells/the-time-machine/downloads/h-g-wells_the-time-machine.epub?source=download",
+    "sha256": "3931b56fecfb0b0d00737f5fabcd00a46a96c26a6b1c9b8a60751d154057d9a6",
+    "license": "CC0-1.0 (Standard Ebooks edition); public domain text"
+  },
+  {
+    "id": "pg-frankenstein",
+    "source": "gutenberg",
+    "url": "https://gutenberg.pglaf.org/cache/epub/84/pg84-images-3.epub",
+    "sha256": "b82b1ad5cdd15439ab99e864741a0343f107adc796ce4326e44235a3f6f558a7",
+    "license": "Public domain in the USA; Project Gutenberg License"
+  },
+  {
+    "id": "pg-sherlock-holmes-epub2",
+    "source": "gutenberg",
+    "url": "https://gutenberg.pglaf.org/cache/epub/1661/pg1661-images.epub",
+    "sha256": "f441042ace4506f5921318b5ee3deaf52169a59be31f0629b9082e27f8bba3f1",
+    "license": "Public domain in the USA; Project Gutenberg License"
+  },
+  {
+    "id": "pg-promessi-sposi",
+    "source": "gutenberg",
+    "url": "https://gutenberg.pglaf.org/cache/epub/45334/pg45334-images-3.epub",
+    "sha256": "d15ebcb8ba75994d7b1aa43607d8a0085b60bd32cb9d7fb59bd829878b379e57",
+    "license": "Public domain in the USA; Project Gutenberg License"
+  },
+  {
+    "id": "pg-faust",
+    "source": "gutenberg",
+    "url": "https://gutenberg.pglaf.org/cache/epub/2229/pg2229-images-3.epub",
+    "sha256": "c9f43aa402c72e24e7fb9c0090b89206cd29b649eb93b561cf3e5d8eace055b4",
+    "license": "Public domain in the USA; Project Gutenberg License"
+  },
+  {
+    "id": "pg-tale-of-two-cities",
+    "source": "gutenberg",
+    "url": "https://gutenberg.pglaf.org/cache/epub/98/pg98-images-3.epub",
+    "sha256": "8bb476435c3e62bc9fbbb40b042ea1b1b38f5e44a26727ef190c10dbcbdde1a0",
+    "license": "Public domain in the USA; Project Gutenberg License"
+  }
+]
