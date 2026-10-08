@@ -22,3 +22,14 @@ the libraries it uses. This file records the rules and every source consulted.
 ## Sources
 
 Each entry names the document and what it was used for.
+
+- W3C, _EPUB 3.3_ (https://www.w3.org/TR/epub-33/): package document, navigation
+  document, fixed-layout metadata; test fixtures and the EPUB reader.
+- W3C, _EPUB Open Container Format 3.3_ (section of EPUB 3.3): container.xml,
+  the mimetype file, encryption.xml and font obfuscation.
+- IDPF, _Open Packaging Format 2.0.1_ and DAISY _NCX_ (Z39.86-2005): EPUB 2
+  package and NCX table of contents.
+- Ecma International, _ECMA-376 Office Open XML_, Parts 1 and 2: .docx package
+  structure, WordprocessingML paragraphs, runs, numbering and inline pictures.
+- RFC 3986 (URI syntax) and the WHATWG URL Standard: resolving relative hrefs.
+- W3C PNG specification (third edition): the minimal PNG writer used by tests.
