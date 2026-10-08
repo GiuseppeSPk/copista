@@ -38,6 +38,7 @@ export type EpubFixture =
   | 'noContainer'
   | 'zipNotEpub'
   | 'longChapter'
+  | 'longBook'
   | 'legacyMarkup';
 
 const XHTML_TYPE = 'application/xhtml+xml';
@@ -394,6 +395,31 @@ function longChapter(): Uint8Array {
   });
 }
 
+/** Three chapters of several pages each, with a mid-chapter anchor and a link into the next chapter. */
+function longBook(): Uint8Array {
+  const text = (from: number, count: number): string =>
+    Array.from({ length: count }, (_, i) => para(`${from + i}. ${LONG_SENTENCE}`)).join('');
+  const chapters = [
+    '<h1>Part One</h1>' + text(1, 30),
+    '<h1>Part Two</h1>' +
+      text(31, 20) +
+      '<h2 id="s21">Section 2.1</h2>' +
+      para('Read on to the <a href="ch3.xhtml#end">next</a> part.') +
+      text(51, 20),
+    '<h1>Part Three</h1>' + text(71, 30) + '<p id="end">The end.</p>',
+  ];
+  const files: Record<string, string> = {};
+  chapters.forEach((body, i) => {
+    files[`OEBPS/text/ch${i + 1}.xhtml`] = xhtml(`Part ${i + 1}`, body);
+  });
+  return simpleEpub3(0, {
+    items: [chapterItem(1), chapterItem(2), chapterItem(3)],
+    opf: { spine: ['ch1', 'ch2', 'ch3'], title: 'Long Book' },
+    points: [1, 2, 3].map((n) => ({ label: `Part ${n}`, href: `text/ch${n}.xhtml` })),
+    files,
+  });
+}
+
 /** Markup older tools write that EPUB 3 rejects: HTML4 presentation, foreign prefixes, extra package files. */
 function legacyMarkup(): Uint8Array {
   const body =
@@ -484,6 +510,7 @@ export const EPUB: Record<EpubFixture, () => Uint8Array> = {
   noContainer,
   zipNotEpub,
   longChapter,
+  longBook,
   legacyMarkup,
 };
 

@@ -66,6 +66,12 @@ export const READ_EXPECTATIONS: Record<EpubFixture, ReadExpectation> = {
   },
   zipNotEpub: { error: 'NotAnEpubError' },
   longChapter: { title: 'Long Chapter', chapters: 1, tocLabels: ['Long'], warnings: [] },
+  longBook: {
+    title: 'Long Book',
+    chapters: 3,
+    tocLabels: ['Part 1', 'Part 2', 'Part 3'],
+    warnings: [],
+  },
   legacyMarkup: { title: 'Legacy Markup', chapters: 1, tocLabels: ['Legacy'], warnings: [] },
 };
 
