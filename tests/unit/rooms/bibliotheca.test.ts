@@ -100,4 +100,19 @@ describe('bibliotheca', () => {
     vi.restoreAllMocks();
     expect(await listShelf()).toHaveLength(1);
   });
+
+  it('keeps the import when only the persistence note cannot be saved', async () => {
+    const put = IDBObjectStore.prototype.put;
+    vi.spyOn(IDBObjectStore.prototype, 'put').mockImplementation(function (
+      this: IDBObjectStore,
+      ...args: Parameters<IDBObjectStore['put']>
+    ) {
+      if (this.name === 'settings') throw new DOMException('full', 'QuotaExceededError');
+      return put.apply(this, args);
+    });
+    const r = await importBook(file(EPUB.noCover(), 'b.epub'));
+    vi.restoreAllMocks();
+    expect(r.alreadyPresent).toBe(false);
+    expect(await listShelf()).toHaveLength(1);
+  });
 });

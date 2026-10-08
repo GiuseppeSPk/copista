@@ -42,15 +42,23 @@ function coverOf(book: Book): Blob | undefined {
   return new Blob([cover.data as Uint8Array<ArrayBuffer>], { type: cover.mediaType });
 }
 
-/** Asks once, after the first book is kept, that the browser not evict the library. */
+/**
+ * Asks once, after the first book is kept, that the browser not evict the
+ * library. Best effort: the book is already stored, so no failure here may
+ * fail the import.
+ */
 async function requestPersistence(): Promise<void> {
-  if ((await getSetting<boolean>(PERSIST_SETTING)) === true) return;
   try {
-    await navigator.storage?.persist?.();
+    if ((await getSetting<boolean>(PERSIST_SETTING)) === true) return;
+    try {
+      await navigator.storage?.persist?.();
+    } catch {
+      // A refusal or a missing API only means the browser may evict the library later.
+    }
+    await putSetting(PERSIST_SETTING, true);
   } catch {
-    // A refusal or a missing API only means the browser may evict the library later.
+    // The note could not be read or saved: we simply ask again next time.
   }
-  await putSetting(PERSIST_SETTING, true);
 }
 
 /**
