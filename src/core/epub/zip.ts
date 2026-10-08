@@ -18,7 +18,11 @@ export function openZip(data: Uint8Array): Zip {
 /** Decodes an entry as text (UTF-8, or UTF-16 when it starts with a byte order mark). */
 export function readText(zip: Zip, path: string): string | undefined {
   const data = zip.get(path);
-  if (data === undefined) return undefined;
+  return data === undefined ? undefined : decodeText(data);
+}
+
+/** Decodes bytes as UTF-8, or UTF-16 when they start with a byte order mark. */
+export function decodeText(data: Uint8Array): string {
   const encoding =
     data[0] === 0xff && data[1] === 0xfe
       ? 'utf-16le'
