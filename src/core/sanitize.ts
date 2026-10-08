@@ -105,6 +105,7 @@ function getPurifier(): ReturnType<typeof DOMPurify> {
 export function sanitizeHtml(html: string): string {
   return getPurifier().sanitize(html, {
     FORBID_TAGS,
-    ADD_ATTR: ['epub:type'],
+    // hspace and vspace carry only image margins; the EPUB writer turns them into CSS.
+    ADD_ATTR: ['epub:type', 'hspace', 'vspace'],
   });
 }

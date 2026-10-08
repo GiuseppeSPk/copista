@@ -18,6 +18,14 @@ for (const key of Object.keys(READ_EXPECTATIONS) as EpubFixture[]) {
   });
 }
 
+test('writes an EPUB 3 that reads back to the same book', async ({ page }) => {
+  const outcome = await page.evaluate(
+    (url) => window.engine.rewriteOutcome(url),
+    '/tests/fixtures/generated/epub3-nav.epub',
+  );
+  expect(outcome).toEqual(normalized(READ_EXPECTATIONS.epub3Nav));
+});
+
 test('opens the big book in under 5 seconds', async ({ page }) => {
   const result = await page.evaluate(async () => {
     const response = await fetch('/tests/fixtures/generated/big-epub.epub');

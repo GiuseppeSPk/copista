@@ -66,6 +66,7 @@ export const READ_EXPECTATIONS: Record<EpubFixture, ReadExpectation> = {
   },
   zipNotEpub: { error: 'NotAnEpubError' },
   longChapter: { title: 'Long Chapter', chapters: 1, tocLabels: ['Long'], warnings: [] },
+  legacyMarkup: { title: 'Legacy Markup', chapters: 1, tocLabels: ['Legacy'], warnings: [] },
 };
 
 /** The parts of a book an expectation checks, in a form that crosses `page.evaluate`. */

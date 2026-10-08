@@ -37,7 +37,8 @@ export type EpubFixture =
   | 'emptySpine'
   | 'noContainer'
   | 'zipNotEpub'
-  | 'longChapter';
+  | 'longChapter'
+  | 'legacyMarkup';
 
 const XHTML_TYPE = 'application/xhtml+xml';
 const OPF = 'OEBPS/content.opf';
@@ -393,6 +394,60 @@ function longChapter(): Uint8Array {
   });
 }
 
+/** Markup older tools write that EPUB 3 rejects: HTML4 presentation, foreign prefixes, extra package files. */
+function legacyMarkup(): Uint8Array {
+  const body =
+    '<p align="center">Centered</p>' +
+    '<center>Old centre</center>' +
+    '<table summary="s" align="center" border="1" cellpadding="2" cellspacing="0" width="80%"' +
+    ' bgcolor="#eee" frame="box" rules="all"><tr valign="top">' +
+    '<td width="20" nowrap="nowrap" align="right" abbr="x" axis="y" scope="row" char="." charoff="1">Cell</td>' +
+    '<th width="5" scope="col">Head</th></tr></table>' +
+    '<p>Line<br clear="all"/>break</p>' +
+    '<hr noshade="noshade" size="2" width="50%"/>' +
+    '<ul type="disc" compact="compact"><li type="square" value="1">Bullet</li></ul>' +
+    '<ol type="i" compact="compact"><li value="3">Third</li></ol>' +
+    '<p><img src="../images/pic.png" alt="Pic" align="left" hspace="5" vspace="5" border="0"' +
+    ' longdesc="x" name="im" width="10" height="10"/></p>' +
+    '<p><font face="serif" color="red">Red</font> <big>big</big> <tt>mono</tt>' +
+    ' <strike>gone</strike> <u>under</u> <a name="n">anchor</a></p>' +
+    '<section epub:type="chapter z3998:poem se:x"><p epub:type="se:only">Verse</p></section>' +
+    '<p o:title="w">Word<o:p></o:p></p>';
+  return epubZip({
+    [OPF]: opf({
+      title: 'Legacy Markup',
+      items: [
+        NAV_ITEM,
+        chapterItem(1),
+        { id: 'pic', href: 'images/pic.png', mediaType: 'image/png' },
+        {
+          id: 'skm',
+          href: 'search-key-map.xml',
+          mediaType: 'application/vnd.epub.search-key-map+xml',
+        },
+        { id: 'mo', href: 'mo/ch1.smil', mediaType: 'application/smil+xml' },
+      ],
+      spine: ['ch1'],
+    }),
+    'OEBPS/nav.xhtml': nav([{ label: 'Legacy', href: 'text/ch1.xhtml' }]),
+    'OEBPS/text/ch1.xhtml':
+      '<?xml version="1.0" encoding="UTF-8"?>\n' +
+      '<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops"' +
+      ' xmlns:o="urn:schemas-microsoft-com:office:office"' +
+      ' epub:prefix="z3998: http://www.daisy.org/z3998/2012/vocab/structure/, se: https://standardebooks.org/vocab/1.0">' +
+      `<head><title>Legacy</title></head><body>${body}</body></html>\n`,
+    'OEBPS/images/pic.png': makePng(2, 2),
+    'OEBPS/search-key-map.xml':
+      '<?xml version="1.0" encoding="UTF-8"?>\n' +
+      '<search-key-map xmlns="http://www.idpf.org/2007/ops"><search-key-group href="text/ch1.xhtml">' +
+      '<match value="Verse"/></search-key-group></search-key-map>\n',
+    'OEBPS/mo/ch1.smil':
+      '<?xml version="1.0" encoding="UTF-8"?>\n' +
+      '<smil xmlns="http://www.w3.org/ns/SMIL" version="3.0"><body>' +
+      '<par><text src="../text/ch1.xhtml#v"/></par></body></smil>\n',
+  });
+}
+
 export const EPUB: Record<EpubFixture, () => Uint8Array> = {
   epub3Nav,
   epub2Ncx,
@@ -429,6 +484,7 @@ export const EPUB: Record<EpubFixture, () => Uint8Array> = {
   noContainer,
   zipNotEpub,
   longChapter,
+  legacyMarkup,
 };
 
 export const DOCX = {

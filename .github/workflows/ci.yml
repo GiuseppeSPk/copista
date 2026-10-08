@@ -49,3 +49,25 @@ jobs:
           key: corpus-${{ hashFiles('tests/corpus.json') }}
       - run: npm ci
       - run: npm run test:corpus
+
+  epubcheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: actions/cache@v4
+        with:
+          path: |
+            .cache/epubcheck
+            tests/fixtures/corpus
+          key: epubcheck-${{ hashFiles('tests/corpus.json', 'scripts/epubcheck.ts') }}
+      - run: npm ci
+      - run: npx tsx scripts/fetch-corpus.ts
+      - run: npm run epubcheck -- --corpus

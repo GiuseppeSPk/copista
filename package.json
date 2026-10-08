@@ -19,7 +19,7 @@
     "test:e2e": "playwright test",
     "test:corpus": "tsx scripts/fetch-corpus.ts && vitest run -c vitest.corpus.config.ts",
     "fixtures": "tsx scripts/make-fixtures.ts",
-    "epubcheck": "tsx scripts/write-outputs.ts && tsx scripts/epubcheck.ts",
+    "epubcheck": "tsx scripts/epubcheck.ts",
     "licenses": "tsx scripts/check-licenses.ts"
   },
   "dependencies": {
@@ -33,6 +33,7 @@
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@playwright/test": "^1.64.0",
+    "@types/jsdom": "^30.0.0",
     "@types/node": "^22.20.5",
     "@types/turndown": "^5.0.6",
     "@vitest/coverage-v8": "^5.0.3",
