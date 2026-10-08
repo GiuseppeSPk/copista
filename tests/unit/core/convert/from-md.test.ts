@@ -55,6 +55,14 @@ describe('fromMarkdown', () => {
       data: new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
     });
   });
+
+  it('points fragment links at the chapter that holds the target', async () => {
+    const m = await fromMarkdown(
+      enc('# One\n\nSee <a href="#n1">note</a>.\n\n# Two\n\n<p id="n1">The note.</p>\n'),
+      {},
+    );
+    expect(m.chapters[0]!.html).toContain('<a href="text/c002.xhtml#n1">note</a>');
+  });
 });
 
 describe('parseFrontMatter', () => {

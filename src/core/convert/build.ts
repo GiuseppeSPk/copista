@@ -13,7 +13,7 @@ export interface Section {
 }
 
 /** Image types every reading system must support, by data: URL media type. */
-const IMAGE_EXTENSIONS: Record<string, string> = {
+export const IMAGE_EXTENSIONS: Record<string, string> = {
   'image/gif': 'gif',
   'image/jpeg': 'jpg',
   'image/png': 'png',
@@ -126,6 +126,40 @@ function settleImages(
   return serialize([...fragment.childNodes]);
 }
 
+function decodeFragment(fragment: string): string {
+  try {
+    return decodeURIComponent(fragment);
+  } catch {
+    return fragment;
+  }
+}
+
+/**
+ * Splitting a document scatters its anchors: a "#id" link keeps working only
+ * if it names the chapter that now holds the id. Links to ids that no
+ * chapter holds are left alone.
+ */
+function linkFragments(chapters: Chapter[]): void {
+  const owners = new Map<string, string>();
+  const fragments = chapters.map((chapter) => fragmentOf(chapter.html));
+  fragments.forEach((fragment, i) => {
+    for (const element of fragment.querySelectorAll('[id]')) {
+      if (!owners.has(element.id)) owners.set(element.id, chapters[i]!.href);
+    }
+  });
+  fragments.forEach((fragment, i) => {
+    let changed = false;
+    for (const link of fragment.querySelectorAll('a[href^="#"]')) {
+      const id = decodeFragment(link.getAttribute('href')!.slice(1));
+      const owner = owners.get(id);
+      if (owner === undefined) continue;
+      link.setAttribute('href', `${owner}#${id}`);
+      changed = true;
+    }
+    if (changed) chapters[i]!.html = serialize([...fragment.childNodes]);
+  });
+}
+
 /**
  * Builds a reflowable book with one chapter per section. Section HTML is
  * sanitized; chapters are `text/c001.xhtml`, `text/c002.xhtml`, … and an
@@ -148,6 +182,7 @@ export function bookFromSections(
       inlineCss: '',
     };
   });
+  linkFragments(chapters);
   const toc: TocEntry[] = chapters.map((chapter, i) => ({
     label: chapter.title ?? meta.title,
     chapter: i,

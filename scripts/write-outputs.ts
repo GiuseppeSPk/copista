@@ -9,7 +9,7 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { JSDOM } from 'jsdom';
 import corpus from '../tests/corpus.json';
-import { EPUB, type EpubFixture } from '../tests/fixtures/catalog';
+import { DOCX, EPUB, type EpubFixture } from '../tests/fixtures/catalog';
 import { READ_EXPECTATIONS } from '../tests/fixtures/expectations';
 import { kebab } from '../tests/fixtures/names';
 import { makePng } from '../tests/fixtures/png';
@@ -69,13 +69,15 @@ async function convert(
   run: (core: {
     fromTxt: typeof import('../src/core/convert/from-txt').fromTxt;
     fromMarkdown: typeof import('../src/core/convert/from-md').fromMarkdown;
+    fromDocx: typeof import('../src/core/convert/from-docx').fromDocx;
   }) => Promise<Book>,
 ): Promise<Uint8Array> {
   installDom();
   const { fromTxt } = await import('../src/core/convert/from-txt');
   const { fromMarkdown } = await import('../src/core/convert/from-md');
+  const { fromDocx } = await import('../src/core/convert/from-docx');
   const { writeEpub } = await import('../src/core/epub/write');
-  return writeEpub(await run({ fromTxt, fromMarkdown }), { modified: FIXED_DATE });
+  return writeEpub(await run({ fromTxt, fromMarkdown, fromDocx }), { modified: FIXED_DATE });
 }
 
 const encode = (text: string) => new TextEncoder().encode(text);
@@ -97,6 +99,10 @@ export const OUTPUTS: Array<{ name: string; make(): Promise<Uint8Array> }> = [
   {
     name: 'from-md',
     make: () => convert(({ fromMarkdown }) => fromMarkdown(encode(sampleMarkdown()), {})),
+  },
+  {
+    name: 'from-docx',
+    make: () => convert(({ fromDocx }) => fromDocx(DOCX.basic())),
   },
 ];
 
