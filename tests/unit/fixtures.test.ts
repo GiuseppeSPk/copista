@@ -1,5 +1,5 @@
 import { unzipSync } from 'fflate';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { DOCX, EPUB, OTHER } from '../fixtures/catalog';
 import { makePng } from '../fixtures/png';
 
@@ -8,6 +8,15 @@ describe('fixtures', () => {
     for (const build of [...Object.values(EPUB), ...Object.values(DOCX), ...Object.values(OTHER)]) {
       expect(build().length).toBeGreaterThan(0);
     }
+  });
+
+  it('builds the same bytes whatever the clock says', () => {
+    vi.useFakeTimers({ now: new Date(2026, 0, 1, 12, 0, 0) });
+    const first = EPUB.epub3Nav();
+    vi.setSystemTime(new Date(2026, 5, 1, 9, 30, 7));
+    const second = EPUB.epub3Nav();
+    vi.useRealTimers();
+    expect(second).toEqual(first);
   });
 
   it('puts mimetype first in a normal EPUB', () => {
