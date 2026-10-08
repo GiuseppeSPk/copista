@@ -38,3 +38,33 @@
   and the duplicate-book check failed now and then. The zips now carry a fixed
   date, and a test builds a fixture under two different clocks and compares
   the bytes.
+
+## 2026-10-09
+
+- Built the beta interface in Svelte 5: one component per room, sharing a small
+  state module. The styling is plain on purpose; the visual design comes later.
+- Made the app installable and usable offline: icons drawn by a script, a web
+  manifest and a service worker that caches the app files. A content security
+  policy blocks every request outside the site.
+- Added the privacy text in the Archivum and in `PRIVACY.md`, the README, and
+  a GitHub Pages workflow that builds under `/<repository>/`.
+- Kept "PDF (print)" for PDF output: it opens the browser's print dialog.
+  Writing PDF files directly is still an open decision.
+- Bugs found by the browser tests and screenshots, all fixed:
+  - the arrow keys did not turn the page while a toolbar button had focus;
+  - the reading page was about 300 px tall, because the room was a grid whose
+    last row only filled when an error was shown;
+  - the space before the chapter name in the page counter was dropped;
+  - the cover placeholder text failed the colour contrast check.
+- Measured on this machine:
+  - Unit tests: 33 files, 185 tests, all passing; 94.4% of lines and 81.6% of
+    branches.
+  - Browser tests: 167 passing, Chromium and WebKit plus the offline test,
+    which adds a book, cuts the network, reloads, reads and converts.
+  - axe finds no serious or critical problems in any room.
+  - Production bundle: 536 kB of JavaScript (178 kB gzipped) in one file.
+    Vite warns about chunks over 500 kB. Loading the .docx reader only when a
+    conversion needs it is the first thing to try.
+- Known flakiness: two of four full browser-test runs had WebKit failures
+  where the test could not reach the dev server under parallel load on
+  Windows. The same tests pass alone, repeated. Not hidden with retries.
