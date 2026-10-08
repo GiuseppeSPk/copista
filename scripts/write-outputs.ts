@@ -12,6 +12,8 @@ import corpus from '../tests/corpus.json';
 import { EPUB, type EpubFixture } from '../tests/fixtures/catalog';
 import { READ_EXPECTATIONS } from '../tests/fixtures/expectations';
 import { kebab } from '../tests/fixtures/names';
+import { makePng } from '../tests/fixtures/png';
+import type { Book } from '../src/core/model/book';
 
 export const OUTPUT_DIR = join('tests', 'fixtures', 'output');
 const CORPUS_DIR = join('tests', 'fixtures', 'corpus');
@@ -40,12 +42,63 @@ async function rewrite(data: Uint8Array, fileName: string): Promise<Uint8Array> 
   return writeEpub(await readEpub(data, { fileName }), { modified: FIXED_DATE });
 }
 
-export const OUTPUTS: Array<{ name: string; make(): Promise<Uint8Array> }> = Object.entries(EPUB)
-  .filter(([key]) => !('error' in READ_EXPECTATIONS[key as EpubFixture]))
-  .map(([key, build]) => ({
-    name: `rewrite-${kebab(key)}`,
-    make: () => rewrite(build(), `${kebab(key)}.epub`),
-  }));
+const SAMPLE_TXT =
+  'PREFACE\n\nA note & a <tag>.\n\nCHAPTER I\n\nIt was a dark night.\nStill dark.\n\nII.\n\nMorning.';
+
+function sampleMarkdown(): string {
+  const png = `data:image/png;base64,${Buffer.from(makePng(4, 3)).toString('base64')}`;
+  return [
+    '---',
+    'title: Markdown Sample',
+    'author: Bo Sample',
+    'language: it',
+    '---',
+    'Opening words.',
+    '# One',
+    'Hello *there*, [a link](https://example.org) and [a note](#two).',
+    `![a dot](${png}) ![remote](https://e.invalid/p.png) ![local](missing.png)`,
+    '# Two',
+    '- a\n- b',
+    '| x | y |\n|---|---|\n| 1 | 2 |',
+    '```\ncode <here>\n```',
+    '<script>alert(1)</script>',
+  ].join('\n\n');
+}
+
+async function convert(
+  run: (core: {
+    fromTxt: typeof import('../src/core/convert/from-txt').fromTxt;
+    fromMarkdown: typeof import('../src/core/convert/from-md').fromMarkdown;
+  }) => Promise<Book>,
+): Promise<Uint8Array> {
+  installDom();
+  const { fromTxt } = await import('../src/core/convert/from-txt');
+  const { fromMarkdown } = await import('../src/core/convert/from-md');
+  const { writeEpub } = await import('../src/core/epub/write');
+  return writeEpub(await run({ fromTxt, fromMarkdown }), { modified: FIXED_DATE });
+}
+
+const encode = (text: string) => new TextEncoder().encode(text);
+
+export const OUTPUTS: Array<{ name: string; make(): Promise<Uint8Array> }> = [
+  ...Object.entries(EPUB)
+    .filter(([key]) => !('error' in READ_EXPECTATIONS[key as EpubFixture]))
+    .map(([key, build]) => ({
+      name: `rewrite-${kebab(key)}`,
+      make: () => rewrite(build(), `${kebab(key)}.epub`),
+    })),
+  {
+    name: 'from-txt',
+    make: () =>
+      convert(({ fromTxt }) =>
+        fromTxt(encode(SAMPLE_TXT), { title: 'Text Sample', author: 'Ada Example' }),
+      ),
+  },
+  {
+    name: 'from-md',
+    make: () => convert(({ fromMarkdown }) => fromMarkdown(encode(sampleMarkdown()), {})),
+  },
+];
 
 function corpusOutputs(): Array<{ name: string; make(): Promise<Uint8Array> }> {
   return corpus
