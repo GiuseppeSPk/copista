@@ -4,6 +4,7 @@ dist/
 coverage/
 playwright-report/
 test-results/
+.playwright-mcp/
 tests/fixtures/corpus/
 tests/fixtures/generated/
 .claude/settings.local.json
