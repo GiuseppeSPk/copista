@@ -1,7 +1,6 @@
 import type { NewBookMeta } from '../../core/convert/build';
 import { decodeText } from '../../core/convert/decode';
 import { detectFormat, type InputFormat } from '../../core/convert/detect';
-import { fromDocx } from '../../core/convert/from-docx';
 import { fromMarkdown, parseFrontMatter } from '../../core/convert/from-md';
 import { fromTxt } from '../../core/convert/from-txt';
 import { toDocx } from '../../core/convert/to-docx';
@@ -62,8 +61,11 @@ async function toBook(file: File, meta: Partial<NewBookMeta>): Promise<Book> {
   switch (detectFormat(data, file.name)) {
     case 'epub':
       return readEpub(data, { fileName: file.name });
-    case 'docx':
+    case 'docx': {
+      // mammoth is most of the converter code, so it loads only when a .docx needs it.
+      const { fromDocx } = await import('../../core/convert/from-docx');
       return fromDocx(data, { fileName: file.name });
+    }
     case 'md':
       return fromMarkdown(data, {
         ...meta,

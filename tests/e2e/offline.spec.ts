@@ -26,4 +26,10 @@ test('works without a network after the first visit', async ({ page, context }) 
   const download = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Word', exact: true }).click();
   expect((await download).suggestedFilename()).toBe('Long Book.docx');
+
+  // The .docx reader is a separate chunk, so this checks it was cached too.
+  await page.getByLabel('Choose a file').setInputFiles('tests/fixtures/generated/basic.docx');
+  const epub = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'EPUB', exact: true }).click();
+  expect((await epub).suggestedFilename()).toMatch(/\.epub$/);
 });
