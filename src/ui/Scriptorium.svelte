@@ -1,11 +1,18 @@
 <script lang="ts">
-  import { convert, inspect, type OutputFormat } from '../rooms/scriptorium';
+  import {
+    LIBRARY_TARGETS,
+    convert,
+    convertLibraryBook,
+    inspect,
+    type OutputFormat,
+  } from '../rooms/scriptorium';
   import { app } from './state.svelte';
   import { download, printHtml } from './files';
   import { FORMAT_LABELS, errorMessage } from './text';
 
   interface Picked {
-    file: File;
+    source: { file: File } | { bookId: string };
+    name: string;
     format: string;
     needsMeta: boolean;
     targets: OutputFormat[];
@@ -14,6 +21,7 @@
   let picked = $state.raw<Picked>();
   let title = $state('');
   let author = $state('');
+  let shelfChoice = $state('');
   let busy = $state(false);
   let message = $state<{ tone: 'ok' | 'error'; text: string }>();
 
@@ -22,12 +30,25 @@
     message = undefined;
     title = '';
     author = '';
+    shelfChoice = '';
     try {
       const info = await inspect(file);
-      picked = { file, ...info };
+      picked = { source: { file }, name: file.name, ...info };
     } catch (e) {
       message = { tone: 'error', text: `${file.name}: ${errorMessage(e)}` };
     }
+  }
+
+  function chooseBook(id: string): void {
+    const book = app.shelf.find((b) => b.id === id);
+    message = undefined;
+    picked = book && {
+      source: { bookId: book.id },
+      name: book.title,
+      format: 'epub',
+      needsMeta: false,
+      targets: LIBRARY_TARGETS,
+    };
   }
 
   // A file dropped in another room lands here.
@@ -49,7 +70,10 @@
             ...(author.trim() ? { author: author.trim() } : {}),
           }
         : {};
-      const out = await convert(picked.file, target, meta);
+      const out =
+        'file' in picked.source
+          ? await convert(picked.source.file, target, meta)
+          : await convertLibraryBook(picked.source.bookId, target);
       if (out.kind === 'print') {
         printHtml(out.html);
         message = {
@@ -93,10 +117,30 @@
     <span class="hint">EPUB, Word (.docx), Markdown or plain text. You can also drop it here.</span>
   </div>
 
+  {#if app.shelf.length > 0}
+    <label class="library-pick">
+      Or a book from your library
+      <select
+        bind:value={shelfChoice}
+        disabled={busy}
+        onchange={() => {
+          if (shelfChoice) chooseBook(shelfChoice);
+        }}
+      >
+        <option value="">Choose a book…</option>
+        {#each app.shelf as book (book.id)}
+          <option value={book.id}>
+            {book.title}{book.authors.length ? ` — ${book.authors.join(', ')}` : ''}
+          </option>
+        {/each}
+      </select>
+    </label>
+  {/if}
+
   {#if picked}
     <div class="panel">
       <p>
-        <strong>{picked.file.name}</strong>
+        <strong>{picked.name}</strong>
         <span class="muted">({FORMAT_LABELS[picked.format as OutputFormat] ?? picked.format})</span>
       </p>
 

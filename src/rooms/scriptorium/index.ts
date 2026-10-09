@@ -10,12 +10,16 @@ import { toText } from '../../core/convert/to-text';
 import { readEpub } from '../../core/epub/read';
 import { writeEpub } from '../../core/epub/write';
 import type { Book } from '../../core/model/book';
+import { BookNotFoundError, getBook } from '../../storage/db';
 
 export type OutputFormat = 'epub' | 'docx' | 'md' | 'txt' | 'html' | 'pdf';
 export type ConvertOutput =
   { kind: 'file'; blob: Blob; fileName: string } | { kind: 'print'; html: string };
 
 const OUTPUT_FORMATS: OutputFormat[] = ['epub', 'docx', 'md', 'txt', 'html', 'pdf'];
+
+/** What a library book can become: it is already an EPUB. */
+export const LIBRARY_TARGETS: OutputFormat[] = OUTPUT_FORMATS.filter((target) => target !== 'epub');
 
 const MIME_TYPES: Record<Exclude<OutputFormat, 'pdf'>, string> = {
   epub: 'application/epub+zip',
@@ -87,6 +91,16 @@ export async function convert(
   meta: Partial<NewBookMeta> = {},
 ): Promise<ConvertOutput> {
   return convertBook(await toBook(file, meta), target);
+}
+
+/** Converts a book from the library, read from its stored EPUB. */
+export async function convertLibraryBook(
+  bookId: string,
+  target: OutputFormat,
+): Promise<ConvertOutput> {
+  const rec = await getBook(bookId);
+  if (!rec) throw new BookNotFoundError(bookId);
+  return convertBook(await readEpub(new Uint8Array(await rec.fileBlob.arrayBuffer())), target);
 }
 
 /** Writes a book in the target format; PDF comes back as a page to print. */

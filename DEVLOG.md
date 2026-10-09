@@ -68,3 +68,21 @@
 - Known flakiness: two of four full browser-test runs had WebKit failures
   where the test could not reach the dev server under parallel load on
   Windows. The same tests pass alone, repeated. Not hidden with retries.
+
+## 2026-10-09, later
+
+- The .docx reader (mammoth) is now its own chunk, loaded only when a .docx is
+  converted. The main bundle went from 536 kB (178 kB gzipped) to 229 kB
+  (83 kB gzipped); the .docx chunk is 310 kB (96 kB gzipped). Vite no longer
+  warns, and the raised service worker cache limit is gone. The offline test
+  now converts a .docx too, which fails if that chunk is not cached.
+- The Scriptorium can convert a book already in the library, to any format but
+  EPUB, without choosing the file again.
+- `npm audit` reports three moderate findings, all in sprintf-js through
+  argparse, which mammoth needs only for its command-line tool. Neither
+  package is in the built app, and the advisory lists no fixed version.
+- Measured on this machine:
+  - Unit tests: 33 files, 187 tests, all passing; 94.4% of lines and 81.6% of
+    branches.
+  - Browser tests: 169 passing.
+  - The WebKit failures noted above did not come back in six full runs.

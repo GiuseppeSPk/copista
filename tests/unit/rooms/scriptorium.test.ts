@@ -1,3 +1,4 @@
+import 'fake-indexeddb/auto';
 import { describe, expect, it } from 'vitest';
 import { fromDocx } from '../../../src/core/convert/from-docx';
 import { readEpub } from '../../../src/core/epub/read';
@@ -5,9 +6,12 @@ import { DrmProtectedError, UnsupportedFormatError } from '../../../src/core/err
 import {
   convert,
   convertBook,
+  convertLibraryBook,
   inspect,
+  LIBRARY_TARGETS,
   outputFileName,
 } from '../../../src/rooms/scriptorium/index';
+import { BookNotFoundError, deleteAllStorage, putBook } from '../../../src/storage/db';
 import { DOCX, EPUB, OTHER } from '../../fixtures/catalog';
 
 const enc = (text: string): Uint8Array => new TextEncoder().encode(text);
@@ -123,5 +127,30 @@ describe('scriptorium', () => {
     await expect(inspect(f(OTHER.legacyDoc(), 'old.doc'))).rejects.toBeInstanceOf(
       UnsupportedFormatError,
     );
+  });
+});
+
+describe('scriptorium with the library', () => {
+  it('converts a book from the library to every format but EPUB', async () => {
+    expect(LIBRARY_TARGETS).toEqual(['docx', 'md', 'txt', 'html', 'pdf']);
+    await deleteAllStorage();
+    await putBook({
+      id: 'three',
+      title: 'Fixture Three',
+      authors: [],
+      fileBlob: new Blob([EPUB.epub3Nav() as Uint8Array<ArrayBuffer>], {
+        type: 'application/epub+zip',
+      }),
+      addedAt: 1,
+    });
+    const docx = await convertLibraryBook('three', 'docx');
+    expect(docx).toMatchObject({ kind: 'file', fileName: 'Fixture Three.docx' });
+    if (docx.kind !== 'file') throw new Error('expected a file');
+    expect((await fromDocx(await bytesOf(docx.blob))).chapters).toHaveLength(3);
+  });
+
+  it('rejects a book that is not in the library', async () => {
+    await deleteAllStorage();
+    await expect(convertLibraryBook('missing', 'txt')).rejects.toBeInstanceOf(BookNotFoundError);
   });
 });

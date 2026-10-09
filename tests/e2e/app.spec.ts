@@ -197,6 +197,17 @@ test.describe('Scriptorium', () => {
     });
     await expect(page.locator('.notices .error')).toContainText('photo.png:');
   });
+
+  test('converts a book from the library', async ({ page }) => {
+    await addBook(page);
+    await page.getByRole('link', { name: /Scriptorium/ }).click();
+    const book = await page.getByRole('option', { name: /^Long Book/ }).getAttribute('value');
+    await page.getByLabel('Or a book from your library').selectOption(book!);
+    await expect(page.getByRole('button', { name: 'EPUB', exact: true })).toHaveCount(0);
+    const download = page.waitForEvent('download');
+    await page.getByRole('button', { name: 'Text', exact: true }).click();
+    expect((await download).suggestedFilename()).toBe('Long Book.txt');
+  });
 });
 
 test('deletes all data from the Archivum', async ({ page }) => {
