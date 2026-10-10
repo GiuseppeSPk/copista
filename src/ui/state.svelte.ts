@@ -1,7 +1,10 @@
+import { tick } from 'svelte';
 import { DEFAULT_SETTINGS, getSettings, updateSettings, type Settings } from '../rooms/archivum';
 import { importBook, listShelf, type ShelfBook } from '../rooms/bibliotheca';
 import { hashOf, parseHash, type Route } from './route';
+import { ROOMS } from './rooms';
 import { errorMessage, warningMessage } from './text';
+import { stillMotion } from './theme.svelte';
 
 export interface Notice {
   tone: 'ok' | 'error';
@@ -19,6 +22,8 @@ export const app = $state({
   libraryNotices: [] as Notice[],
   /** A file dropped outside the Bibliotheca, waiting for the Scriptorium. */
   pendingConversion: undefined as File | undefined,
+  /** A library book sent from its shelf card to the Scriptorium. */
+  pendingBookId: undefined as string | undefined,
 });
 
 export function go(route: Route): void {
@@ -27,9 +32,38 @@ export function go(route: Route): void {
   else app.route = route;
 }
 
+/**
+ * How the screen changes between two routes: into a room from home, back out to home, or
+ * sideways between rooms, towards the side of the tab that was picked.
+ */
+function motionBetween(from: Route, to: Route): string | undefined {
+  if (from.room === to.room) return undefined;
+  if (from.room === 'home') return 'in';
+  if (to.room === 'home') return 'out';
+  const order = (route: Route) => ROOMS.findIndex((info) => info.room === route.room);
+  return order(to) > order(from) ? 'forward' : 'back';
+}
+
 export function followHash(): void {
-  app.route = parseHash(location.hash);
-  if (app.route.room === 'lectorium' && app.route.bookId) app.lastBookId = app.route.bookId;
+  const next = parseHash(location.hash);
+  const update = (): void => {
+    app.route = next;
+    if (next.room === 'lectorium' && next.bookId) app.lastBookId = next.bookId;
+  };
+  const motion = motionBetween(app.route, next);
+  if (!motion || !document.startViewTransition || stillMotion()) {
+    update();
+    return;
+  }
+  const root = document.documentElement;
+  root.dataset.nav = motion;
+  const transition = document.startViewTransition(async () => {
+    update();
+    await tick();
+  });
+  void transition.finished.finally(() => {
+    if (root.dataset.nav === motion) delete root.dataset.nav;
+  });
 }
 
 export async function loadSettings(): Promise<void> {

@@ -1,5 +1,6 @@
 /** Where the app is, kept in the URL hash so a reload lands in the same room and book. */
 export type Route =
+  | { room: 'home' }
   | { room: 'bibliotheca' }
   | { room: 'lectorium'; bookId?: string }
   | { room: 'scriptorium' }
@@ -21,10 +22,11 @@ export function parseHash(hash: string): Route {
     return { room: 'bibliotheca' };
   }
   const room = ROOMS.find((name) => name === path);
-  return room ? ({ room } as Route) : { room: 'bibliotheca' };
+  return room ? ({ room } as Route) : { room: 'home' };
 }
 
 export function hashOf(route: Route): string {
+  if (route.room === 'home') return '#/';
   if (route.room === 'lectorium' && route.bookId !== undefined) {
     return `#/read/${encodeURIComponent(route.bookId)}`;
   }

@@ -1,32 +1,57 @@
-/* Plain beta styling. The final design comes later. */
+/*
+ * Copista: a card catalogue with a date stamp, in a building of four rooms.
+ * One accent marks state and the action that matters on screen: violet on light paper, a lamp
+ * gold in the dark, where it also draws the frames of cards and doors. Red is kept for errors
+ * and the destructive action. Room names are set in Cinzel, cut from Roman inscriptions.
+ */
 
 :root {
   color-scheme: light dark;
-  --bg: #f6f1e7;
-  --ink: #2b2118;
-  --muted: #6f604f;
-  --line: #d8cbb4;
-  --accent: #8a3b1f;
-  --card: #fffaf0;
-  --ok: #33662f;
-  --error: #9b2c12;
+  --paper: light-dark(#f6f4ef, #110f0d);
+  --card: light-dark(#ffffff, #1b1815);
+  --ink: light-dark(#1c1a21, #f1ece6);
+  --muted: light-dark(#5d5a66, #a89f95);
+  --line: light-dark(#e2dfe7, #2c2723);
+  --line-strong: light-dark(#c4bfcf, #463e37);
+  --control: light-dark(#8a8696, #6f665d);
+  --accent: light-dark(#4f2a9a, #f2c14e);
+  --accent-ink: light-dark(#ffffff, #1a1406);
+  --wash: light-dark(#efeaf9, #2a2210);
+  --red: light-dark(#c8322b, #ff7a70);
+  /* The frames of boxes: quiet rules on paper, lamp-lit gold in the dark. */
+  --frame: light-dark(#e2dfe7, color-mix(in srgb, #f2c14e 34%, transparent));
+  --frame-strong: light-dark(#c4bfcf, color-mix(in srgb, #f2c14e 52%, transparent));
+  --frame-hover: light-dark(color-mix(in srgb, #4f2a9a 55%, #c4bfcf), #f2c14e);
+  --shadow: light-dark(rgb(28 26 33 / 0.14), rgb(0 0 0 / 0.5));
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --font: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --display: 'Cinzel Variable', 'Cinzel', 'Trajan Pro', Georgia, serif;
+  --nav-h: 60px;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #1d1915;
-    --ink: #eadfcd;
-    --muted: #b0a088;
-    --line: #3d342b;
-    --accent: #e08a5f;
-    --card: #26211c;
-    --ok: #9ccc8c;
-    --error: #f0997a;
-  }
+:root[data-theme='light'] {
+  color-scheme: light;
 }
 
-* {
+:root[data-theme='dark'] {
+  color-scheme: dark;
+}
+
+*,
+*::before,
+*::after {
   box-sizing: border-box;
+}
+
+/* The scrollbar stays put, so rooms of different lengths do not shift sideways; WebKit with
+   classic scrollbars also crashes when one appears in the middle of a view transition. */
+html {
+  overflow-y: scroll;
+  caret-color: var(--accent);
+  accent-color: var(--accent);
+  scrollbar-color: var(--line-strong) transparent;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 html,
@@ -35,12 +60,15 @@ body {
 }
 
 body {
-  background: var(--bg);
+  background: var(--paper);
   color: var(--ink);
-  font:
-    16px/1.5 Georgia,
-    'Times New Roman',
-    serif;
+  font: 16px/1.5 var(--font);
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: var(--accent);
+  color: var(--accent-ink);
 }
 
 #app {
@@ -50,17 +78,32 @@ body {
 }
 
 /* The reader fills the window; the other rooms scroll. */
-#app:has(.lectorium) {
+#app:has(.open-book) {
   height: 100dvh;
 }
 
 a {
   color: var(--accent);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.2em;
+}
+
+a:hover {
+  text-decoration-thickness: 2px;
 }
 
 :focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
+}
+
+h1,
+h2 {
+  text-wrap: balance;
+}
+
+p {
+  text-wrap: pretty;
 }
 
 .sr-only {
@@ -82,75 +125,199 @@ a {
   z-index: 10;
   padding: 8px 12px;
   background: var(--card);
-  border: 1px solid var(--line);
-  border-radius: 6px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
 }
 
 .skip:focus {
   top: 8px;
 }
 
-/* Header and room navigation */
+/* The top bar: the stamp mark, the four rooms by what they do, and the switches. */
 
 .masthead {
+  position: sticky;
+  top: 0;
+  z-index: 5;
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px 20px;
-  padding: 10px 20px;
+  align-items: stretch;
+  gap: 24px;
+  height: 64px;
+  padding: 0 24px;
   border-bottom: 1px solid var(--line);
+  background: var(--paper);
+  transition: border-color 200ms var(--ease);
+}
+
+.masthead.at-home {
+  border-bottom-color: transparent;
 }
 
 .brand {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   color: var(--ink);
-  font-size: 20px;
-  letter-spacing: 0.06em;
   text-decoration: none;
 }
 
+.brand-name {
+  font: 650 19px/1 var(--display);
+  letter-spacing: 0.06em;
+}
+
+.brand .mark {
+  color: var(--accent);
+  transition: transform 300ms var(--ease);
+}
+
+.brand:hover .mark {
+  transform: rotate(-10deg) scale(1.08);
+}
+
 .masthead nav {
+  position: relative;
+  display: flex;
   margin-left: auto;
 }
 
 .masthead ul {
   display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
+  gap: 2px;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
-.masthead nav a {
-  display: grid;
-  padding: 4px 12px;
-  border: 1px solid transparent;
-  border-radius: 6px;
-  color: var(--ink);
-  text-decoration: none;
-  line-height: 1.25;
+.masthead li {
+  display: flex;
 }
 
-.masthead nav a small {
+.tab {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 14px;
+  overflow: hidden;
   color: var(--muted);
-  font-size: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  text-decoration: none;
+  transition: color 150ms var(--ease);
 }
 
-.masthead nav a:hover {
-  border-color: var(--line);
+.tab .icon {
+  transition: transform 250ms var(--ease);
 }
 
-.masthead nav a[aria-current='page'] {
+.tab:hover {
+  color: var(--ink);
+}
+
+.tab:hover .icon {
+  transform: translateY(-2px);
+}
+
+.tab[aria-current='page'] {
+  color: var(--ink);
+}
+
+.tab[aria-current='page'] .icon {
+  color: var(--accent);
+}
+
+.tab-short {
+  display: none;
+}
+
+/* The dash: one stroke that travels to the open room. */
+.dash {
+  position: absolute;
+  left: 0;
+  bottom: -1px;
+  width: 1px;
+  height: 2px;
   background: var(--accent);
-  border-color: var(--accent);
-  color: var(--bg);
+  transform-origin: 0 0;
+  pointer-events: none;
 }
 
-.masthead nav a[aria-current='page'] small {
-  color: inherit;
+.dash.live {
+  transition: transform 300ms var(--ease);
+}
+
+.tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.masthead nav + .tools {
+  margin-left: 8px;
+}
+
+.star-top {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 12px;
+  overflow: hidden;
+  border: 1px solid var(--frame);
+  border-radius: 999px;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  transition:
+    border-color 150ms var(--ease),
+    transform 150ms var(--ease);
+}
+
+.star-top .icon,
+.star-link .icon {
+  color: var(--accent);
+  transition: transform 400ms var(--ease);
+}
+
+.star-top:hover,
+.theme-switch:hover:not(:disabled) {
+  border-color: var(--frame-hover);
+}
+
+.star-top:hover .icon,
+.star-link:hover .icon {
+  transform: rotate(72deg) scale(1.15);
+}
+
+.star-top:hover .icon path,
+.star-link:hover .icon path {
+  fill: currentColor;
+}
+
+.theme-switch {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border-color: var(--frame);
+  border-radius: 999px;
+  color: var(--ink);
+}
+
+.theme-glyph {
+  display: grid;
+  animation: glyph-in 610ms var(--ease) backwards;
+}
+
+@keyframes glyph-in {
+  from {
+    opacity: 0;
+    transform: rotate(-90deg) scale(0.4);
+  }
 }
 
 main {
@@ -158,29 +325,42 @@ main {
   display: flex;
   flex-direction: column;
   min-height: 0;
+  overflow-x: clip;
 }
 
 main:focus {
   outline: none;
 }
 
+.stage {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
 /* Rooms */
 
 .room {
   width: 100%;
-  max-width: 1100px;
+  max-width: 1120px;
   margin: 0 auto;
-  padding: 18px 20px 32px;
+  padding: 24px 24px 48px;
 }
 
 h1 {
   margin: 0 0 4px;
-  font-size: 24px;
+  font-size: 28px;
+  font-weight: 750;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
 }
 
 h2 {
-  margin: 24px 0 8px;
-  font-size: 18px;
+  margin: 32px 0 12px;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.3;
 }
 
 .lead,
@@ -191,61 +371,81 @@ h2 {
 }
 
 .lead {
-  margin: 0 0 16px;
+  max-width: 40em;
+  margin: 0 0 24px;
+}
+
+.hint {
+  margin: 0;
+  font-size: 14px;
 }
 
 .toolbar {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 12px;
+  gap: 8px 16px;
+  margin-bottom: 16px;
 }
 
-.library-pick {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 12px;
-}
-
-.library-pick select {
-  max-width: 100%;
-}
+/* Controls */
 
 button,
 select,
 input[type='text'],
 .button {
-  font: inherit;
-  font-size: 15px;
-  padding: 6px 12px;
-  border: 1px solid var(--line);
-  border-radius: 6px;
+  min-height: 36px;
+  padding: 7px 14px;
+  border: 1px solid var(--control);
+  border-radius: 8px;
   background: var(--card);
   color: var(--ink);
+  font: inherit;
+  font-size: 14px;
+  line-height: 20px;
 }
 
 button,
-select,
 .button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-weight: 600;
   cursor: pointer;
+}
+
+select {
+  max-width: 100%;
+  padding-right: 8px;
+  cursor: pointer;
+}
+
+input[type='text'] {
+  width: 100%;
+}
+
+input::placeholder {
+  color: var(--muted);
 }
 
 button:hover:not(:disabled),
 .button:hover {
-  border-color: var(--accent);
+  border-color: var(--ink);
 }
 
-button:disabled {
+button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+button:disabled,
+.button:has(input:disabled) {
   opacity: 0.45;
   cursor: default;
 }
 
 .button {
   position: relative;
-  display: inline-block;
 }
 
 /* The file input stays focusable; the label is what shows. */
@@ -262,26 +462,50 @@ button:disabled {
   outline-offset: 2px;
 }
 
-.primary {
-  background: var(--accent);
+.primary,
+.button.primary {
   border-color: var(--accent);
-  color: var(--bg);
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+.primary:hover:not(:disabled),
+.button.primary:hover {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 86%, var(--ink));
 }
 
 .danger {
-  border-color: var(--error);
-  color: var(--error);
+  border-color: var(--red);
+  color: var(--red);
+}
+
+.danger:hover:not(:disabled) {
+  border-color: var(--red);
+  background: var(--red);
+  color: var(--card);
+}
+
+.icon-only {
+  width: 36px;
+  padding: 0;
+}
+
+.icon {
+  flex: none;
 }
 
 button.link {
-  padding: 2px 0;
+  min-height: 0;
+  padding: 4px 0;
   border: 0;
   background: none;
   color: var(--ink);
+  font-weight: 400;
   text-align: left;
 }
 
-button.link:hover {
+button.link:hover:not(:disabled) {
   color: var(--accent);
   text-decoration: underline;
 }
@@ -291,90 +515,62 @@ button.link:hover {
 }
 
 .ok {
-  color: var(--ok);
+  color: var(--ink);
+  font-weight: 600;
 }
 
 .error {
-  color: var(--error);
+  color: var(--red);
 }
 
 .details {
   margin: 0 0 8px;
+  padding-left: 20px;
   color: var(--muted);
   font-size: 14px;
 }
 
-.panel {
-  margin: 12px 0;
-  padding: 14px 16px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: var(--card);
-}
-
-.panel p {
-  margin: 0 0 8px;
-}
-
 .fields {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  margin: 8px 0 12px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
+  gap: 12px 16px;
+  width: 100%;
+  margin: 0 0 16px;
 }
 
 .fields label {
   display: grid;
   gap: 4px;
-  min-width: min(260px, 100%);
-}
-
-.targets {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.targets button {
-  min-width: 100px;
+  font-size: 14px;
+  font-weight: 600;
 }
 
 .prose {
   max-width: 40em;
 }
 
-.facts {
-  display: grid;
-  grid-template-columns: max-content 1fr;
-  gap: 4px 16px;
+.prose p {
+  margin: 0 0 12px;
 }
 
-.facts dt {
-  color: var(--muted);
-}
-
-.facts dd {
-  margin: 0;
-}
-
-/* Bibliotheca */
+/* Bibliotheca: a shelf of uniform cards. */
 
 .shelf {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-  gap: 16px;
-  margin: 16px 0 0;
+  grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
+  gap: 24px 20px;
+  margin: 24px 0 0;
   padding: 0;
   list-style: none;
 }
 
 .card {
   display: grid;
-  align-content: start;
-  gap: 6px;
-  padding: 10px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
+  grid-template-rows: auto 1fr auto;
+  gap: 12px;
+  padding: 10px 10px 12px;
+  border: 1px solid var(--frame);
+  border-radius: 12px;
   background: var(--card);
 }
 
@@ -382,60 +578,295 @@ button.link:hover {
   display: block;
   aspect-ratio: 2 / 3;
   overflow: hidden;
-  border-radius: 4px;
-  background: var(--line);
-  color: var(--ink);
+  border-radius: 6px;
+  background: var(--wash);
+  color: var(--accent);
   text-decoration: none;
 }
 
 .card .cover img {
+  display: block;
   width: 100%;
   height: 100%;
   object-fit: cover;
 }
 
+/* A book without a cover gets a catalogue card: its title inside a ruled frame. */
 .card .cover span {
   display: grid;
   place-items: center;
   height: 100%;
-  padding: 8px;
+  padding: 16px;
+  box-shadow:
+    inset 0 0 0 8px var(--wash),
+    inset 0 0 0 9px var(--accent);
+  border-radius: 6px;
   font-size: 14px;
+  font-weight: 700;
   text-align: center;
-}
-
-.card h2 {
-  margin: 0;
-  font-size: 15px;
+  text-wrap: balance;
   overflow-wrap: anywhere;
 }
 
-.card .authors {
+.card .about {
+  min-width: 0;
+}
+
+.card h2 {
+  display: -webkit-box;
   margin: 0;
+  overflow: hidden;
+  font-size: 16px;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+
+.card .authors {
+  margin: 2px 0 0;
+  overflow: hidden;
   color: var(--muted);
   font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .card .actions {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
   gap: 6px;
 }
 
 .card .actions button {
-  flex: 1;
-  padding: 4px 6px;
+  padding: 6px;
+}
+
+.drop-zone {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 48px 24px;
+  border: 2px dashed var(--frame-strong);
+  border-radius: 12px;
+  text-align: center;
+}
+
+.drop-zone .icon {
+  color: var(--accent);
+}
+
+.drop-zone .empty {
+  margin: 0;
+  color: var(--ink);
+  font-weight: 600;
+}
+
+/* Scriptorium: one ticket, read left to right. */
+
+.ticket {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr) minmax(0, 1fr);
+  border: 1px solid var(--frame-strong);
+  border-radius: 14px;
+  background: var(--card);
+}
+
+.leg {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+  min-width: 0;
+  padding: 24px;
+}
+
+.leg h2 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 750;
+  letter-spacing: -0.01em;
+}
+
+/* The perforation between legs, with a notch cut at each end. */
+.leg + .leg {
+  border-left: 1px dashed var(--frame-strong);
+}
+
+.leg + .leg::before,
+.leg + .leg::after {
+  content: '';
+  position: absolute;
+  left: -9.5px;
+  width: 18px;
+  height: 18px;
+  border: 1px solid var(--frame-strong);
+  border-radius: 50%;
+  background: var(--paper);
+}
+
+.leg + .leg::before {
+  top: -10px;
+  clip-path: inset(50% 0 0 0);
+}
+
+.leg + .leg::after {
+  bottom: -10px;
+  clip-path: inset(0 0 50% 0);
+}
+
+.library-pick {
+  display: grid;
+  gap: 4px;
+  width: 100%;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.library-pick select {
+  width: 100%;
+}
+
+.picked {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+  width: 100%;
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--wash);
+}
+
+.picked strong {
+  overflow-wrap: anywhere;
+}
+
+.picked .format {
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.targets {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 8px;
+  width: 100%;
+}
+
+.targets button {
+  min-height: 44px;
+  font-size: 16px;
+}
+
+.done .notices {
+  width: 100%;
+}
+
+.done .notices p {
+  margin: 0 0 8px;
+  overflow-wrap: anywhere;
+}
+
+/* The stamp a finished job receives. */
+.stamp {
+  display: inline-grid;
+  justify-items: center;
+  gap: 2px;
+  margin: 8px 0 0 8px;
+  padding: 10px 18px 8px;
+  border: 3px solid var(--accent);
+  border-radius: 6px;
+  box-shadow:
+    inset 0 0 0 2px var(--card),
+    inset 0 0 0 3px var(--accent);
+  color: var(--accent);
+  transform: rotate(-6deg);
+  animation: press 240ms var(--ease) both;
+}
+
+:root[data-theme='light'] .stamp {
+  mix-blend-mode: multiply;
+}
+
+.stamp-label {
+  padding-left: 0.14em;
+  font-family: var(--display);
+  font-size: 20px;
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.stamp-note {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  font-variant-numeric: tabular-nums;
+}
+
+@keyframes press {
+  from {
+    opacity: 0.3;
+    transform: rotate(-6deg) scale(1.35);
+  }
+
+  to {
+    opacity: 1;
+    transform: rotate(-6deg) scale(1);
+  }
+}
+
+/* Archivum: a ruled ledger. */
+
+.archivum {
+  max-width: 800px;
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: minmax(120px, max-content) 1fr;
+  margin: 0;
+  border-top: 3px double var(--frame-strong);
+}
+
+.facts dt,
+.facts dd {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.facts dt {
+  padding-right: 24px;
+  color: var(--muted);
   font-size: 14px;
 }
 
-/* Lectorium */
+.facts dd {
+  margin: 0;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
 
-.lectorium {
+.archivum .fields {
+  max-width: 480px;
+}
+
+/* Lectorium: the chrome steps back for the page. */
+
+.lectorium.open-book {
   flex: 1;
   display: flex;
   flex-direction: column;
   gap: 12px;
   min-height: 0;
   max-width: none;
-  padding-bottom: 12px;
+  padding: 16px 24px;
 }
 
 .reading-bar {
@@ -443,28 +874,47 @@ button.link:hover {
   flex-wrap: wrap;
   align-items: center;
   gap: 8px 16px;
-  margin-bottom: 10px;
 }
 
 .reading-bar h1 {
-  font-size: 20px;
+  flex: 1 1 200px;
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0;
   overflow-wrap: anywhere;
 }
 
 .reading-bar .toolbar {
-  margin: 0 0 0 auto;
+  gap: 4px;
+  margin: 0;
+}
+
+.reading-bar button,
+.reading-bar select,
+.page-nav button {
+  border-color: transparent;
+  background: transparent;
+}
+
+.reading-bar button:hover:not(:disabled),
+.reading-bar select:hover,
+.page-nav button:hover:not(:disabled) {
+  border-color: var(--line-strong);
+  background: var(--card);
 }
 
 .group {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 2px;
 }
 
 .size {
   min-width: 3.5em;
   color: var(--muted);
   font-size: 14px;
+  font-variant-numeric: tabular-nums;
   text-align: center;
 }
 
@@ -476,16 +926,21 @@ button.link:hover {
   flex: 1;
   position: relative;
   display: grid;
-  grid-template-columns: 260px 1fr;
-  gap: 16px;
+  grid-template-columns: 240px 1fr;
+  gap: 24px;
   min-height: 0;
 }
 
 .reading aside {
   overflow: auto;
-  padding-right: 10px;
+  padding-right: 16px;
   border-right: 1px solid var(--line);
-  font-size: 15px;
+  font-size: 14px;
+}
+
+.reading aside h2 {
+  margin: 24px 0 8px;
+  font-size: 14px;
 }
 
 .reading aside h2:first-child {
@@ -505,18 +960,29 @@ button.link:hover {
 
 .marks li {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 6px;
 }
 
 .marks small {
   margin-left: 6px;
   color: var(--muted);
+  font-variant-numeric: tabular-nums;
 }
 
 .marks .remove {
+  width: 32px;
+  min-height: 32px;
   margin-left: auto;
-  padding: 0 8px;
+  padding: 0;
+  border-color: transparent;
+  background: transparent;
+  color: var(--muted);
+}
+
+.marks .remove:hover:not(:disabled) {
+  border-color: transparent;
+  color: var(--red);
 }
 
 .page-area {
@@ -530,8 +996,8 @@ button.link:hover {
   position: relative;
   min-height: 300px;
   overflow: hidden;
-  border: 1px solid var(--line);
-  border-radius: 6px;
+  border: 1px solid var(--frame);
+  border-radius: 10px;
 }
 
 .page-nav {
@@ -545,44 +1011,932 @@ button.link:hover {
   margin: 0;
   color: var(--muted);
   font-size: 14px;
+  font-variant-numeric: tabular-nums;
   text-align: center;
 }
 
-@media (max-width: 700px) {
-  .room {
-    padding: 14px 16px 24px;
+/* Home: the four doors. */
+
+.home {
+  width: 100%;
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 48px 24px 56px;
+}
+
+.home-head {
+  display: grid;
+  gap: 14px;
+  margin-bottom: 40px;
+}
+
+.home-name {
+  margin: 0;
+  font: 600 clamp(56px, 9vw, 96px) / 0.95 var(--display);
+  letter-spacing: 0.04em;
+}
+
+.home-name::first-letter,
+.room-name::first-letter {
+  color: var(--accent);
+}
+
+.home .lead {
+  max-width: 30em;
+  margin: 0;
+  font-size: clamp(17px, 1.6vw, 20px);
+}
+
+.enter .home-name {
+  animation: inscribe 1080ms var(--ease) backwards;
+}
+
+.enter .lead {
+  animation: rise 810ms var(--ease) 160ms backwards;
+}
+
+@keyframes inscribe {
+  from {
+    opacity: 0;
+    letter-spacing: 0.24em;
+    filter: blur(6px);
+  }
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+}
+
+.doors {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-areas:
+    'convert read read'
+    'convert library data';
+  gap: 16px;
+}
+
+.door {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 220px;
+  padding: 24px;
+  overflow: hidden;
+  border: 1px solid var(--frame);
+  border-radius: 18px;
+  background: var(--card);
+  color: var(--ink);
+  text-decoration: none;
+  transition:
+    transform 300ms var(--ease),
+    border-color 200ms var(--ease),
+    box-shadow 300ms var(--ease);
+}
+
+.enter .door {
+  animation: rise 810ms var(--ease) calc(220ms + var(--i) * 90ms) backwards;
+}
+
+.door:hover {
+  border-color: var(--frame-hover);
+  box-shadow: 0 18px 40px -22px var(--shadow);
+  transform: translateY(-3px);
+}
+
+.door:active {
+  transform: translateY(-1px) scale(0.985);
+  transition-duration: 100ms;
+}
+
+/* The border catches the light where the pointer is. */
+.door::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  padding: 1px;
+  border-radius: inherit;
+  background: radial-gradient(
+    260px circle at var(--mx, 50%) var(--my, 50%),
+    var(--accent),
+    transparent 70%
+  );
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  opacity: 0;
+  transition: opacity 250ms var(--ease);
+  pointer-events: none;
+}
+
+.door:hover::before {
+  opacity: 1;
+}
+
+.door-convert {
+  grid-area: convert;
+  background: color-mix(in srgb, var(--wash) 65%, var(--card));
+}
+
+.door-read {
+  grid-area: read;
+}
+
+.door-library {
+  grid-area: library;
+}
+
+.door-data {
+  grid-area: data;
+}
+
+.door-icon {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  margin-bottom: 8px;
+  border-radius: 12px;
+  background: var(--wash);
+  color: var(--accent);
+  transition: transform 400ms var(--ease);
+}
+
+.door-convert .door-icon {
+  background: var(--card);
+}
+
+.door:hover .door-icon {
+  transform: rotate(-6deg) scale(1.06);
+}
+
+.door-title {
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.015em;
+}
+
+.door-convert .door-title {
+  font-size: clamp(26px, 2.6vw, 32px);
+}
+
+.door-body {
+  max-width: 28em;
+  color: var(--muted);
+  font-size: 15px;
+}
+
+.door-note {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.count {
+  color: var(--ink);
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+}
+
+.formats {
+  display: grid;
+  gap: 10px;
+  margin: 16px 0 8px;
+}
+
+.format-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.format-arrow {
+  display: grid;
+  width: 18px;
+  color: var(--accent);
+  transform: rotate(90deg);
+}
+
+.tag {
+  padding: 3px 8px;
+  border: 1px solid var(--frame);
+  border-radius: 6px;
+  background: var(--card);
+  font-size: 12px;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  transition: transform 300ms var(--ease);
+}
+
+.tag-out {
+  border-color: var(--frame-hover);
+  color: var(--accent);
+}
+
+.door-convert:hover .tag {
+  transform: translateY(-2px);
+}
+
+.door-convert:hover .tag-out {
+  transition-delay: 60ms;
+}
+
+.door-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: auto;
+  padding-top: 16px;
+}
+
+.plaque {
+  color: var(--muted);
+  font: 600 15px/1 var(--display);
+  letter-spacing: 0.04em;
+  transition: color 200ms var(--ease);
+}
+
+.door:hover .plaque {
+  color: var(--accent);
+}
+
+.door-go {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  flex: none;
+  border: 1px solid var(--frame);
+  border-radius: 999px;
+  transition:
+    background 200ms var(--ease),
+    border-color 200ms var(--ease),
+    color 200ms var(--ease),
+    transform 300ms var(--ease);
+}
+
+.door:hover .door-go {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-ink);
+  transform: translateX(4px);
+}
+
+/* A cover in miniature, or the title in a ruled frame. */
+.mini-cover {
+  display: block;
+  flex: none;
+  width: 48px;
+  aspect-ratio: 2 / 3;
+  overflow: hidden;
+  border-radius: 4px;
+  background: var(--wash);
+  box-shadow: 0 2px 6px -2px var(--shadow);
+}
+
+.mini-cover img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.mini-cover span {
+  display: -webkit-box;
+  height: 100%;
+  padding: 4px;
+  overflow: hidden;
+  box-shadow:
+    inset 0 0 0 3px var(--wash),
+    inset 0 0 0 4px var(--accent);
+  color: var(--accent);
+  font: 600 8px/1.2 var(--display);
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 5;
+  line-clamp: 5;
+}
+
+.continue {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 8px;
+}
+
+.continue .mini-cover {
+  width: 56px;
+  transition: transform 400ms var(--ease);
+}
+
+.door:hover .continue .mini-cover {
+  transform: rotate(-4deg) translateY(-2px);
+}
+
+.continue-text {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.continue-title {
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+
+.continue-by {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.stack {
+  display: flex;
+  margin-top: 8px;
+  padding-left: 8px;
+}
+
+.stack-item {
+  margin-left: -10px;
+  transform: rotate(calc((var(--s) - 1.5) * 5deg));
+  transition: transform 400ms var(--ease);
+}
+
+.door:hover .stack-item {
+  transform: translateX(calc(var(--s) * 8px)) rotate(calc((var(--s) - 1.5) * 8deg));
+}
+
+.star-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 24px;
+  margin-top: 24px;
+  padding: 18px 20px;
+  border: 1px dashed var(--frame-strong);
+  border-radius: 16px;
+}
+
+.enter .star-strip {
+  animation: rise 810ms var(--ease) 650ms backwards;
+}
+
+.star-strip p {
+  max-width: 40em;
+  margin: 0;
+  color: var(--muted);
+  font-size: 15px;
+}
+
+.star-strip strong {
+  color: var(--ink);
+}
+
+/* A room's opening: its Latin name, what it is, what can be done there. */
+
+.hero {
+  /* The name is sized against this box, not the window, so it holds on one line at any zoom. */
+  container-type: inline-size;
+  display: grid;
+  gap: 8px;
+  margin-bottom: 32px;
+  padding-bottom: 28px;
+  border-bottom: 1px solid var(--frame);
+}
+
+.back {
+  grid-column: 1 / -1;
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 12px;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.back .icon {
+  transition: transform 250ms var(--ease);
+}
+
+.back:hover {
+  color: var(--accent);
+}
+
+.back:hover .icon {
+  transform: translateX(-3px);
+}
+
+/* Scriptorium, the longest name, is 7.13em wide in Cinzel; every room takes the size that fits it. */
+.room-name {
+  margin: 0 0 12px;
+  font: 600 min(104px, 100cqi / 7.3) / 1 var(--display);
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.hero-text {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+  align-items: start;
+  gap: 14px 48px;
+  padding-bottom: 4px;
+}
+
+.hero-text .about {
+  margin: 0;
+}
+
+.about {
+  max-width: 34em;
+  margin: 0 0 14px;
+  font-size: 17px;
+  animation: rise 680ms var(--ease) 160ms backwards;
+}
+
+.can {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.can li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--muted);
+  font-size: 15px;
+  animation: rise 680ms var(--ease) calc(270ms + var(--i) * 80ms) backwards;
+}
+
+.can .icon {
+  flex: none;
+  color: var(--accent);
+}
+
+/* The Lectorium's shelf of books to open. */
+
+.pick-title {
+  margin-top: 0;
+}
+
+.pick {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pick li {
+  display: flex;
+  animation: rise 680ms var(--ease) calc(320ms + min(var(--i), 8) * 70ms) backwards;
+}
+
+.pick a {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 12px;
+  border: 1px solid var(--frame);
+  border-radius: 12px;
+  background: var(--card);
+  color: var(--ink);
+  text-decoration: none;
+  transition:
+    transform 250ms var(--ease),
+    border-color 200ms var(--ease);
+}
+
+.pick a:hover {
+  border-color: var(--frame-hover);
+  transform: translateY(-2px);
+}
+
+.pick a:active {
+  transform: scale(0.985);
+}
+
+.pick-text {
+  display: grid;
+  min-width: 0;
+}
+
+.pick-name {
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+
+.pick-by {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.reading-title {
+  display: grid;
+  flex: 1 1 200px;
+  min-width: 0;
+}
+
+.room-tag {
+  color: var(--accent);
+  font: 600 12px/1.2 var(--display);
+  letter-spacing: 0.12em;
+}
+
+/* Shown while a file is dragged over the page. */
+.drop-veil {
+  position: fixed;
+  inset: 12px;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  border: 2px dashed var(--accent);
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--paper) 90%, transparent);
+  color: var(--accent);
+  font-size: 20px;
+  font-weight: 700;
+  text-align: center;
+  pointer-events: none;
+  animation: veil-in 270ms var(--ease) backwards;
+}
+
+@keyframes veil-in {
+  from {
+    opacity: 0;
+    transform: scale(1.02);
+  }
+}
+
+/* A pressed control sends a ring out from the point it was pressed (App.svelte places it). */
+
+button:not(.link),
+.button,
+.door,
+.tab,
+.star-top {
+  position: relative;
+  overflow: hidden;
+}
+
+.rippling::after {
+  content: '';
+  position: absolute;
+  top: var(--ry);
+  left: var(--rx);
+  width: var(--rs);
+  height: var(--rs);
+  margin: calc(var(--rs) / -2) 0 0 calc(var(--rs) / -2);
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0;
+  pointer-events: none;
+  animation: ripple 810ms var(--ease);
+}
+
+@keyframes ripple {
+  from {
+    opacity: 0.16;
+    transform: scale(0);
   }
 
+  to {
+    opacity: 0;
+    transform: scale(1);
+  }
+}
+
+button:active:not(:disabled),
+.button:active,
+.star-top:active {
+  transform: scale(0.97);
+}
+
+/*
+ * Moving between screens (state.svelte.ts sets data-nav for the length of a view transition).
+ * Into a room, its name grows out of the plaque on its door; out again, it shrinks back.
+ * Sideways, the new room comes from the side of the tab that was picked.
+ */
+
+:root[data-nav='in'] .plaque,
+:root[data-nav='in'] .room-name,
+:root[data-nav='out'] .plaque,
+:root[data-nav='out'] .room-name {
+  view-transition-name: var(--vt);
+  view-transition-class: title;
+}
+
+:root[data-nav] .masthead {
+  view-transition-name: masthead;
+}
+
+::view-transition-group(*) {
+  animation-duration: 610ms;
+  animation-timing-function: var(--ease);
+}
+
+::view-transition-old(.title) {
+  animation-duration: 220ms;
+}
+
+:root[data-nav='in']::view-transition-old(root) {
+  animation: 270ms ease-in both fade-out-down;
+}
+
+:root[data-nav='in']::view-transition-new(root) {
+  animation: 610ms var(--ease) 80ms both rise-in;
+}
+
+:root[data-nav='out']::view-transition-old(root) {
+  animation: 240ms ease-in both fade-out-down;
+}
+
+:root[data-nav='out']::view-transition-new(root) {
+  animation: 570ms var(--ease) 50ms both settle-in;
+}
+
+:root[data-nav='forward']::view-transition-old(root) {
+  animation: 270ms ease-in both slide-out-left;
+}
+
+:root[data-nav='forward']::view-transition-new(root) {
+  animation: 540ms var(--ease) both slide-in-right;
+}
+
+:root[data-nav='back']::view-transition-old(root) {
+  animation: 270ms ease-in both slide-out-right;
+}
+
+:root[data-nav='back']::view-transition-new(root) {
+  animation: 540ms var(--ease) both slide-in-left;
+}
+
+/* The theme switch: the new theme is revealed in a circle (theme.svelte.ts animates it). */
+:root[data-nav='theme'] * {
+  view-transition-name: none !important;
+}
+
+:root[data-nav='theme']::view-transition-old(root),
+:root[data-nav='theme']::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+@keyframes fade-out-down {
+  to {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+}
+
+@keyframes settle-in {
+  from {
+    opacity: 0;
+    transform: scale(0.985);
+  }
+}
+
+@keyframes slide-out-left {
+  to {
+    opacity: 0;
+    transform: translateX(-24px);
+  }
+}
+
+@keyframes slide-out-right {
+  to {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+}
+
+@keyframes slide-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(32px);
+  }
+}
+
+@keyframes slide-in-left {
+  from {
+    opacity: 0;
+    transform: translateX(-32px);
+  }
+}
+
+/* Browsers without view transitions still see the screen arrive. */
+@supports not (view-transition-name: none) {
+  .stage {
+    animation: rise 430ms var(--ease) backwards;
+  }
+}
+
+@media (max-width: 1000px) {
+  .tab .icon {
+    display: none;
+  }
+
+  .tab {
+    padding: 0 10px;
+  }
+}
+
+@media (max-width: 860px) {
+  .ticket {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .leg + .leg {
+    border-top: 1px dashed var(--frame-strong);
+    border-left: 0;
+  }
+
+  .leg + .leg::before,
+  .leg + .leg::after {
+    top: -9.5px;
+    bottom: auto;
+  }
+
+  .leg + .leg::before {
+    left: -10px;
+    clip-path: inset(0 0 0 50%);
+  }
+
+  .leg + .leg::after {
+    left: auto;
+    right: -10px;
+    clip-path: inset(0 50% 0 0);
+  }
+
+  .doors {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-areas:
+      'convert convert'
+      'read read'
+      'library data';
+  }
+
+  .hero-text {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  /* Narrow windows and zoomed-in pages: the tabs keep one short word each. */
+  .tab-name {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .tab-short {
+    display: block;
+  }
+}
+
+/* Phones: the rooms move to a bar within thumb reach. */
+@media (max-width: 700px) {
   .masthead {
-    padding: 8px 16px;
+    height: 56px;
+    padding: 0 16px;
   }
 
   .masthead nav {
-    margin-left: 0;
-    width: 100%;
+    position: fixed;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 6;
+    margin: 0;
+    padding-bottom: env(safe-area-inset-bottom);
+    border-top: 1px solid var(--frame);
+    background: var(--card);
+  }
+
+  :root[data-nav] .masthead nav {
+    view-transition-name: tabbar;
+  }
+
+  .masthead nav + .tools {
+    margin-left: auto;
   }
 
   .masthead ul {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0;
+    width: 100%;
+    height: var(--nav-h);
   }
 
-  .masthead nav a {
-    padding: 4px 6px;
-    font-size: 14px;
-    text-align: center;
+  .tab {
+    flex-direction: column;
+    justify-content: center;
+    gap: 2px;
+    width: 100%;
+    padding: 0 4px;
   }
 
-  .masthead nav a small {
-    display: none;
+  .tab .icon,
+  .tab-short {
+    display: block;
+  }
+
+  .tab-short {
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  .tab-name {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .tab[aria-current='page'] {
+    color: var(--accent);
+  }
+
+  .dash {
+    top: 0;
+    bottom: auto;
+  }
+
+  main {
+    padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom));
+  }
+
+  main.home-main {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .home {
+    padding: 28px 16px 40px;
+  }
+
+  .home-head {
+    margin-bottom: 28px;
+  }
+
+  .doors {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: 'convert' 'read' 'library' 'data';
+    gap: 12px;
+  }
+
+  .door {
+    min-height: 0;
+    padding: 20px;
+  }
+
+  .room {
+    padding: 16px 16px 32px;
+  }
+
+  .hero {
+    margin-bottom: 24px;
+    padding-bottom: 20px;
+  }
+
+  .back {
+    margin-bottom: 4px;
+  }
+
+  .lectorium.open-book {
+    padding: 12px 16px;
+  }
+
+  .leg {
+    padding: 20px 16px;
   }
 
   .panel-toggle {
-    display: inline-block;
-  }
-
-  .reading-bar .toolbar {
-    margin-left: 0;
+    display: inline-flex;
   }
 
   .reading {
@@ -598,10 +1952,10 @@ button.link:hover {
     inset: 0;
     z-index: 2;
     display: block;
-    padding: 12px;
-    border: 1px solid var(--line);
-    border-radius: 6px;
-    background: var(--bg);
+    padding: 16px;
+    border: 1px solid var(--frame);
+    border-radius: 10px;
+    background: var(--paper);
   }
 
   .where .chapter {
@@ -609,17 +1963,68 @@ button.link:hover {
   }
 }
 
-/* Shown while a file is dragged over the page. */
-.drop-veil {
-  position: fixed;
-  inset: 12px;
-  z-index: 20;
-  display: grid;
-  place-items: center;
-  border: 3px dashed var(--accent);
-  border-radius: 14px;
-  background: color-mix(in srgb, var(--bg) 88%, transparent);
-  color: var(--accent);
-  font-size: 22px;
-  pointer-events: none;
+@media (max-width: 560px) {
+  .shelf {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+  }
+
+  .card {
+    grid-template-columns: 64px minmax(0, 1fr);
+    grid-template-rows: auto auto;
+    column-gap: 12px;
+    row-gap: 8px;
+  }
+
+  .card .cover {
+    grid-row: span 2;
+  }
+
+  .card .cover span {
+    padding: 4px;
+    box-shadow: none;
+    font-size: 12px;
+  }
+
+  .star-top span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .star-top {
+    width: 36px;
+    padding: 0;
+    justify-content: center;
+  }
+}
+
+/* Reduced motion: things still change, but nothing travels. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-delay: 0ms !important;
+    /* Zero, not a token 1ms: with the default transition-property of all, every element would
+       ease its colour and a theme change would creep down the tree one level a frame. */
+    transition-duration: 0s !important;
+    transition-delay: 0s !important;
+  }
+
+  .rippling::after {
+    display: none;
+  }
+
+  .door:hover,
+  .pick a:hover {
+    transform: none;
+  }
+
+  .stamp {
+    animation: none;
+  }
 }

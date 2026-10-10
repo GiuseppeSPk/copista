@@ -11,3 +11,4 @@ tests/fixtures/generated/
 tests/fixtures/output/
 package-lock.json
 docs/
+.impeccable/

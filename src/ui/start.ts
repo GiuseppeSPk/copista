@@ -1,5 +1,6 @@
 import { mount } from 'svelte';
 import App from './App.svelte';
+import '@fontsource-variable/cinzel';
 import './styles.css';
 
 /** Mounts the interface in the page's #app element. */

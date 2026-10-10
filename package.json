@@ -24,6 +24,7 @@
     "icons": "tsx scripts/make-icons.ts"
   },
   "dependencies": {
+    "@fontsource-variable/cinzel": "^5.3.0",
     "dompurify": "^3.4.16",
     "fflate": "^0.8.3",
     "idb": "^8.0.4",

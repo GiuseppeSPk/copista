@@ -1,5 +1,7 @@
 <script lang="ts">
   import { removeBook } from '../rooms/bibliotheca';
+  import Icon from './Icon.svelte';
+  import RoomHero from './RoomHero.svelte';
   import { addFiles, app, go, refreshShelf } from './state.svelte';
   import { hashOf } from './route';
   import { errorMessage } from './text';
@@ -28,6 +30,11 @@
     } finally {
       busy = false;
     }
+  }
+
+  function convertBook(id: string): void {
+    app.pendingBookId = id;
+    go({ room: 'scriptorium' });
   }
 
   async function remove(id: string, title: string): Promise<void> {
@@ -68,8 +75,7 @@
 </script>
 
 <section class="room" aria-labelledby="bibliotheca-title">
-  <h1 id="bibliotheca-title">Bibliotheca</h1>
-  <p class="lead">Your library. Books are kept in this browser only.</p>
+  <RoomHero room="bibliotheca" />
 
   <div class="toolbar">
     <label class="button primary">
@@ -109,7 +115,14 @@
   </div>
 
   {#if app.shelf.length === 0}
-    <p class="empty">No books yet. Add an EPUB file to start reading.</p>
+    <div class="drop-zone">
+      <Icon name="library" size={32} />
+      <p class="empty">No books yet. Add an EPUB file to start reading.</p>
+      <p class="hint">
+        Drop EPUB files anywhere on this page. To convert a document, open the
+        <a href="#/scriptorium">Scriptorium</a>.
+      </p>
+    </div>
   {:else}
     <ul class="shelf" aria-label="Books">
       {#each app.shelf as book (book.id)}
@@ -126,14 +139,28 @@
               <span>{book.title}</span>
             {/if}
           </a>
-          <h2>{book.title}</h2>
-          <p class="authors">{book.authors.join(', ') || 'Unknown author'}</p>
+          <div class="about">
+            <h2>{book.title}</h2>
+            <p class="authors">{book.authors.join(', ') || 'Unknown author'}</p>
+          </div>
           <div class="actions">
-            <button type="button" onclick={() => go({ room: 'lectorium', bookId: book.id })}>
+            <button
+              type="button"
+              class="primary"
+              onclick={() => go({ room: 'lectorium', bookId: book.id })}
+            >
               Read<span class="sr-only"> {book.title}</span>
             </button>
-            <button type="button" onclick={() => remove(book.id, book.title)}>
-              Remove<span class="sr-only"> {book.title}</span>
+            <button type="button" onclick={() => convertBook(book.id)}>
+              Convert<span class="sr-only"> {book.title}</span>
+            </button>
+            <button
+              type="button"
+              class="icon-only"
+              title="Remove"
+              onclick={() => remove(book.id, book.title)}
+            >
+              <Icon name="trash" size={18} /><span class="sr-only">Remove {book.title}</span>
             </button>
           </div>
         </li>

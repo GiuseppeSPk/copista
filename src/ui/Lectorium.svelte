@@ -13,6 +13,10 @@
   import type { TocEntry } from '../core/model/book';
   import { app, changeSettings } from './state.svelte';
   import Contents from './Contents.svelte';
+  import Cover from './Cover.svelte';
+  import RoomHero from './RoomHero.svelte';
+  import { hashOf } from './route';
+  import Icon from './Icon.svelte';
   import { errorMessage } from './text';
 
   let { bookId }: { bookId?: string | undefined } = $props();
@@ -145,15 +149,37 @@
 
 <svelte:window onkeydown={onKey} />
 
-<section class="room lectorium" aria-labelledby="lectorium-title">
+<section class="room lectorium" class:open-book={bookId} aria-labelledby="lectorium-title">
   {#if !bookId}
-    <h1 id="lectorium-title">Lectorium</h1>
-    <p class="empty">
-      Choose a book in the <a href="#/bibliotheca">Bibliotheca</a> to read it here.
-    </p>
+    <RoomHero room="lectorium" />
+    {#if app.shelf.length > 0}
+      <h2 class="pick-title">Choose a book</h2>
+      <ul class="pick">
+        {#each app.shelf as shelfBook, i (shelfBook.id)}
+          <li style:--i={i}>
+            <a href={hashOf({ room: 'lectorium', bookId: shelfBook.id })}>
+              <Cover book={shelfBook} />
+              <span class="pick-text">
+                <span class="pick-name">{shelfBook.title}</span>
+                {#if shelfBook.authors.length > 0}
+                  <span class="pick-by">{shelfBook.authors.join(', ')}</span>
+                {/if}
+              </span>
+            </a>
+          </li>
+        {/each}
+      </ul>
+    {:else}
+      <p class="empty">
+        No books yet. Add one in the <a href="#/bibliotheca">library</a> and it opens here.
+      </p>
+    {/if}
   {:else}
     <div class="reading-bar">
-      <h1 id="lectorium-title">{book?.meta.title ?? 'Opening…'}</h1>
+      <div class="reading-title">
+        <span class="room-tag" aria-hidden="true">Lectorium</span>
+        <h1 id="lectorium-title">{book?.meta.title ?? 'Opening…'}</h1>
+      </div>
       <div class="toolbar">
         <button
           type="button"
@@ -224,7 +250,7 @@
                   type="button"
                   class="remove"
                   aria-label="Delete bookmark"
-                  onclick={() => unmark(m.id)}>×</button
+                  onclick={() => unmark(m.id)}><Icon name="trash" size={16} /></button
                 >
               </li>
             {/each}
@@ -244,7 +270,7 @@
         ></div>
         <div class="page-nav">
           <button type="button" onclick={() => turn(false)} disabled={!session}>
-            <span aria-hidden="true">‹</span> Previous
+            <Icon name="back" size={18} /> Previous
           </button>
           <p class="where" aria-live="polite">
             {#if session && where.pages > 0}
@@ -255,7 +281,7 @@
             {/if}
           </p>
           <button type="button" onclick={() => turn(true)} disabled={!session}>
-            Next <span aria-hidden="true">›</span>
+            Next <Icon name="arrow" size={18} />
           </button>
         </div>
       </div>

@@ -1,9 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <rect width="512" height="512" fill="#8a3b1f"/>
-  <path d="M104 172c52-22 104-20 152 8v196c-48-28-100-30-152-8z" fill="#f6f1e7"/>
-  <path d="M408 172c-52-22-104-20-152 8v196c48-28 100-30 152-8z" fill="#eadfcd"/>
-  <g stroke="#8a3b1f" stroke-width="10" stroke-linecap="round" opacity=".55">
-    <path d="M136 212c28-8 56-8 88 4M136 250c28-8 56-8 88 4M136 288c28-8 56-8 88 4M136 326c28-8 56-8 60 0"/>
+  <rect width="512" height="512" fill="#4f2a9a"/>
+  <g transform="rotate(-8 256 256)" fill="none" stroke="#ffffff">
+    <rect x="112" y="112" width="288" height="288" rx="24" stroke-width="28"/>
+    <rect x="154" y="154" width="204" height="204" rx="12" stroke-width="12"/>
+    <path d="M298 211a64 64 0 1 0 0 90" stroke-width="34" stroke-linecap="round"/>
   </g>
-  <path d="M392 108 300 300l-10 34 26-24 92-192c4-10-10-18-16-18z" fill="#2b2118"/>
 </svg>

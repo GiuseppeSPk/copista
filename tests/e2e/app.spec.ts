@@ -16,8 +16,26 @@ function watchForeignRequests(page: Page, origin: string): string[] {
   return foreign;
 }
 
+/** The room tabs are named for what each room does. */
+const TAB = {
+  Bibliotheca: 'Keep your books',
+  Lectorium: 'Read a book',
+  Scriptorium: 'Convert a file',
+  Archivum: 'Manage your data',
+} as const;
+
+type Room = keyof typeof TAB;
+
+async function openRoom(page: Page, room: Room): Promise<void> {
+  await page
+    .getByRole('navigation', { name: 'Rooms' })
+    .getByRole('link', { name: TAB[room] })
+    .click();
+  await expect(page.getByRole('heading', { level: 1, name: room })).toBeVisible();
+}
+
 async function addBook(page: Page, path = LONG_BOOK): Promise<void> {
-  await page.goto('/');
+  await page.goto('/#/bibliotheca');
   await page.getByLabel('Add EPUB books').setInputFiles(path);
   await expect(page.getByRole('status')).toContainText('Added “Long Book”.');
 }
@@ -92,9 +110,8 @@ test('changes the text size and keeps it', async ({ page }) => {
   await openReader(page);
   await page.getByRole('button', { name: 'Larger text' }).click();
   await expect(page.locator('.size')).toHaveText('110%');
-  await page.getByRole('link', { name: /Archivum/ }).click();
   // The reader's own "Text size" group is still on screen until the room changes.
-  await expect(page.getByRole('heading', { level: 1, name: 'Archivum' })).toBeVisible();
+  await openRoom(page, 'Archivum');
   await expect(page.getByLabel('Text size')).toHaveValue('110');
 });
 
@@ -106,7 +123,7 @@ test('removes a book', async ({ page }) => {
 });
 
 test('shows a message for a file that is not an EPUB', async ({ page }) => {
-  await page.goto('/');
+  await page.goto('/#/bibliotheca');
   await page.getByLabel('Add EPUB books').setInputFiles({
     name: 'notes.epub',
     mimeType: 'application/epub+zip',
@@ -200,7 +217,7 @@ test.describe('Scriptorium', () => {
 
   test('converts a book from the library', async ({ page }) => {
     await addBook(page);
-    await page.getByRole('link', { name: /Scriptorium/ }).click();
+    await openRoom(page, 'Scriptorium');
     const book = await page.getByRole('option', { name: /^Long Book/ }).getAttribute('value');
     await page.getByLabel('Or a book from your library').selectOption(book!);
     await expect(page.getByRole('button', { name: 'EPUB', exact: true })).toHaveCount(0);
@@ -212,12 +229,12 @@ test.describe('Scriptorium', () => {
 
 test('deletes all data from the Archivum', async ({ page }) => {
   await addBook(page);
-  await page.getByRole('link', { name: /Archivum/ }).click();
+  await openRoom(page, 'Archivum');
   await expect(page.getByText('Sent anywhere')).toBeVisible();
   page.once('dialog', (dialog) => void dialog.accept());
   await page.getByRole('button', { name: 'Delete all my data' }).click();
   await expect(page.getByRole('status')).toContainText('has been deleted');
-  await page.getByRole('link', { name: /Bibliotheca/ }).click();
+  await openRoom(page, 'Bibliotheca');
   await expect(page.getByText('No books yet.')).toBeVisible();
 });
 
@@ -225,9 +242,11 @@ test('makes no request outside its own site', async ({ page, baseURL }) => {
   const foreign = watchForeignRequests(page, baseURL!);
   await openReader(page);
   await page.getByRole('button', { name: 'Next' }).click();
-  for (const room of ['Scriptorium', 'Archivum', 'Bibliotheca']) {
-    await page.getByRole('link', { name: new RegExp(room) }).click();
+  for (const room of ['Scriptorium', 'Archivum', 'Bibliotheca'] as const) {
+    await openRoom(page, room);
   }
+  await page.getByRole('link', { name: 'Copista, all rooms' }).click();
+  await expect(page.getByRole('heading', { level: 1, name: 'Copista' })).toBeVisible();
   expect(foreign).toEqual([]);
 });
 
@@ -243,24 +262,46 @@ test.describe('on a phone-sized screen', () => {
     await expect(page.getByRole('button', { name: 'Part 2' })).toBeVisible();
     await page.getByRole('button', { name: 'Part 2' }).click();
     await expect(page.locator('.where')).toContainText('chapter 2 of 3');
-    for (const room of ['Bibliotheca', 'Scriptorium', 'Archivum']) {
-      await page.getByRole('link', { name: new RegExp(room) }).click();
-      await expect(page.getByRole('heading', { level: 1, name: room })).toBeVisible();
+    for (const room of ['Bibliotheca', 'Scriptorium', 'Archivum'] as const) {
+      await openRoom(page, room);
       expect(await overflow()).toBeLessThanOrEqual(0);
     }
+    await page.getByRole('link', { name: 'All rooms', exact: true }).click();
+    await expect(page.getByRole('heading', { level: 1, name: 'Copista' })).toBeVisible();
+    expect(await overflow()).toBeLessThanOrEqual(0);
   });
 });
 
-test('has no serious accessibility problems in any room', async ({ page }) => {
+test('has no serious accessibility problems in any room, in either theme', async ({ page }) => {
   await openReader(page);
-  const rooms: [string, string][] = [
-    ['Lectorium', ''],
-    ['Bibliotheca', 'Bibliotheca'],
-    ['Scriptorium', 'Scriptorium'],
-    ['Archivum', 'Archivum'],
+  const screens: [string, () => Promise<void>][] = [
+    ['Lectorium', async () => {}],
+    ['Bibliotheca', () => openRoom(page, 'Bibliotheca')],
+    ['Scriptorium', () => openRoom(page, 'Scriptorium')],
+    ['Archivum', () => openRoom(page, 'Archivum')],
+    [
+      'Home',
+      async () => {
+        await page.getByRole('link', { name: 'All rooms', exact: true }).click();
+        await expect(page.getByRole('heading', { level: 1, name: 'Copista' })).toBeVisible();
+      },
+    ],
+    ['Home, dark', () => page.getByRole('button', { name: 'Switch to dark theme' }).click()],
+    ['Archivum, dark', () => page.getByRole('link', { name: /Manage your data/ }).click()],
   ];
-  for (const [name, link] of rooms) {
-    if (link) await page.getByRole('link', { name: new RegExp(link) }).click();
+  await page.emulateMedia({ reducedMotion: 'reduce', colorScheme: 'light' });
+  for (const [name, open] of screens) {
+    await open();
+    // Check the colours only once the theme has switched and no transition is on screen.
+    const theme = name.endsWith('dark') ? 'dark' : 'light';
+    await expect
+      .poll(() =>
+        page.evaluate(() => [
+          document.documentElement.dataset.theme,
+          document.documentElement.dataset.nav ?? '',
+        ]),
+      )
+      .toEqual([theme, '']);
     // The page frame holds the book's own markup, which Copista does not write.
     const result = await new AxeBuilder({ page }).exclude('.pages').analyze();
     const serious = result.violations
@@ -268,4 +309,45 @@ test('has no serious accessibility problems in any room', async ({ page }) => {
       .map((v) => `${name}: ${v.id} (${v.nodes.map((n) => n.target.join(' ')).join(', ')})`);
     expect(serious).toEqual([]);
   }
+});
+
+test.describe('home', () => {
+  test('opens each room from its door and comes back', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.getByRole('heading', { level: 1, name: 'Copista' })).toBeVisible();
+    for (const room of ['Scriptorium', 'Lectorium', 'Bibliotheca', 'Archivum'] as const) {
+      await page.getByRole('link', { name: TAB[room] }).click();
+      await expect(page.getByRole('heading', { level: 1, name: room })).toBeVisible();
+      await expect(page.getByRole('list', { name: 'In this room' })).toBeVisible();
+      await page.getByRole('link', { name: 'All rooms', exact: true }).click();
+      await expect(page.getByRole('heading', { level: 1, name: 'Copista' })).toBeVisible();
+    }
+  });
+
+  test('offers to continue the last book read', async ({ page }) => {
+    await openReader(page);
+    await page.getByRole('link', { name: 'Copista, all rooms' }).click();
+    await page.getByRole('link', { name: 'Continue reading' }).click();
+    await expect(page.locator('.where')).toContainText(/Page 1 of \d+/);
+  });
+
+  test('links to the project without sending anything', async ({ page }) => {
+    await page.goto('/');
+    const star = page.getByRole('link', { name: 'Star on GitHub' });
+    await expect(star).toHaveAttribute('href', 'https://github.com/GiuseppeSPk/copista');
+    await expect(star).toHaveAttribute('rel', 'noopener noreferrer');
+  });
+});
+
+test('switches the theme and keeps it after a reload', async ({ page }) => {
+  await page.emulateMedia({ colorScheme: 'light' });
+  await page.goto('/');
+  const theme = (): Promise<string | undefined> =>
+    page.evaluate(() => document.documentElement.dataset.theme);
+  await expect.poll(theme).toBe('light');
+  await page.getByRole('button', { name: 'Switch to dark theme' }).click();
+  await expect.poll(theme).toBe('dark');
+  await expect(page.getByRole('button', { name: 'Switch to light theme' })).toBeVisible();
+  await page.reload();
+  await expect.poll(theme).toBe('dark');
 });

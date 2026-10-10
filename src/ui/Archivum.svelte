@@ -1,8 +1,11 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { deleteAllData, storageUsage, type Settings } from '../rooms/archivum';
+  import Icon from './Icon.svelte';
+  import RoomHero from './RoomHero.svelte';
   import { app, changeSettings, loadSettings, refreshShelf } from './state.svelte';
   import { errorMessage, megabytes } from './text';
+  import { forgetTheme } from './theme.svelte';
 
   let usage = $state<{ usedBytes: number; quotaBytes: number } | null>(null);
   let message = $state<{ tone: 'ok' | 'error'; text: string }>();
@@ -33,6 +36,7 @@
     }
     try {
       await deleteAllData();
+      forgetTheme();
       app.lastBookId = undefined;
       app.libraryNotices = [];
       await Promise.all([loadSettings(), refreshShelf(), measure()]);
@@ -43,9 +47,8 @@
   }
 </script>
 
-<section class="room" aria-labelledby="archivum-title">
-  <h1 id="archivum-title">Archivum</h1>
-  <p class="lead">What Copista keeps, and where.</p>
+<section class="room archivum" aria-labelledby="archivum-title">
+  <RoomHero room="archivum" />
 
   <h2>In this browser</h2>
   <dl class="facts">
@@ -54,8 +57,7 @@
     <dt>Space used</dt>
     <dd>
       {#if usage}
-        {megabytes(usage.usedBytes)}{#if usage.quotaBytes > 0}
-          of {megabytes(usage.quotaBytes)} allowed{/if}
+        {megabytes(usage.usedBytes)}{#if usage.quotaBytes > 0}{' '}of {megabytes(usage.quotaBytes)} allowed{/if}
       {:else}
         The browser does not say.
       {/if}
@@ -99,7 +101,8 @@
     <p>
       The books you add, your reading position, your bookmarks and these settings are stored in this
       browser's own storage (IndexedDB) on this device. They are not uploaded and nobody else can
-      see them. Files you convert in the Scriptorium are read in memory and are not kept.
+      see them. Your choice of light or dark interface is kept in the browser's local storage. Files
+      you convert in the Scriptorium are read in memory and are not kept.
     </p>
     <p>
       The app files themselves come from the site that hosts Copista. Like any web host, it may
@@ -116,7 +119,9 @@
 
   <h2>Delete everything</h2>
   <p>
-    <button type="button" class="danger" onclick={eraseAll}>Delete all my data</button>
+    <button type="button" class="danger" onclick={eraseAll}>
+      <Icon name="trash" size={18} /> Delete all my data
+    </button>
   </p>
 
   <div role="status" class="notices">

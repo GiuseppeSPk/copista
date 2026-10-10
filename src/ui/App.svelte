@@ -2,22 +2,20 @@
   import { onMount } from 'svelte';
   import Archivum from './Archivum.svelte';
   import Bibliotheca from './Bibliotheca.svelte';
+  import Home from './Home.svelte';
+  import Icon from './Icon.svelte';
   import Lectorium from './Lectorium.svelte';
+  import Mark from './Mark.svelte';
   import Scriptorium from './Scriptorium.svelte';
   import { addFiles, app, followHash, go, loadSettings, refreshShelf } from './state.svelte';
-  import { hashOf, type Room, type Route } from './route';
-
-  const ROOMS: { room: Room; name: string; hint: string }[] = [
-    { room: 'bibliotheca', name: 'Bibliotheca', hint: 'Library' },
-    { room: 'lectorium', name: 'Lectorium', hint: 'Read' },
-    { room: 'scriptorium', name: 'Scriptorium', hint: 'Convert' },
-    { room: 'archivum', name: 'Archivum', hint: 'Data & privacy' },
-  ];
+  import { hashOf, type Route } from './route';
+  import { GITHUB_URL, ROOMS, type RoomName } from './rooms';
+  import { look, toggleTheme, watchTheme } from './theme.svelte';
 
   let ready = $state(false);
   let dragDepth = $state(0);
 
-  function routeFor(room: Room): Route {
+  function routeFor(room: RoomName): Route {
     if (room === 'lectorium' && app.lastBookId) return { room, bookId: app.lastBookId };
     return { room } as Route;
   }
@@ -26,28 +24,122 @@
     return event.dataTransfer?.types.includes('Files') ?? false;
   }
 
+  const isBook = (file: File): boolean => /\.epub$/i.test(file.name);
+
   function onDrop(event: DragEvent): void {
     if (!hasFiles(event)) return;
     event.preventDefault();
     dragDepth = 0;
     const files = [...(event.dataTransfer?.files ?? [])];
     if (files.length === 0) return;
-    if (app.route.room === 'bibliotheca') {
+    const room = app.route.room;
+    if (room === 'bibliotheca' || (room === 'home' && files.every(isBook))) {
       void addFiles(files);
+      if (room === 'home') go({ room: 'bibliotheca' });
     } else {
       app.pendingConversion = files[0];
       go({ room: 'scriptorium' });
     }
   }
 
+  const dropText = $derived(
+    app.route.room === 'bibliotheca'
+      ? 'Drop to add to the library'
+      : app.route.room === 'home'
+        ? 'Drop books to keep them, other files to convert'
+        : 'Drop to convert',
+  );
+
+  /** Keys 1 to 4 open the rooms, unless the reader is typing somewhere. */
+  function onKey(event: KeyboardEvent): void {
+    if (event.ctrlKey || event.metaKey || event.altKey || event.repeat) return;
+    const index = '1234'.indexOf(event.key);
+    if (index < 0 || event.key.length !== 1) return;
+    const target = event.target as HTMLElement | null;
+    if (target?.closest('input, select, textarea, [contenteditable]')) return;
+    event.preventDefault();
+    go(routeFor(ROOMS[index]!.room));
+  }
+
+  /**
+   * A pressed control sends a ring of light out from the point it was pressed. One listener
+   * serves the whole app: it places the ring with CSS variables and adds no elements.
+   */
+  function onPress(event: PointerEvent): void {
+    if (event.button !== 0) return;
+    const target = (event.target as Element | null)?.closest<HTMLElement>(
+      'button:not(.link), .button, .door, .tab, .star-top',
+    );
+    if (!target || target.matches(':disabled')) return;
+    const box = target.getBoundingClientRect();
+    target.style.setProperty('--rx', `${event.clientX - box.left}px`);
+    target.style.setProperty('--ry', `${event.clientY - box.top}px`);
+    target.style.setProperty('--rs', `${Math.hypot(box.width, box.height) * 2}px`);
+    target.classList.remove('rippling');
+    void target.offsetWidth;
+    target.classList.add('rippling');
+  }
+
+  function onRippleEnd(event: AnimationEvent): void {
+    if (event.animationName === 'ripple') {
+      (event.target as HTMLElement).classList.remove('rippling');
+    }
+  }
+
+  // The dash: one stroke slides under the tabs to the room that is open.
+  let strip: HTMLUListElement | undefined = $state();
+  let dashAt = $state({ x: 0, width: 0 });
+  let dashLive = $state(false);
+  const current = $derived(ROOMS.findIndex((r) => r.room === app.route.room));
+
+  function placeDash(): void {
+    const tab = strip?.querySelectorAll('a')[current];
+    if (!tab) return;
+    dashAt = { x: tab.offsetLeft, width: tab.offsetWidth };
+  }
+
+  $effect(() => {
+    void current;
+    placeDash();
+    // Only slide once the stroke has a first position to slide from.
+    if (!dashLive && strip) requestAnimationFrame(() => (dashLive = true));
+  });
+
+  $effect(() => {
+    if (!strip) {
+      dashLive = false;
+      return;
+    }
+    const resize = new ResizeObserver(placeDash);
+    resize.observe(strip);
+    return () => resize.disconnect();
+  });
+
+  const nextTheme = $derived(look.theme === 'dark' ? 'light' : 'dark');
+
+  function switchTheme(event: MouseEvent): void {
+    // A keyboard press reports no point: the circle then grows from the switch itself.
+    const button = event.currentTarget as HTMLElement;
+    const box = button.getBoundingClientRect();
+    const fromPointer = event.detail > 0;
+    toggleTheme({
+      x: fromPointer ? event.clientX : box.left + box.width / 2,
+      y: fromPointer ? event.clientY : box.top + box.height / 2,
+    });
+  }
+
   onMount(() => {
+    const stopWatching = watchTheme();
     followHash();
     void Promise.all([loadSettings(), refreshShelf()]).finally(() => (ready = true));
+    return stopWatching;
   });
 </script>
 
-<svelte:window onhashchange={followHash} />
+<svelte:window onhashchange={followHash} onkeydown={onKey} />
 <svelte:document
+  onpointerdown={onPress}
+  onanimationend={onRippleEnd}
   ondragenter={(e) => {
     if (hasFiles(e)) dragDepth += 1;
   }}
@@ -61,45 +153,79 @@
 />
 
 <a class="skip" href="#main">Skip to content</a>
-<header class="masthead">
-  <a class="brand" href="#/bibliotheca">
-    <img src="icon.svg" alt="" width="28" height="28" />
-    <span>Copista</span>
+<header class="masthead" class:at-home={app.route.room === 'home'}>
+  <a class="brand" href="#/" aria-label="Copista, all rooms">
+    <Mark />
+    <span class="brand-name">Copista</span>
   </a>
-  <nav aria-label="Rooms">
-    <ul>
-      {#each ROOMS as r (r.room)}
-        <li>
-          <a
-            href={hashOf(routeFor(r.room))}
-            aria-current={app.route.room === r.room ? 'page' : undefined}
-          >
-            {r.name}<small>{r.hint}</small>
-          </a>
-        </li>
-      {/each}
-    </ul>
-  </nav>
+  {#if app.route.room !== 'home'}
+    <nav aria-label="Rooms">
+      <ul bind:this={strip}>
+        {#each ROOMS as r, i (r.room)}
+          <li>
+            <a
+              class="tab"
+              href={hashOf(routeFor(r.room))}
+              aria-current={app.route.room === r.room ? 'page' : undefined}
+              aria-keyshortcuts={String(i + 1)}
+              title="{r.name} ({i + 1})"
+            >
+              <Icon name={r.icon} />
+              <span class="tab-name">{r.action}</span>
+              <span class="tab-short" aria-hidden="true">{r.short}</span>
+            </a>
+          </li>
+        {/each}
+      </ul>
+      <span
+        class="dash"
+        class:live={dashLive}
+        style:transform="translateX({dashAt.x}px) scaleX({dashAt.width})"
+        aria-hidden="true"
+      ></span>
+    </nav>
+  {/if}
+  <div class="tools">
+    <a class="star-top" href={GITHUB_URL} target="_blank" rel="noopener noreferrer">
+      <Icon name="star" size={16} />
+      <span>Star</span>
+    </a>
+    <button
+      class="theme-switch"
+      type="button"
+      aria-label="Switch to {nextTheme} theme"
+      title="Switch to {nextTheme} theme"
+      onclick={switchTheme}
+    >
+      {#key look.theme}
+        <span class="theme-glyph"><Icon name={look.theme === 'dark' ? 'sun' : 'moon'} /></span>
+      {/key}
+    </button>
+  </div>
 </header>
 
-<main id="main" tabindex="-1">
+<main id="main" tabindex="-1" class:home-main={app.route.room === 'home'}>
   {#if ready}
-    {#if app.route.room === 'bibliotheca'}
-      <Bibliotheca />
-    {:else if app.route.room === 'lectorium'}
-      {#key app.route.bookId}
-        <Lectorium bookId={app.route.bookId} />
-      {/key}
-    {:else if app.route.room === 'scriptorium'}
-      <Scriptorium />
-    {:else}
-      <Archivum />
-    {/if}
+    {#key app.route.room}
+      <div class="stage">
+        {#if app.route.room === 'home'}
+          <Home />
+        {:else if app.route.room === 'bibliotheca'}
+          <Bibliotheca />
+        {:else if app.route.room === 'lectorium'}
+          {#key app.route.bookId}
+            <Lectorium bookId={app.route.bookId} />
+          {/key}
+        {:else if app.route.room === 'scriptorium'}
+          <Scriptorium />
+        {:else}
+          <Archivum />
+        {/if}
+      </div>
+    {/key}
   {/if}
 </main>
 
 {#if dragDepth > 0}
-  <div class="drop-veil" aria-hidden="true">
-    {app.route.room === 'bibliotheca' ? 'Drop to add to the library' : 'Drop to convert'}
-  </div>
+  <div class="drop-veil" aria-hidden="true">{dropText}</div>
 {/if}

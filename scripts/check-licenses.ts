@@ -10,6 +10,7 @@ const ALLOWED = new Set([
   'BSD-3-Clause',
   'Apache-2.0',
   '0BSD',
+  'OFL-1.1',
   'Zlib',
 ]);
 

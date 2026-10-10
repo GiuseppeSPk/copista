@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 
 test('works without a network after the first visit', async ({ page, context }) => {
-  await page.goto('/');
+  await page.goto('/#/bibliotheca');
   // Wait until the service worker has installed and controls the page.
   await page.evaluate(async () => {
     await navigator.serviceWorker.ready;
@@ -21,7 +21,7 @@ test('works without a network after the first visit', async ({ page, context }) 
   await page.getByRole('button', { name: 'Next' }).click();
   await expect(page.locator('.where')).toContainText(/Page 2 of \d+/);
 
-  await page.getByRole('link', { name: /Scriptorium/ }).click();
+  await page.getByRole('link', { name: 'Convert a file' }).click();
   await page.getByLabel('Choose a file').setInputFiles('tests/fixtures/generated/long-book.epub');
   const download = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Word', exact: true }).click();
