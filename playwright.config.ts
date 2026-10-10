@@ -12,7 +12,8 @@ export default defineConfig({
   use: { baseURL: 'http://localhost:5175' },
   projects: [
     { name: 'chromium', use: { ...devices['Desktop Chrome'] }, testIgnore: OFFLINE },
-    { name: 'webkit', use: { ...devices['Desktop Safari'] }, testIgnore: OFFLINE },
+    // WebKit runs out of memory and crashes when several of its browsers run at once.
+    { name: 'webkit', use: { ...devices['Desktop Safari'] }, testIgnore: OFFLINE, workers: 1 },
     {
       name: 'offline',
       use: { ...devices['Desktop Chrome'], baseURL: 'http://localhost:4176' },
