@@ -1,6 +1,6 @@
 # Copista
 
-Read and convert e-books in the browser. Nothing leaves your device.
+Convert documents and read books in the browser. Nothing leaves your device.
 
 Copista is a web app that you can install and use offline. It has four rooms:
 
@@ -8,9 +8,9 @@ Copista is a web app that you can install and use offline. It has four rooms:
 - **Lectorium**, the reading room: paged reading with contents, bookmarks,
   text size and page colours. It remembers where you stopped.
 - **Scriptorium**, the conversion room:
-  - EPUB to Word (.docx), Markdown, plain text or a single web page;
-  - EPUB to PDF through the browser's print dialog ("Save as PDF");
-  - Word (.docx), Markdown or plain text to EPUB.
+  - any of EPUB, Word (.docx), Markdown and plain text to any other, or to a
+    single web page;
+  - any of them to PDF through the browser's print dialog ("Save as PDF").
 - **Archivum**, data and privacy: reading settings, space used, and a button
   that deletes everything Copista has stored.
 

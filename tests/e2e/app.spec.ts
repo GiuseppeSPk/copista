@@ -250,6 +250,25 @@ test('makes no request outside its own site', async ({ page, baseURL }) => {
   expect(foreign).toEqual([]);
 });
 
+test('links to free libraries and searches them for what is typed', async ({ page }) => {
+  await page.goto('/#/bibliotheca');
+  const free = page.getByRole('region', { name: 'Find free books' });
+  const visit = free.getByRole('link', { name: 'Visit Project Gutenberg' });
+  await expect(visit).toHaveAttribute('href', 'https://www.gutenberg.org/');
+  await expect(visit).toHaveAttribute('target', '_blank');
+  await expect(visit).toHaveAttribute('rel', 'noopener noreferrer');
+
+  await free.getByRole('searchbox', { name: 'Title or author to search for' }).fill('Dante');
+  await expect(free.getByRole('link', { name: 'Search Project Gutenberg' })).toHaveAttribute(
+    'href',
+    'https://www.gutenberg.org/ebooks/search/?query=Dante',
+  );
+  await expect(free.getByRole('link', { name: 'Find Canti at Liber Liber' })).toHaveAttribute(
+    'href',
+    'https://liberliber.it/?s=Canti',
+  );
+});
+
 test.describe('on a phone-sized screen', () => {
   test.use({ viewport: { width: 375, height: 700 } });
 

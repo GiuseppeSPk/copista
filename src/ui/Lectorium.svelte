@@ -12,10 +12,9 @@
   import type { BookmarkRecord } from '../storage/db';
   import type { TocEntry } from '../core/model/book';
   import { app, changeSettings } from './state.svelte';
+  import Bookcase from './Bookcase.svelte';
   import Contents from './Contents.svelte';
-  import Cover from './Cover.svelte';
   import RoomHero from './RoomHero.svelte';
-  import { hashOf } from './route';
   import Icon from './Icon.svelte';
   import { errorMessage } from './text';
 
@@ -154,24 +153,12 @@
     <RoomHero room="lectorium" />
     {#if app.shelf.length > 0}
       <h2 class="pick-title">Choose a book</h2>
-      <ul class="pick">
-        {#each app.shelf as shelfBook, i (shelfBook.id)}
-          <li style:--i={i}>
-            <a href={hashOf({ room: 'lectorium', bookId: shelfBook.id })}>
-              <Cover book={shelfBook} />
-              <span class="pick-text">
-                <span class="pick-name">{shelfBook.title}</span>
-                {#if shelfBook.authors.length > 0}
-                  <span class="pick-by">{shelfBook.authors.join(', ')}</span>
-                {/if}
-              </span>
-            </a>
-          </li>
-        {/each}
-      </ul>
+      <Bookcase books={app.shelf} current={app.lastBookId} />
     {:else}
+      <Bookcase books={[]} />
       <p class="empty">
-        No books yet. Add one in the <a href="#/bibliotheca">library</a> and it opens here.
+        No books yet. Add one in the <a href="#/bibliotheca">library</a>, where you can also find
+        free ones, and it opens here.
       </p>
     {/if}
   {:else}

@@ -1,9 +1,11 @@
 <script lang="ts">
+  import { SAMPLE } from './catalogues';
   import Cover from './Cover.svelte';
   import Icon from './Icon.svelte';
   import { hashOf } from './route';
   import { GITHUB_URL, roomInfo, type RoomName } from './rooms';
   import { app } from './state.svelte';
+  import TitleCover from './TitleCover.svelte';
 
   const IN = ['EPUB', 'DOCX', 'MD', 'TXT'];
   const OUT = ['EPUB', 'DOCX', 'MD', 'TXT', 'HTML', 'PDF'];
@@ -32,7 +34,10 @@
 <section class="home" class:enter aria-labelledby="home-title">
   <header class="home-head">
     <h1 id="home-title" class="home-name">Copista</h1>
-    <p class="lead">Read and convert books in your browser. Nothing you open leaves this device.</p>
+    <p class="lead">
+      Turn Word, Markdown and text files into PDF, web pages or e-books, and read your books, all in
+      your browser. Nothing you open leaves this device.
+    </p>
   </header>
 
   <div class="doors">
@@ -113,7 +118,14 @@
           {/each}
         </span>
       {:else}
-        <span class="door-body">Your EPUB books, kept in this browser.</span>
+        <span class="door-body"
+          >Your EPUB books, kept in this browser, and free classics to find.</span
+        >
+        <span class="stack" aria-hidden="true">
+          {#each SAMPLE as book, i (book.title)}
+            <span class="stack-item" style:--s={i}><TitleCover {book} binding={i} /></span>
+          {/each}
+        </span>
       {/if}
       <span class="door-foot">
         <span class="plaque" style:--vt="title-bibliotheca">Bibliotheca</span>

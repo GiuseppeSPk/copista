@@ -5,6 +5,7 @@ export const PATHS = {
   convert: 'M4 8h15m-4-4 4 4-4 4M20 16H5m4-4-4 4 4 4',
   archive: 'M3 4.5h18v4.5H3zM5 9v10.5h14V9M9.5 13h5',
   arrow: 'M4 12h16m-6-6 6 6-6 6',
+  external: 'M14 4h6v6m0-6-9 9m7 1v6H4V6h6',
   back: 'M20 12H4m6-6-6 6 6 6',
   file: 'M14 3H6v18h12V7zm0 0v4h4M12 10.5v6.5m-3-3h6',
   trash: 'M4 7h16M9.5 7V4h5v3M6 7l1 13h10l1-13',

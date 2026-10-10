@@ -1,5 +1,6 @@
 <script lang="ts">
   import { removeBook } from '../rooms/bibliotheca';
+  import Catalogues from './Catalogues.svelte';
   import Icon from './Icon.svelte';
   import RoomHero from './RoomHero.svelte';
   import { addFiles, app, go, refreshShelf } from './state.svelte';
@@ -119,8 +120,8 @@
       <Icon name="library" size={32} />
       <p class="empty">No books yet. Add an EPUB file to start reading.</p>
       <p class="hint">
-        Drop EPUB files anywhere on this page. To convert a document, open the
-        <a href="#/scriptorium">Scriptorium</a>.
+        Drop EPUB files anywhere on this page, or find a free one below. To convert a document, open
+        the <a href="#/scriptorium">Scriptorium</a>.
       </p>
     </div>
   {:else}
@@ -167,4 +168,6 @@
       {/each}
     </ul>
   {/if}
+
+  <Catalogues />
 </section>

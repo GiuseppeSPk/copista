@@ -177,11 +177,11 @@ A closed palette: paper, card and ink neutrals, one accent, one red. Both themes
 
 ### Hierarchy
 
-- **Room name** (Cinzel 600, letter-spacing 0.04em): one per room, on one line. Its size is `min(104px, 100cqi / 7.3)` against the room's opening, so the longest name, Scriptorium (7.13em wide), always fits and every room shares that size. It never wraps or clips, at any zoom.
-- **Home name** (Cinzel 600, `clamp(56px, 9vw, 96px)`): "Copista" in the hall.
+- **Room name** (Cinzel 500, letter-spacing 0.1em): one per room, on one line, set like an inscription rather than a headline. Its size is `min(56px, 100cqi / 8.2)` against the room's opening, so the longest name, Scriptorium (about 7.9em wide with this spacing), always fits and every room shares that size. It never wraps or clips, at any zoom.
+- **Home name** (Cinzel 500, `clamp(40px, 5.2vw, 64px)`, letter-spacing 0.1em): "Copista" in the hall. Display names stay within about three times the brand, so the top bar and the page read as one hand.
 - **Brand** (Cinzel 650, 19px, letter-spacing 0.06em): the name beside the mark in the top bar.
 - **Plaque** (Cinzel 600, 15px): the Latin name on each door.
-- **Title** (16px, 700): section headings inside a room and the From / To / Done legs of the ticket. Door titles are 22px, the convert door 26 to 32px.
+- **Title** (16px, 700): section headings inside a room and the From / To / Done legs of the ticket. Door titles are 22px, the convert door 24px. The free libraries heading is Cinzel 500, 22px, letter-spacing 0.08em.
 - **Body** (16px, 400): leads, room descriptions, privacy prose, ledger values.
 - **Label** (14px, 600): buttons, tab labels, form labels. Tabs never wrap.
 - **Caption** (12px): tags and the stamp date.
@@ -196,11 +196,12 @@ The first letter of the home name and of every room name takes the accent.
 - An 8px grid; reused gaps are 4, 8, 12, 16 and 24px.
 - Rooms and the hall sit in a centred column up to 1120px wide. The Archivum narrows to 800px because it is mostly reading.
 - The top bar is 64px and sticky: the mark and brand, four tabs labelled by action with an icon, then the GitHub star link and the theme switch. It has no bottom rule in the hall.
-- The hall's doors are a grid: the convert door is tall on the left; read spans the top right; library and data share the bottom right.
+- The hall is one view on a desktop: a centred frontispiece (the name, a short ruled line with the accent at its centre, the lead) under a soft pool of accent light, then the four doors side by side at the same height, then a short colophon with the GitHub star. Below 860px the doors go two by two; below 560px one under another, with a low arch.
 - A room opens with its hero: a "All rooms" link back, the Latin name, then the description and a short checked list of what can be done there, side by side. They stack at 860px and below.
 - Tabs lose their icons at 1000px and below and switch to one short word each (Books, Read, Convert, Data) at 860px and below, which also covers zoomed-in desktop windows.
 - At 700px and below the tabs leave the top bar and become a fixed bottom bar with an icon over the short word; the room column gets matching bottom padding.
 - The shelf is an auto-fill grid with 168px minimum columns. At 560px and below each book becomes a list row.
+- Below the shelf, the free libraries are rows of three columns: a fan of four covers, the name and what the site offers, and a Visit or Search link. The link moves under the text at 860px and below; at 560px and below the row stacks.
 - The ticket is three columns (From, To, Done) and stacks at 860px and below.
 - The Lectorium's contents panel is a 240px column on wide screens and an overlay on phones.
 - No page scrolls sideways at any width or zoom, and no word is split across lines.
@@ -215,19 +216,21 @@ Mostly flat. Depth comes from the paper / card contrast and 1px frames. Doors li
 
 ## Shapes
 
-Rounded rectangles: 4px for miniature covers, 6px for the stamp and tags, 8px for controls, 12px for book cards, 14px for the ticket, 18px for doors. Round buttons (the star, the theme switch, a door's arrow) are pills. The ticket's leg separators are 1px dashed rules with half-circle notches at each end, like a perforation. The stamp is rotated -6 degrees.
+Rounded rectangles: 3px on the spine and 5px on the fore-edge for typographic covers (72px wide, 2:3), 4px for miniature covers, 6px for the stamp and tags, 8px for controls, 12px for book cards, 14px for the ticket and for the doors' lower corners. Doors are topped with a round arch: half the door's width, capped at 132px, so wide doors get a slightly flattened arch. Round buttons (the star, the theme switch, a door's arrow) are pills. The ticket's leg separators are 1px dashed rules with half-circle notches at each end, like a perforation. The stamp is rotated -6 degrees.
 
 ## Motion
 
 All motion uses one exponential ease-out (`cubic-bezier(0.16, 1, 0.3, 1)`). Entrances run around 600 to 1100ms, exits about 250ms.
 
-- **Hall entrance:** the name is inscribed (letter-spacing closes, blur clears, about 1s), the lead and the doors rise in one after another.
+- **Hall entrance:** the light behind the name widens in, the name is inscribed (letter-spacing closes, blur clears, about 1s), the ruled line draws out from its centre, and the lead and the doors rise in one after another.
 - **Into a room:** the plaque on the door grows into the room's name (a view transition); the rest of the page fades down and the room rises in. Back to the hall, the name shrinks into its plaque.
 - **Between rooms:** the new room slides in from the side of the tab that was picked; the dash under the tabs slides to the open one.
 - **Room opening:** the description and the list of what can be done rise in after the name.
 - **Press:** a pressed button, tab or door sends a faint ring out from the point of the press and dips to 97%.
 - **Theme switch:** the new theme is revealed in a circle growing from the switch.
 - **The stamp** presses in once per finished job (240ms).
+- **Cover fan:** the covers sit slightly turned; a pointed or focused cover straightens and lifts 8px.
+- **Bookcase:** the spines rise in one after another; a pointed or focused spine lifts 8px off its plank, taking its ribbon with it.
 
 Under reduced motion everything still changes, but nothing travels: no transitions, no rings, no press.
 
@@ -243,7 +246,7 @@ Under reduced motion everything still changes, but nothing travels: no transitio
 
 ### Doors
 
-The hall's four links. Card background, 1px frame, 18px radius, an icon in a rounded tile, the action as title, one or two lines of body, and a foot with the Latin plaque and a round arrow. The convert door also shows the formats in and out as tags, and the read door the book last opened.
+The hall's four links, arched like the doors of a cloister. Card background, 1px frame, everything centred: an icon in a rounded tile at the crown of the arch, the action as title, one or two lines of body, and a foot behind a hairline with the Latin plaque and a round arrow. The convert door also shows the formats in and out as tags, and the read door the book last opened. While the library is empty, its door shows a small stack of typographic covers, one classic from each free library.
 
 ### Room hero
 
@@ -253,6 +256,9 @@ The opening of every room: back link, Latin name, description and the checked li
 
 - **Book card:** card, 1px frame, 12px radius. Cover on top, title and author, then Read (primary), Convert, delete. A book with no cover shows a wash-coloured catalogue card with a ruled inner frame and the title.
 - **Ticket:** the Scriptorium's single container. Three legs headed From, To, Done, separated by dashed perforations.
+- **Typographic cover:** a book cover set in type alone, for books Copista does not have: the title in Cinzel, a short rule, the author in small capitals. Four bindings take turns: accent, wash with a ruled frame, ink, and card with an accent spine. The title's size comes from its longest word, so it never breaks inside a word. No image is ever fetched.
+- **Free libraries:** the end of the Bibliotheca. A heading, one line on what the libraries are, and a search box; each library row fans four classics that search for themselves at that site. Every link opens a new tab.
+- **Bookcase:** the Lectorium's list of books when none is open. A card case with 1px frame and 14px radius; books stand by their spines on planks (a 2px frame-strong edge over a tinted board). Each spine is 30 to 45px wide and 150 to 195px tall, taken from a hash of the title, so a shelf looks the same every time; it wears one of the typographic covers' four bindings, gilt bands at head and foot, and the title in Cinzel set sideways, cut with an ellipsis (the full title and author are in the link). The book being read has a notched ribbon standing out of its head. An empty case shows one shelf of dashed outlines above the line that sends to the library.
 - **Ledger:** the Archivum's facts list. A double top rule, 1px rules between rows, labels in a fixed-width column.
 
 ### Navigation

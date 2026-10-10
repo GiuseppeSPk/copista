@@ -17,7 +17,7 @@ export default defineConfig({
       manifest: {
         name: 'Copista',
         short_name: 'Copista',
-        description: 'Read and convert e-books in the browser. Nothing leaves your device.',
+        description: 'Convert documents and read books in the browser. Nothing leaves your device.',
         lang: 'en',
         start_url: '.',
         scope: '.',

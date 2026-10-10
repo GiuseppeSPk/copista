@@ -34,7 +34,9 @@ offline once loaded. The privacy claim can be checked, not only promised.
 
 - Installable web app (PWA), used online or offline.
 - Four rooms, each with one job:
-  - Bibliotheca: the library of EPUB books kept in the browser;
+  - Bibliotheca: the library of EPUB books kept in the browser, with links
+    to free public-domain libraries (Standard Ebooks, Project Gutenberg,
+    Liber Liber, Wikisource);
   - Lectorium: paged reading with contents, bookmarks, text size and page
     colours; it remembers the position;
   - Scriptorium: conversion between EPUB, Word (.docx), Markdown, plain text,
@@ -52,6 +54,9 @@ offline once loaded. The privacy claim can be checked, not only promised.
   readers or converters.
 - Strict content security policy: nothing is loaded from outside the site,
   including fonts.
+- The free libraries are only linked: each link opens the site in a new tab,
+  Copista sends it nothing and fetches nothing from it. The reader downloads
+  the EPUB there and drops it in, where it is kept like any other book.
 
 ## Brand Commitments
 

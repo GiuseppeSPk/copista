@@ -393,6 +393,7 @@ h2 {
 button,
 select,
 input[type='text'],
+input[type='search'],
 .button {
   min-height: 36px;
   padding: 7px 14px;
@@ -421,7 +422,8 @@ select {
   cursor: pointer;
 }
 
-input[type='text'] {
+input[type='text'],
+input[type='search'] {
   width: 100%;
 }
 
@@ -661,6 +663,199 @@ button.link:hover:not(:disabled) {
   margin: 0;
   color: var(--ink);
   font-weight: 600;
+}
+
+/* Free books: libraries that are linked, never fetched. Each one shows a fan of its books. */
+
+.catalogues {
+  margin-top: 56px;
+  padding-top: 32px;
+  border-top: 1px solid var(--frame);
+}
+
+.catalogues-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 300px);
+  align-items: end;
+  gap: 8px 32px;
+}
+
+.catalogues-head h2 {
+  grid-column: 1 / -1;
+  margin: 0;
+  font: 500 22px / 1.2 var(--display);
+  letter-spacing: 0.08em;
+}
+
+.catalogues-head p {
+  max-width: 40em;
+  margin: 0;
+  color: var(--muted);
+}
+
+.catalogue-search input {
+  width: 100%;
+}
+
+.catalogue-list {
+  margin: 24px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.catalogue {
+  display: grid;
+  grid-template-columns: 300px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px 28px;
+  padding: 22px 0;
+  border-top: 1px solid var(--frame);
+  animation: rise 680ms var(--ease) calc(240ms + var(--i) * 90ms) backwards;
+}
+
+.catalogue-text h3 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.catalogue-text p {
+  max-width: 36em;
+  margin: 2px 0 0;
+  color: var(--muted);
+  font-size: 15px;
+}
+
+.catalogue-text .catalogue-lang {
+  margin: 0 0 6px;
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.catalogue-go {
+  color: var(--ink);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+/* The books lean a little; the one under the pointer stands up. */
+.fan {
+  display: flex;
+  gap: 4px;
+  margin: 0;
+  padding: 6px 0;
+  list-style: none;
+}
+
+.fan li {
+  transform: rotate(calc((var(--s) - 1.5) * 2deg));
+  transition: transform 400ms var(--ease);
+}
+
+.fan li:hover,
+.fan li:focus-within {
+  z-index: 1;
+  transform: translateY(-8px) rotate(0deg);
+}
+
+.fan a {
+  display: block;
+  border-radius: 4px;
+  color: inherit;
+  text-decoration: none;
+}
+
+/* A cover set in type: the title in Cinzel, a rule, the author. Four bindings from the palette. */
+.title-cover {
+  /* The width inside the padding, which the title has to fit. */
+  --inside: 64px;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 72px;
+  aspect-ratio: 2 / 3;
+  padding: 9px 4px 7px;
+  overflow: hidden;
+  border-radius: 3px 5px 5px 3px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  box-shadow:
+    inset 3px 0 0 rgb(0 0 0 / 0.16),
+    0 4px 10px -4px var(--shadow);
+  text-align: center;
+}
+
+.title-cover[data-binding='1'] {
+  background: var(--wash);
+  color: var(--accent);
+  box-shadow:
+    inset 0 0 0 3px var(--wash),
+    inset 0 0 0 4px var(--accent),
+    0 4px 10px -4px var(--shadow);
+}
+
+.title-cover[data-binding='2'] {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.title-cover[data-binding='3'] {
+  background: var(--card);
+  color: var(--ink);
+  box-shadow:
+    inset 3px 0 0 var(--accent),
+    inset 0 0 0 1px var(--frame-strong),
+    0 4px 10px -4px var(--shadow);
+}
+
+.tc-title {
+  display: -webkit-box;
+  overflow: hidden;
+  font: 700 min(9px, var(--inside) / (var(--longest, 8) * 0.72)) / 1.2 var(--display);
+  text-wrap: balance;
+  hyphens: auto;
+  overflow-wrap: break-word;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 5;
+  line-clamp: 5;
+}
+
+.tc-rule {
+  flex: none;
+  width: 40%;
+  height: 1px;
+  margin: 6px 0 5px;
+  background: currentColor;
+  opacity: 0.6;
+}
+
+.tc-author {
+  margin-top: auto;
+  font-size: 6.5px;
+  font-weight: 650;
+  line-height: 1.2;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  opacity: 0.85;
+}
+
+/* On the Home door, the classics stand in for books not yet added. */
+.stack .title-cover {
+  --inside: 42px;
+
+  width: 48px;
+  padding: 5px 3px;
+}
+
+.stack .tc-title {
+  -webkit-line-clamp: 4;
+  line-clamp: 4;
+}
+
+.stack .tc-rule,
+.stack .tc-author {
+  display: none;
 }
 
 /* Scriptorium: one ticket, read left to right. */
@@ -1015,25 +1210,66 @@ button.link:hover:not(:disabled) {
   text-align: center;
 }
 
-/* Home: the four doors. */
+/* Home: a frontispiece and four arched doors, all in one view. */
 
 .home {
   width: 100%;
   max-width: 1120px;
   margin: 0 auto;
-  padding: 48px 24px 56px;
+  padding: 32px 24px 40px;
 }
 
 .home-head {
+  position: relative;
   display: grid;
+  justify-items: center;
   gap: 14px;
-  margin-bottom: 40px;
+  margin-bottom: 36px;
+  text-align: center;
+  isolation: isolate;
+}
+
+/* A pool of light behind the name, as on a stage. */
+.home-head::before {
+  content: '';
+  position: absolute;
+  /* It stays below the top bar, whose background would cut it off in a straight line. */
+  inset: -28px 8% -32px;
+  z-index: -1;
+  background: radial-gradient(
+    closest-side,
+    light-dark(rgb(79 42 154 / 0.08), rgb(242 193 78 / 0.15)),
+    transparent
+  );
+  pointer-events: none;
+}
+
+/* A ruled line between the name and the lead, with the accent at its centre. */
+.home-head::after {
+  content: '';
+  order: 1;
+  width: 168px;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--frame-strong) 30%,
+    var(--accent) 44% 56%,
+    var(--frame-strong) 70%,
+    transparent
+  );
+}
+
+.home-head .lead {
+  order: 2;
 }
 
 .home-name {
   margin: 0;
-  font: 600 clamp(56px, 9vw, 96px) / 0.95 var(--display);
-  letter-spacing: 0.04em;
+  /* The spacing after the last letter would push the name off centre. */
+  margin-right: -0.1em;
+  font: 500 clamp(40px, 5.2vw, 64px) / 1 var(--display);
+  letter-spacing: 0.1em;
 }
 
 .home-name::first-letter,
@@ -1042,17 +1278,40 @@ button.link:hover:not(:disabled) {
 }
 
 .home .lead {
-  max-width: 30em;
+  max-width: 44em;
   margin: 0;
-  font-size: clamp(17px, 1.6vw, 20px);
+  font-size: clamp(16px, 1.4vw, 18px);
+  text-wrap: balance;
 }
 
 .enter .home-name {
   animation: inscribe 1080ms var(--ease) backwards;
 }
 
+.enter .home-head::before {
+  animation: lamp 1400ms var(--ease) backwards;
+}
+
+.enter .home-head::after {
+  animation: rule 900ms var(--ease) 240ms backwards;
+}
+
 .enter .lead {
   animation: rise 810ms var(--ease) 160ms backwards;
+}
+
+@keyframes lamp {
+  from {
+    opacity: 0;
+    transform: scaleX(0.3);
+  }
+}
+
+@keyframes rule {
+  from {
+    opacity: 0;
+    transform: scaleX(0);
+  }
 }
 
 @keyframes inscribe {
@@ -1070,25 +1329,31 @@ button.link:hover:not(:disabled) {
   }
 }
 
+/* Four doors side by side, the same height, each topped with a round arch. */
 .doors {
+  --columns: 4;
+  --gap: 16px;
+
   display: grid;
-  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 1fr);
-  grid-template-areas:
-    'convert read read'
-    'convert library data';
-  gap: 16px;
+  grid-template-columns: repeat(var(--columns), minmax(0, 1fr));
+  gap: var(--gap);
+  container-type: inline-size;
 }
 
 .door {
+  /* Half a door's width makes the arch round; it flattens on wide doors. */
+  --arch: min((100cqi - (var(--columns) - 1) * var(--gap)) / var(--columns) / 2, 132px);
+
   position: relative;
   display: flex;
   flex-direction: column;
+  align-items: center;
   gap: 8px;
-  min-height: 220px;
-  padding: 24px;
+  padding: 40px 22px 22px;
   overflow: hidden;
   border: 1px solid var(--frame);
-  border-radius: 18px;
+  border-radius: 50% 50% 14px 14px / var(--arch) var(--arch) 14px 14px;
+  text-align: center;
   background: var(--card);
   color: var(--ink);
   text-decoration: none;
@@ -1139,20 +1404,7 @@ button.link:hover:not(:disabled) {
 }
 
 .door-convert {
-  grid-area: convert;
   background: color-mix(in srgb, var(--wash) 65%, var(--card));
-}
-
-.door-read {
-  grid-area: read;
-}
-
-.door-library {
-  grid-area: library;
-}
-
-.door-data {
-  grid-area: data;
 }
 
 .door-icon {
@@ -1183,13 +1435,14 @@ button.link:hover:not(:disabled) {
 }
 
 .door-convert .door-title {
-  font-size: clamp(26px, 2.6vw, 32px);
+  font-size: 24px;
 }
 
 .door-body {
   max-width: 28em;
   color: var(--muted);
   font-size: 15px;
+  text-wrap: balance;
 }
 
 .door-note {
@@ -1205,13 +1458,15 @@ button.link:hover:not(:disabled) {
 
 .formats {
   display: grid;
-  gap: 10px;
-  margin: 16px 0 8px;
+  justify-items: center;
+  gap: 8px;
+  margin: 8px 0 4px;
 }
 
 .format-row {
   display: flex;
   flex-wrap: wrap;
+  justify-content: center;
   gap: 6px;
 }
 
@@ -1248,11 +1503,13 @@ button.link:hover:not(:disabled) {
 
 .door-foot {
   display: flex;
+  align-self: stretch;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
   margin-top: auto;
   padding-top: 16px;
+  border-top: 1px solid var(--frame);
 }
 
 .plaque {
@@ -1325,8 +1582,9 @@ button.link:hover:not(:disabled) {
 
 .continue {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
   margin-top: 8px;
 }
 
@@ -1357,8 +1615,8 @@ button.link:hover:not(:disabled) {
 
 .stack {
   display: flex;
-  margin-top: 8px;
-  padding-left: 8px;
+  margin-top: 12px;
+  padding-left: 10px;
 }
 
 .stack-item {
@@ -1371,16 +1629,15 @@ button.link:hover:not(:disabled) {
   transform: translateX(calc(var(--s) * 8px)) rotate(calc((var(--s) - 1.5) * 8deg));
 }
 
+/* A colophon under the doors, set quietly. */
 .star-strip {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px 24px;
-  margin-top: 24px;
-  padding: 18px 20px;
-  border: 1px dashed var(--frame-strong);
-  border-radius: 16px;
+  justify-content: center;
+  gap: 8px 20px;
+  margin-top: 28px;
+  text-align: center;
 }
 
 .enter .star-strip {
@@ -1388,10 +1645,11 @@ button.link:hover:not(:disabled) {
 }
 
 .star-strip p {
-  max-width: 40em;
+  max-width: 44em;
   margin: 0;
   color: var(--muted);
-  font-size: 15px;
+  font-size: 14px;
+  text-wrap: balance;
 }
 
 .star-strip strong {
@@ -1435,11 +1693,11 @@ button.link:hover:not(:disabled) {
   transform: translateX(-3px);
 }
 
-/* Scriptorium, the longest name, is 7.13em wide in Cinzel; every room takes the size that fits it. */
+/* Scriptorium, the longest name, is about 7.9em wide with this spacing; every room takes the size that fits it. */
 .room-name {
-  margin: 0 0 12px;
-  font: 600 min(104px, 100cqi / 7.3) / 1 var(--display);
-  letter-spacing: 0.04em;
+  margin: 0 0 14px;
+  font: 500 min(56px, 100cqi / 8.2) / 1 var(--display);
+  letter-spacing: 0.1em;
   white-space: nowrap;
 }
 
@@ -1484,64 +1742,173 @@ button.link:hover:not(:disabled) {
   color: var(--accent);
 }
 
-/* The Lectorium's shelf of books to open. */
+/* The Lectorium's bookcase: books stand by their spines on planks, the one in reading marked by
+   a ribbon. Every row is the same height, so the planks can be painted behind the rows. */
 
 .pick-title {
   margin-top: 0;
 }
 
-.pick {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-  gap: 12px;
-  margin: 0;
-  padding: 0;
+.bookcase {
+  /* A row holds the tallest spine plus room for the ribbon; a plank fills the gap below it. */
+  --row: 210px;
+  --plank: 12px;
+
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--plank) 3px;
+  margin: 0 0 20px;
+  padding: 18px 18px var(--plank);
+  overflow: hidden;
+  border: 1px solid var(--frame);
+  border-radius: 14px;
+  background:
+    linear-gradient(
+        to bottom,
+        transparent 0 var(--row),
+        var(--frame-strong) var(--row) calc(var(--row) + 2px),
+        color-mix(in srgb, var(--frame-strong) 40%, var(--wash)) calc(var(--row) + 2px)
+          calc(var(--row) + var(--plank) - 3px),
+        var(--frame) calc(var(--row) + var(--plank) - 3px)
+      )
+      0 18px / 100% calc(var(--row) + var(--plank)) repeat-y,
+    var(--card);
   list-style: none;
 }
 
-.pick li {
+.bookcase li {
+  position: relative;
   display: flex;
-  animation: rise 680ms var(--ease) calc(320ms + min(var(--i), 8) * 70ms) backwards;
+  flex: none;
+  align-items: flex-end;
+  width: var(--w);
+  height: var(--row);
+  animation: rise 680ms var(--ease) calc(320ms + min(var(--i), 12) * 50ms) backwards;
 }
 
-.pick a {
+.spine {
+  position: relative;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 14px;
+  justify-content: center;
   width: 100%;
-  padding: 12px;
-  border: 1px solid var(--frame);
-  border-radius: 12px;
+  height: var(--h);
+  padding: 22px 0;
+  border-radius: 3px 3px 1px 1px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  box-shadow:
+    inset -4px 0 0 rgb(0 0 0 / 0.14),
+    inset 2px 0 0 rgb(255 255 255 / 0.1);
+  text-decoration: none;
+  transition: transform 250ms var(--ease);
+}
+
+/* Two gilt bands, head and foot, like a bound spine. */
+.spine::before,
+.spine::after {
+  position: absolute;
+  inset-inline: 5px;
+  height: 3px;
+  border-block: 1px solid currentColor;
+  opacity: 0.55;
+  content: '';
+}
+
+.spine::before {
+  top: 9px;
+}
+
+.spine::after {
+  bottom: 9px;
+}
+
+.spine[data-binding='1'] {
+  background: var(--wash);
+  color: var(--accent);
+  box-shadow:
+    inset 0 0 0 1px var(--accent),
+    inset -4px 0 0 rgb(0 0 0 / 0.06);
+}
+
+.spine[data-binding='2'] {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.spine[data-binding='3'] {
   background: var(--card);
   color: var(--ink);
-  text-decoration: none;
-  transition:
-    transform 250ms var(--ease),
-    border-color 200ms var(--ease);
+  box-shadow:
+    inset 0 0 0 1px var(--frame-strong),
+    inset -4px 0 0 rgb(0 0 0 / 0.05);
 }
 
-.pick a:hover {
-  border-color: var(--frame-hover);
-  transform: translateY(-2px);
+.spine-title {
+  min-height: 0;
+  max-height: 100%;
+  overflow: hidden;
+  font: 600 12px / 1 var(--display);
+  letter-spacing: 0.06em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  /* Sideways, so punctuation turns with the letters instead of standing upright. */
+  text-orientation: sideways;
+  writing-mode: vertical-rl;
 }
 
-.pick a:active {
-  transform: scale(0.985);
+.bookcase li:hover .spine,
+.bookcase li:hover .ribbon,
+.spine:focus-visible,
+.spine:focus-visible ~ .ribbon {
+  transform: translateY(-8px);
 }
 
-.pick-text {
-  display: grid;
-  min-width: 0;
+.spine:active {
+  transform: translateY(-4px);
 }
 
-.pick-name {
-  font-weight: 650;
-  overflow-wrap: anywhere;
+/* The book being read keeps a ribbon marker standing out of its head. */
+.ribbon {
+  position: absolute;
+  bottom: calc(var(--h) - 6px);
+  left: 50%;
+  width: 9px;
+  height: 22px;
+  margin-left: -4.5px;
+  background: var(--accent);
+  clip-path: polygon(0 0, 50% 22%, 100% 0, 100% 100%, 0 100%);
+  transition: transform 250ms var(--ease);
 }
 
-.pick-by {
-  color: var(--muted);
-  font-size: 14px;
+.spine[data-binding='0'] ~ .ribbon {
+  background: var(--ink);
+}
+
+/* An empty case: one shelf of outlines, the books still to come. Further rows are cut off. */
+.bookcase-empty {
+  height: calc(18px + var(--row) + var(--plank));
+  margin-bottom: 16px;
+}
+
+.ghost {
+  position: relative;
+  flex: none;
+  width: var(--w);
+  height: var(--row);
+  animation: rise 680ms var(--ease) calc(320ms + var(--i) * 40ms) backwards;
+}
+
+.ghost::before {
+  position: absolute;
+  inset: auto 0 0;
+  height: var(--h);
+  border: 1px dashed var(--frame-strong);
+  border-bottom: 0;
+  border-radius: 3px 3px 0 0;
+  content: '';
 }
 
 .reading-title {
@@ -1763,6 +2130,19 @@ button:active:not(:disabled),
 }
 
 @media (max-width: 860px) {
+  .catalogues-head {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .catalogue {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .catalogue-go {
+    grid-column: 2;
+    justify-self: start;
+  }
+
   .ticket {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -1790,11 +2170,7 @@ button:active:not(:disabled),
   }
 
   .doors {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    grid-template-areas:
-      'convert convert'
-      'read read'
-      'library data';
+    --columns: 2;
   }
 
   .hero-text {
@@ -1964,6 +2340,25 @@ button:active:not(:disabled),
 }
 
 @media (max-width: 560px) {
+  /* One door under another: a low arch keeps the four of them short. */
+  .doors {
+    --columns: 1;
+  }
+
+  .door {
+    --arch: 64px;
+
+    padding-top: 28px;
+  }
+
+  .catalogue {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .catalogue-go {
+    grid-column: 1;
+  }
+
   .shelf {
     grid-template-columns: minmax(0, 1fr);
     gap: 12px;
@@ -2020,7 +2415,10 @@ button:active:not(:disabled),
   }
 
   .door:hover,
-  .pick a:hover {
+  .bookcase li:hover .spine,
+  .bookcase li:hover .ribbon,
+  .fan li:hover,
+  .fan li:focus-within {
     transform: none;
   }
 
