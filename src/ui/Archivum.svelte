@@ -99,10 +99,11 @@
       no cookies and no advertising.
     </p>
     <p>
-      The books you add, your reading position, your bookmarks and notes and these settings are
-      stored in this browser's own storage (IndexedDB) on this device. They are not uploaded and
-      nobody else can see them. Your choice of light or dark interface is kept in the browser's
-      local storage. Files you convert in the Scriptorium are read in memory and are not kept.
+      The books you add, your reading position, your bookmarks and notes, the month's draw and these
+      settings are stored in this browser's own storage (IndexedDB) on this device. They are not
+      uploaded and nobody else can see them. Your choice of light or dark interface is kept in the
+      browser's local storage. Files you convert in the Scriptorium are read in memory and are not
+      kept.
     </p>
     <p>
       The app files themselves come from the site that hosts Copista. Like any web host, it may

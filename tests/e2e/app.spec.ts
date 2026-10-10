@@ -506,3 +506,116 @@ test('switches the theme and keeps it after a reload', async ({ page }) => {
   await page.reload();
   await expect.poll(theme).toBe('dark');
 });
+
+test.describe('the month’s draw', () => {
+  const OCTOBER = new Date(2026, 9, 10, 12, 0);
+
+  async function drawCard(page: Page, mood: string, length: string): Promise<string> {
+    const draw = page.getByRole('region', { name: 'A book for October' });
+    await draw.getByRole('button', { name: mood }).click();
+    await draw.getByRole('button', { name: length }).click();
+    const cards = draw.getByRole('button', { name: /^Card \d of 3, face down$/ });
+    await expect(cards).toHaveCount(3);
+    await cards.first().click();
+    const title = draw.getByRole('heading', { level: 3 });
+    await expect(title).toBeFocused();
+    return (await title.textContent())!.trim();
+  }
+
+  test('draws a book, keeps it after a reload, and allows one redraw', async ({ page }) => {
+    await page.clock.setFixedTime(OCTOBER);
+    await page.goto('/');
+    const draw = page.getByRole('region', { name: 'A book for October' });
+    await expect(draw.getByText('What are you in the mood for?')).toBeVisible();
+
+    const first = await drawCard(page, 'A mystery', 'One evening');
+    const get = draw.getByRole('link', { name: /^Get it free/ });
+    await expect(get).toHaveAttribute(
+      'href',
+      /^https:\/\/standardebooks\.org\/ebooks\/[\w-]+\/[\w-]+$/,
+    );
+    await expect(get).toHaveAttribute('target', '_blank');
+    await expect(get).toHaveAttribute('rel', 'noopener noreferrer');
+    await expect(draw.getByText('You asked for a mystery, for one evening.')).toBeVisible();
+    await expect(draw.getByText('No take-backs. Well, one.')).toBeVisible();
+
+    // A reload finds the same book, with the stamp already pressed.
+    await page.reload();
+    await expect(draw.getByRole('heading', { level: 3 })).toHaveText(first);
+    await expect(draw.locator('.draw.fresh')).toHaveCount(0);
+
+    // Drawing again can be called off, and the book stays.
+    await draw.getByRole('button', { name: 'Draw again' }).click();
+    await expect(draw.getByText('Again? Very well.')).toBeVisible();
+    await draw.getByRole('button', { name: `Keep ${first}` }).click();
+    await expect(draw.getByRole('heading', { level: 3 })).toHaveText(first);
+    await expect(draw.getByRole('button', { name: 'Draw again' })).toBeVisible();
+
+    // The one redraw never deals the same book back, and spends the month's chance.
+    await draw.getByRole('button', { name: 'Draw again' }).click();
+    const second = await drawCard(page, 'Surprise me', 'Any length');
+    expect(second).not.toBe(first);
+    await expect(draw.getByText('Your next draw opens on 1 November.')).toBeVisible();
+    await expect(draw.getByRole('button', { name: 'Draw again' })).toHaveCount(0);
+    await page.reload();
+    await expect(draw.getByRole('heading', { level: 3 })).toHaveText(second);
+    await expect(draw.getByRole('button', { name: 'Draw again' })).toHaveCount(0);
+  });
+
+  test('starts over within a draw, and afresh in a new month', async ({ page }) => {
+    await page.clock.setFixedTime(OCTOBER);
+    await page.goto('/');
+    const draw = page.getByRole('region', { name: 'A book for October' });
+    await draw.getByRole('button', { name: 'A scare' }).click();
+    await expect(draw.getByText('And how much time have you got?')).toBeVisible();
+    await draw.getByRole('button', { name: 'Start over' }).click();
+    // Back to the first question, with the keyboard on its first answer.
+    await expect(draw.getByRole('button', { name: 'A mystery' })).toBeFocused();
+    await expect(draw.getByText('And how much time have you got?')).toHaveCount(0);
+
+    await drawCard(page, 'A good laugh', 'Any length');
+    await page.clock.setFixedTime(new Date(2026, 10, 2, 9, 0));
+    await page.reload();
+    const november = page.getByRole('region', { name: 'A book for November' });
+    await expect(november.getByText('What are you in the mood for?')).toBeVisible();
+    await expect(november.getByRole('heading', { level: 3 })).toHaveCount(0);
+  });
+
+  test.describe('on a phone, with reduced motion', () => {
+    test.use({ viewport: { width: 375, height: 700 } });
+
+    test('fits the screen and has no serious accessibility problems', async ({ page }) => {
+      await page.clock.setFixedTime(OCTOBER);
+      await page.emulateMedia({ reducedMotion: 'reduce', colorScheme: 'light' });
+      await page.goto('/');
+      const draw = page.getByRole('region', { name: 'A book for October' });
+      await draw.getByRole('button', { name: 'A love story' }).click();
+      await draw.getByRole('button', { name: 'Any length' }).click();
+      await expect(draw.getByRole('button', { name: /face down$/ })).toHaveCount(3);
+      const overflow = (): Promise<number> =>
+        page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+      expect(await overflow()).toBeLessThanOrEqual(0);
+
+      await draw
+        .getByRole('button', { name: /face down$/ })
+        .nth(2)
+        .click();
+      await expect(draw.getByRole('heading', { level: 3 })).toBeFocused();
+      expect(await overflow()).toBeLessThanOrEqual(0);
+
+      for (const theme of ['light', 'dark']) {
+        if (theme === 'dark') {
+          await page.getByRole('button', { name: 'Switch to dark theme' }).click();
+        }
+        await expect
+          .poll(() => page.evaluate(() => document.documentElement.dataset.theme))
+          .toBe(theme);
+        const result = await new AxeBuilder({ page }).include('.sortes').analyze();
+        const serious = result.violations
+          .filter((v) => v.impact === 'serious' || v.impact === 'critical')
+          .map((v) => `${theme}: ${v.id} (${v.nodes.map((n) => n.target.join(' ')).join(', ')})`);
+        expect(serious).toEqual([]);
+      }
+    });
+  });
+});

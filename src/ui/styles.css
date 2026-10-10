@@ -26,6 +26,7 @@
   --ease: cubic-bezier(0.16, 1, 0.3, 1);
   --font: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   --display: 'Cinzel Variable', 'Cinzel', 'Trajan Pro', Georgia, serif;
+  --book: 'Iowan Old Style', 'Palatino Linotype', Palatino, 'Book Antiqua', Georgia, serif;
   --nav-h: 60px;
 }
 
@@ -2157,13 +2158,7 @@ button.link:hover:not(:disabled) {
 .incipit blockquote {
   max-width: 34em;
   margin: 0;
-  font:
-    italic 400 clamp(19px, 2vw, 23px) / 1.55 'Iowan Old Style',
-    'Palatino Linotype',
-    Palatino,
-    'Book Antiqua',
-    Georgia,
-    serif;
+  font: italic 400 clamp(19px, 2vw, 23px) / 1.55 var(--book);
   text-wrap: pretty;
 }
 
@@ -2218,6 +2213,404 @@ button.link:hover:not(:disabled) {
   margin: 0;
   font-size: 13px;
   text-wrap: balance;
+}
+
+/* The first line and the month's draw share a row on wide screens, and stack on narrow ones. */
+.hall-pair {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr));
+  gap: 16px;
+  margin-top: 40px;
+}
+
+.hall-pair .incipit {
+  align-content: center;
+  max-width: none;
+  margin: 0;
+}
+
+/* The month's draw: two questions set as a play, three cards dealt, one turned. */
+.sortes {
+  display: grid;
+  justify-items: center;
+  align-content: start;
+  gap: 16px;
+  padding: 30px clamp(20px, 4vw, 40px) 26px;
+  border: 1px solid var(--frame);
+  border-radius: 18px;
+  background: radial-gradient(110% 80% at 50% 0%, var(--wash), transparent 72%), var(--card);
+  box-shadow: 0 22px 44px -30px var(--shadow);
+  text-align: center;
+}
+
+.enter .sortes {
+  animation: rise 810ms var(--ease) var(--d, 680ms) backwards;
+}
+
+.sortes-lead {
+  max-width: 34em;
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+  text-wrap: balance;
+}
+
+.script {
+  display: grid;
+  gap: 6px;
+  width: 100%;
+  max-width: 28em;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  text-align: left;
+}
+
+.script-line {
+  display: grid;
+  grid-template-columns: 5.5em minmax(0, 1fr);
+  align-items: baseline;
+  gap: 14px;
+  animation: rise 600ms var(--ease) backwards;
+}
+
+.speaker {
+  justify-self: end;
+  color: var(--muted);
+  font: 600 11px/1.2 var(--display);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.script-line p {
+  margin: 0;
+  font: 400 18px/1.45 var(--book);
+}
+
+.script-line.you .speaker {
+  color: var(--ink);
+}
+
+.script-line.you p {
+  font-style: italic;
+}
+
+.sortes-choices {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  max-width: 32em;
+}
+
+.sortes-choices button {
+  border-color: var(--frame-strong);
+  border-radius: 999px;
+  background: transparent;
+  font-weight: 500;
+  animation: rise 600ms var(--ease) calc(var(--n, 0) * 35ms) backwards;
+}
+
+.sortes-choices button:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.hand {
+  --gap: 14px;
+
+  display: flex;
+  justify-content: center;
+  gap: var(--gap);
+  width: 100%;
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+  perspective: 1400px;
+}
+
+.hand li {
+  width: min(128px, (100% - 2 * var(--gap)) / 3);
+  animation: deal 760ms var(--ease) calc(var(--i) * 90ms) backwards;
+}
+
+/* Each card leaves the middle of the pack for its place. */
+@keyframes deal {
+  from {
+    opacity: 0;
+    transform: translate(calc((1 - var(--i)) * (100% + var(--gap))), -12px)
+      rotate(calc((var(--i) - 1) * -4deg));
+  }
+}
+
+.lot {
+  container-type: inline-size;
+  display: block;
+  width: 100%;
+  min-height: 0;
+  aspect-ratio: 2 / 3;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  transition:
+    transform 500ms var(--ease),
+    opacity 500ms var(--ease);
+}
+
+.lot:hover:not(:disabled) {
+  transform: translateY(-6px) rotate(-1.5deg);
+}
+
+.lot:active:not(:disabled) {
+  transform: translateY(-3px);
+}
+
+.lot:disabled {
+  opacity: 1;
+}
+
+.lot.passed {
+  opacity: 0.3;
+  transform: translateY(10px) scale(0.94);
+}
+
+.lot-inner {
+  position: relative;
+  display: block;
+  height: 100%;
+  transform-style: preserve-3d;
+  transition: transform 900ms var(--ease);
+}
+
+.turned .lot-inner {
+  transform: rotateY(180deg);
+}
+
+.lot-back,
+.lot-face {
+  position: absolute;
+  inset: 0;
+  border-radius: 6px;
+  backface-visibility: hidden;
+}
+
+.lot-face {
+  transform: rotateY(180deg);
+}
+
+/* The back of every card: a lattice in the accent round a medallion. */
+.lot-back {
+  --thread: color-mix(in srgb, var(--accent-ink) 24%, transparent);
+
+  display: grid;
+  place-items: center;
+  background:
+    repeating-linear-gradient(45deg, transparent 0 7px, var(--thread) 7px 8px),
+    repeating-linear-gradient(-45deg, transparent 0 7px, var(--thread) 7px 8px), var(--accent);
+  box-shadow:
+    inset 0 0 0 6px var(--accent),
+    inset 0 0 0 7px color-mix(in srgb, var(--accent-ink) 60%, transparent),
+    0 12px 22px -14px var(--shadow);
+}
+
+.lot-back span {
+  display: grid;
+  place-items: center;
+  width: 44%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--accent-ink) 60%, transparent),
+    0 0 0 5px var(--accent);
+  color: var(--accent-ink);
+  font: 700 22cqi / 1 var(--display);
+}
+
+/* A cover on a card, or beside the draw, fills it and sets its type to the card's width. */
+.lot-face .title-cover,
+.draw-card .title-cover {
+  --inside: 84cqi;
+
+  width: 100%;
+  padding: 12cqi 6cqi 9cqi;
+  border-radius: 6px;
+}
+
+.lot-face .tc-title,
+.draw-card .tc-title {
+  font-size: min(13cqi, var(--inside) / (var(--longest, 8) * 0.72));
+}
+
+.lot-face .tc-rule,
+.draw-card .tc-rule {
+  margin: 8cqi 0 6cqi;
+}
+
+.lot-face .tc-author,
+.draw-card .tc-author {
+  font-size: 6cqi;
+}
+
+.morphing .lot-morph {
+  view-transition-name: sortes-lot;
+}
+
+::view-transition-group(sortes-lot) {
+  animation-duration: 700ms;
+  animation-timing-function: var(--ease);
+}
+
+.sortes-after {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px 24px;
+}
+
+.sortes-after button.link {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.sortes-after cite {
+  font-style: italic;
+}
+
+.draw {
+  display: grid;
+  grid-template-columns: minmax(96px, 136px) minmax(0, 1fr);
+  align-items: start;
+  gap: 16px 28px;
+  width: 100%;
+  margin-top: 4px;
+  text-align: left;
+}
+
+.draw-card {
+  container-type: inline-size;
+  position: relative;
+}
+
+.lot-morph {
+  display: block;
+}
+
+.draw-card .stamp {
+  position: absolute;
+  right: -22px;
+  bottom: -34px;
+  margin: 0;
+  padding: 7px 12px 6px;
+  background: var(--card);
+  animation: none;
+}
+
+/* Half over a coloured cover, ink that multiplies would vanish into it. */
+:root[data-theme='light'] .draw-card .stamp {
+  mix-blend-mode: normal;
+}
+
+.draw-card .stamp-label {
+  font-size: 15px;
+}
+
+.draw-card .stamp-note {
+  font-size: 10px;
+}
+
+/* Pressed once, when the card lands: a reload finds it already there. */
+.draw.fresh .stamp {
+  animation: press 300ms var(--ease) 760ms both;
+}
+
+.draw.fresh .draw-text {
+  animation: rise 800ms var(--ease) 260ms backwards;
+}
+
+.draw-text {
+  display: grid;
+  justify-items: start;
+  gap: 4px;
+}
+
+.draw-headline {
+  margin: 0 0 6px;
+  font: italic 400 clamp(19px, 2vw, 22px) / 1.35 var(--book);
+  text-wrap: balance;
+}
+
+.draw-title {
+  margin: 0;
+  font: 600 20px/1.25 var(--display);
+  letter-spacing: 0.03em;
+  text-wrap: balance;
+}
+
+.draw-title cite {
+  font-style: normal;
+}
+
+.draw-title:focus {
+  outline: none;
+}
+
+.draw-by {
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.draw-hook {
+  max-width: 32em;
+  margin: 8px 0 0;
+  font: 400 17px/1.5 var(--book);
+  text-wrap: pretty;
+}
+
+.draw-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 8px;
+  margin: 2px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.draw-pace {
+  color: var(--ink);
+  font-style: italic;
+}
+
+.draw-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.draw-next,
+.draw-asked {
+  margin: 2px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.draw-next {
+  font-style: italic;
+}
+
+.draw .incipit-note {
+  margin-top: 8px;
+  text-wrap: pretty;
+}
+
+.draw-unsaved {
+  margin: 0;
+  color: var(--red);
+  font-size: 13px;
 }
 
 /* A room's opening: its Latin name, what it is, what can be done there. */
@@ -2967,6 +3360,10 @@ button:active:not(:disabled),
     margin-bottom: 28px;
   }
 
+  .hall-pair {
+    margin-top: 28px;
+  }
+
   .doors {
     grid-template-columns: minmax(0, 1fr);
     grid-template-areas: 'convert' 'read' 'library' 'data';
@@ -3059,6 +3456,27 @@ button:active:not(:disabled),
     grid-template-columns: minmax(0, 1fr);
   }
 
+  /* The draw stacks: the card above, the words under it. */
+  .draw {
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: center;
+    text-align: center;
+  }
+
+  .draw-card {
+    width: 128px;
+    margin-bottom: 30px;
+  }
+
+  .draw-text {
+    justify-items: center;
+  }
+
+  .draw-stats,
+  .draw-actions {
+    justify-content: center;
+  }
+
   .catalogue-go {
     grid-column: 1;
   }
@@ -3119,6 +3537,8 @@ button:active:not(:disabled),
   }
 
   .door:hover,
+  .lot:hover:not(:disabled),
+  .lot.passed,
   .bookcase li:hover .spine,
   .bookcase li:hover .ribbon,
   .fan li:hover,
@@ -3127,6 +3547,8 @@ button:active:not(:disabled),
   }
 
   .stamp,
+  .draw.fresh .stamp,
+  .hand li,
   .home-head::before,
   .enter .home-head::before,
   .demo-spine.new,

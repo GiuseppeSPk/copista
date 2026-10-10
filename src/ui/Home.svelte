@@ -6,6 +6,7 @@
   import Incipit from './Incipit.svelte';
   import { hashOf } from './route';
   import { GITHUB_URL, roomInfo, type RoomName } from './rooms';
+  import Sortes from './Sortes.svelte';
   import { addFiles, app, go } from './state.svelte';
   import TitleCover from './TitleCover.svelte';
 
@@ -182,7 +183,10 @@
     </a>
   </div>
 
-  <Incipit />
+  <div class="hall-pair">
+    <Incipit />
+    <Sortes delay={90} />
+  </div>
 
   <aside class="star-strip" aria-label="Support Copista">
     <p>
