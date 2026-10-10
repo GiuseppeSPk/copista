@@ -25,6 +25,18 @@ describe('CATALOGUES', () => {
     }
   });
 
+  it('sends every cover to its own page on the catalogue it sits under', () => {
+    for (const catalogue of CATALOGUES) {
+      const host = new URL(catalogue.home).host;
+      for (const book of catalogue.classics) {
+        const page = new URL(book.href);
+        expect(page.protocol).toBe('https:');
+        expect(page.host).toBe(host);
+        expect(page.search).toBe('');
+      }
+    }
+  });
+
   it('samples one classic from each catalogue', () => {
     expect(SAMPLE).toHaveLength(CATALOGUES.length);
   });

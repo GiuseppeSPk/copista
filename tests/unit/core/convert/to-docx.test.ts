@@ -76,6 +76,23 @@ describe('toDocx', () => {
     expect(html).toContain('<ul><li>a<ul><li>b</li></ul></li></ul>');
   });
 
+  it('keeps the caption of a table above its rows', async () => {
+    const book = bookFromSections(
+      [
+        {
+          html:
+            '<table><caption>Cut &amp; Comeagain,<br>Merchant Tailors.</caption>' +
+            '<tbody><tr><td>To one coat</td><td>$10</td></tr></tbody></table>',
+        },
+      ],
+      { title: 'Bill', author: 'Ada Example' },
+    );
+    const html = (await fromDocx(toDocx(book))).chapters[0]!.html;
+    expect(html).toContain(
+      '<p>Cut &amp; Comeagain,<br>Merchant Tailors.</p><p>To one coat | $10</p>',
+    );
+  });
+
   it('scales wide images down to six inches', () => {
     const resources = new Map<string, Resource>([
       [

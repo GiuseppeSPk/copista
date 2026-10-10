@@ -4,17 +4,21 @@ import {
   deleteAllStorage,
   deleteBook,
   deleteBookmark,
+  deleteNote,
   getBook,
   getProgress,
   getSetting,
   listBookmarks,
   listBooks,
+  listNotes,
   putBook,
   putBookmark,
+  putNote,
   putProgress,
   putSetting,
   type BookmarkRecord,
   type BookRecord,
+  type NoteRecord,
 } from '../../../src/storage/db';
 
 function book(id: string, addedAt: number, content = id + id): BookRecord {
@@ -28,6 +32,16 @@ function bookmark(
   fraction: number,
 ): BookmarkRecord {
   return { id, bookId, spineIndex, fraction, snippet: `${id} text`, createdAt: 0 };
+}
+
+function note(
+  id: string,
+  bookId: string,
+  spineIndex: number,
+  fraction: number,
+  createdAt = 0,
+): NoteRecord {
+  return { id, bookId, spineIndex, fraction, text: `${id} note`, createdAt, updatedAt: createdAt };
 }
 
 /** Every record in every store, read past the module, as the browser keeps it. */
@@ -65,15 +79,46 @@ describe('storage', () => {
       const request = indexedDB.open('copista');
       request.onsuccess = () => resolve(request.result);
     });
-    expect(db.version).toBe(1);
+    expect(db.version).toBe(2);
     expect([...db.objectStoreNames].sort()).toEqual([
       'bookmarks',
       'books',
       'files',
+      'notes',
       'progress',
       'settings',
     ]);
     db.close();
+  });
+
+  it('adds the notes to a library kept by the first version, keeping its books', async () => {
+    await new Promise<void>((resolve) => {
+      const request = indexedDB.open('copista', 1);
+      request.onupgradeneeded = () => {
+        const old = request.result;
+        old.createObjectStore('books', { keyPath: 'id' }).put({
+          id: 'a',
+          title: 'Old',
+          authors: [],
+          addedAt: 1,
+        });
+        old.createObjectStore('files', { keyPath: 'id' }).put({
+          id: 'a',
+          bytes: new ArrayBuffer(2),
+          type: '',
+        });
+        old.createObjectStore('progress', { keyPath: 'bookId' });
+        old.createObjectStore('bookmarks', { keyPath: 'id' }).createIndex('byBook', 'bookId');
+        old.createObjectStore('settings', { keyPath: 'key' });
+      };
+      request.onsuccess = () => {
+        request.result.close();
+        resolve();
+      };
+    });
+    expect((await listBooks()).map((b) => b.title)).toEqual(['Old']);
+    await putNote(note('n', 'a', 0, 0.5));
+    expect((await listNotes('a')).map((n) => n.id)).toEqual(['n']);
   });
 
   it('stores and lists books newest first', async () => {
@@ -107,17 +152,20 @@ describe('storage', () => {
     expect(await listed!.coverBlob!.text()).toBe('png');
   });
 
-  it('deletes a book with its progress and bookmarks only', async () => {
+  it('deletes a book with its progress, bookmarks and notes only', async () => {
     for (const id of ['a', 'b']) {
       await putBook(book(id, 1));
       await putProgress({ bookId: id, spineIndex: 2, fraction: 0.5, updatedAt: 1 });
       await putBookmark(bookmark(`${id}1`, id, 0, 0.1));
       await putBookmark(bookmark(`${id}2`, id, 1, 0.2));
+      await putNote(note(`${id}n`, id, 0, 0.3));
     }
     await deleteBook('a');
     expect(await getBook('a')).toBeUndefined();
     expect(await getProgress('a')).toBeUndefined();
     expect(await listBookmarks('a')).toEqual([]);
+    expect(await listNotes('a')).toEqual([]);
+    expect((await listNotes('b')).map((n) => n.id)).toEqual(['bn']);
     expect((await getBook('b'))?.title).toBe('B');
     expect(await getProgress('b')).toEqual({
       bookId: 'b',
@@ -142,6 +190,20 @@ describe('storage', () => {
     ]);
     await deleteBookmark('z');
     expect((await listBookmarks('a')).map((m) => m.id)).toEqual(['y', 'x']);
+  });
+
+  it('orders notes by place in the book, then by age, and updates one in place', async () => {
+    await putNote(note('late', 'a', 1, 0.5, 2));
+    await putNote(note('early', 'a', 1, 0.5, 1));
+    await putNote(note('first', 'a', 0, 0.9, 3));
+    await putNote(note('other', 'b', 0, 0));
+    expect((await listNotes('a')).map((n) => n.id)).toEqual(['first', 'early', 'late']);
+    await putNote({ ...note('early', 'a', 1, 0.5, 1), text: 'Changed', updatedAt: 9 });
+    const notes = await listNotes('a');
+    expect(notes).toHaveLength(3);
+    expect(notes[1]).toMatchObject({ id: 'early', text: 'Changed', updatedAt: 9 });
+    await deleteNote('first');
+    expect((await listNotes('a')).map((n) => n.id)).toEqual(['early', 'late']);
   });
 
   it('keeps one progress record per book', async () => {

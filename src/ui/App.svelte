@@ -33,7 +33,9 @@
     const files = [...(event.dataTransfer?.files ?? [])];
     if (files.length === 0) return;
     const room = app.route.room;
-    if (room === 'bibliotheca' || (room === 'home' && files.every(isBook))) {
+    if (onShelf() && files.every(isBook)) {
+      void addFiles(files, 'lectorium');
+    } else if (room === 'bibliotheca' || (room === 'home' && files.every(isBook))) {
       void addFiles(files);
       if (room === 'home') go({ room: 'bibliotheca' });
     } else {
@@ -42,23 +44,30 @@
     }
   }
 
+  /** The Lectorium with no book open shows the bookcase, where dropped books land. */
+  function onShelf(): boolean {
+    return app.route.room === 'lectorium' && app.route.bookId === undefined;
+  }
+
   const dropText = $derived(
     app.route.room === 'bibliotheca'
       ? 'Drop to add to the library'
-      : app.route.room === 'home'
-        ? 'Drop books to keep them, other files to convert'
-        : 'Drop to convert',
+      : onShelf()
+        ? 'Drop books to put them on the shelf'
+        : app.route.room === 'home'
+          ? 'Drop books to keep them, other files to convert'
+          : 'Drop to convert',
   );
 
-  /** Keys 1 to 4 open the rooms, unless the reader is typing somewhere. */
+  /** Key 0 goes back to the hall and keys 1 to 4 open the rooms, unless the reader is typing. */
   function onKey(event: KeyboardEvent): void {
     if (event.ctrlKey || event.metaKey || event.altKey || event.repeat) return;
-    const index = '1234'.indexOf(event.key);
+    const index = '01234'.indexOf(event.key);
     if (index < 0 || event.key.length !== 1) return;
     const target = event.target as HTMLElement | null;
     if (target?.closest('input, select, textarea, [contenteditable]')) return;
     event.preventDefault();
-    go(routeFor(ROOMS[index]!.room));
+    go(index === 0 ? { room: 'home' } : routeFor(ROOMS[index - 1]!.room));
   }
 
   /**
@@ -86,11 +95,11 @@
     }
   }
 
-  // The dash: one stroke slides under the tabs to the room that is open.
+  // The dash: one stroke slides under the tabs to the room that is open, the hall first.
   let strip: HTMLUListElement | undefined = $state();
   let dashAt = $state({ x: 0, width: 0 });
   let dashLive = $state(false);
-  const current = $derived(ROOMS.findIndex((r) => r.room === app.route.room));
+  const current = $derived(ROOMS.findIndex((r) => r.room === app.route.room) + 1);
 
   function placeDash(): void {
     const tab = strip?.querySelectorAll('a')[current];
@@ -158,33 +167,44 @@
     <Mark />
     <span class="brand-name">Copista</span>
   </a>
-  {#if app.route.room !== 'home'}
-    <nav aria-label="Rooms">
-      <ul bind:this={strip}>
-        {#each ROOMS as r, i (r.room)}
-          <li>
-            <a
-              class="tab"
-              href={hashOf(routeFor(r.room))}
-              aria-current={app.route.room === r.room ? 'page' : undefined}
-              aria-keyshortcuts={String(i + 1)}
-              title="{r.name} ({i + 1})"
-            >
-              <Icon name={r.icon} />
-              <span class="tab-name">{r.action}</span>
-              <span class="tab-short" aria-hidden="true">{r.short}</span>
-            </a>
-          </li>
-        {/each}
-      </ul>
-      <span
-        class="dash"
-        class:live={dashLive}
-        style:transform="translateX({dashAt.x}px) scaleX({dashAt.width})"
-        aria-hidden="true"
-      ></span>
-    </nav>
-  {/if}
+  <nav aria-label="Rooms">
+    <ul bind:this={strip}>
+      <li>
+        <a
+          class="tab tab-hall"
+          href="#/"
+          aria-current={app.route.room === 'home' ? 'page' : undefined}
+          aria-keyshortcuts="0"
+          title="Hall, all rooms (0)"
+        >
+          <Icon name="hall" />
+          <span class="tab-name">Hall</span>
+          <span class="tab-short" aria-hidden="true">Hall</span>
+        </a>
+      </li>
+      {#each ROOMS as r, i (r.room)}
+        <li>
+          <a
+            class="tab"
+            href={hashOf(routeFor(r.room))}
+            aria-current={app.route.room === r.room ? 'page' : undefined}
+            aria-keyshortcuts={String(i + 1)}
+            title="{r.name} ({i + 1})"
+          >
+            <Icon name={r.icon} />
+            <span class="tab-name">{r.action}</span>
+            <span class="tab-short" aria-hidden="true">{r.short}</span>
+          </a>
+        </li>
+      {/each}
+    </ul>
+    <span
+      class="dash"
+      class:live={dashLive}
+      style:transform="translateX({dashAt.x}px) scaleX({dashAt.width})"
+      aria-hidden="true"
+    ></span>
+  </nav>
   <div class="tools">
     <a class="star-top" href={GITHUB_URL} target="_blank" rel="noopener noreferrer">
       <Icon name="star" size={16} />
@@ -204,7 +224,7 @@
   </div>
 </header>
 
-<main id="main" tabindex="-1" class:home-main={app.route.room === 'home'}>
+<main id="main" tabindex="-1">
   {#if ready}
     {#key app.route.room}
       <div class="stage">

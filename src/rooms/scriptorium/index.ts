@@ -1,4 +1,5 @@
 import type { NewBookMeta } from '../../core/convert/build';
+import type { Collation } from '../../core/convert/census';
 import { decodeText } from '../../core/convert/decode';
 import { detectFormat, type InputFormat } from '../../core/convert/detect';
 import { fromMarkdown, parseFrontMatter } from '../../core/convert/from-md';
@@ -11,10 +12,15 @@ import { readEpub } from '../../core/epub/read';
 import { writeEpub } from '../../core/epub/write';
 import type { Book } from '../../core/model/book';
 import { BookNotFoundError, getBook } from '../../storage/db';
+import { collateCopy } from './collation';
 
 export type OutputFormat = 'epub' | 'docx' | 'md' | 'txt' | 'html' | 'pdf';
-export type ConvertOutput =
-  { kind: 'file'; blob: Blob; fileName: string } | { kind: 'print'; html: string };
+export type ConvertOutput = (
+  { kind: 'file'; blob: Blob; fileName: string } | { kind: 'print'; html: string }
+) & {
+  /** Reads the copy back and compares it with the book; run it after the copy is saved. */
+  check: () => Promise<Collation>;
+};
 
 const OUTPUT_FORMATS: OutputFormat[] = ['epub', 'docx', 'md', 'txt', 'html', 'pdf'];
 
@@ -105,7 +111,10 @@ export async function convertLibraryBook(
 
 /** Writes a book in the target format; PDF comes back as a page to print. */
 export async function convertBook(book: Book, target: OutputFormat): Promise<ConvertOutput> {
-  if (target === 'pdf') return { kind: 'print', html: toHtml(book, { print: true }) };
+  if (target === 'pdf') {
+    const html = toHtml(book, { print: true });
+    return { kind: 'print', html, check: () => collateCopy(book, html, 'html') };
+  }
   const body = {
     epub: () => writeEpub(book),
     docx: () => toDocx(book),
@@ -113,10 +122,12 @@ export async function convertBook(book: Book, target: OutputFormat): Promise<Con
     txt: () => toText(book),
     html: () => toHtml(book),
   }[target]();
+  const blob = new Blob([body as BlobPart], { type: MIME_TYPES[target] });
   return {
     kind: 'file',
-    blob: new Blob([body as BlobPart], { type: MIME_TYPES[target] }),
+    blob,
     fileName: outputFileName(book.meta.title, target),
+    check: async () => collateCopy(book, new Uint8Array(await blob.arrayBuffer()), target),
   };
 }
 

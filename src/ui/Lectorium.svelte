@@ -1,18 +1,25 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, tick } from 'svelte';
   import type { Settings } from '../rooms/archivum';
   import {
     addBookmark,
+    addNote,
+    NOTE_LENGTH,
     openSession,
     progressPercent,
     removeBookmark,
+    removeNote,
+    saveNote,
     type ReadingSession,
   } from '../rooms/lectorium';
   import { ReadingController } from '../rooms/lectorium/controller';
-  import type { BookmarkRecord } from '../storage/db';
+  import { pageForFraction } from '../reader/location';
+  import type { BookmarkRecord, NoteRecord } from '../storage/db';
   import type { TocEntry } from '../core/model/book';
-  import { app, changeSettings } from './state.svelte';
+  import { BOOK_FILES } from './files';
+  import { addFiles, app, changeSettings, landed } from './state.svelte';
   import Bookcase from './Bookcase.svelte';
+  import Incipit from './Incipit.svelte';
   import Contents from './Contents.svelte';
   import RoomHero from './RoomHero.svelte';
   import Icon from './Icon.svelte';
@@ -27,6 +34,22 @@
   let error = $state('');
   let panelOpen = $state(false);
   let where = $state({ chapter: 0, page: 0, pages: 0, percent: 0 });
+  let notes = $state<NoteRecord[]>([]);
+  let folded = $state<string[]>([]);
+  // The page fills the window and the chrome steps away.
+  let fitted = $state(false);
+  // The tap zones show for a moment when a book opens or the page is fitted.
+  let hinting = $state(false);
+  let zone = $state<'prev' | 'next' | undefined>();
+
+  // The window behind a fitted page shows no scrollbar. Only the scrollbar is
+  // hidden: flipping the root's overflow while the page is still being laid out
+  // crashes WebKit.
+  $effect(() => {
+    const root = document.documentElement;
+    root.classList.toggle('page-fitted', fitted);
+    return () => root.classList.remove('page-fitted');
+  });
 
   const book = $derived(session?.book);
   const contents = $derived<TocEntry[]>(
@@ -41,6 +64,18 @@
           })),
   );
   const chapterTitle = $derived(book?.chapters[where.chapter]?.title);
+  const pageNotes = $derived(
+    where.pages === 0
+      ? []
+      : notes.filter(
+          (note) =>
+            note.spineIndex === where.chapter &&
+            pageForFraction(note.fraction, where.pages) === where.page,
+        ),
+  );
+
+  const pending = new Map<string, ReturnType<typeof setTimeout>>();
+  let hintTimer: ReturnType<typeof setTimeout> | undefined;
 
   function look(): Settings {
     return { ...app.settings };
@@ -73,9 +108,11 @@
         if (cancelled || !host) return;
         session = opened;
         marks = opened.bookmarks;
+        notes = opened.notes;
         ctrl = new ReadingController(host, opened, look(), refreshWhere);
         await ctrl.open();
         host.focus();
+        hint();
       })
       .catch((e: unknown) => {
         if (!cancelled) error = errorMessage(e);
@@ -84,6 +121,8 @@
     return () => {
       cancelled = true;
       clearTimeout(timer);
+      clearTimeout(hintTimer);
+      for (const id of [...pending.keys()]) void storeNote(id);
       resize.disconnect();
       ctrl?.destroy();
       ctrl = undefined;
@@ -96,8 +135,15 @@
   }
 
   function onKey(event: KeyboardEvent): void {
+    if (!bookId) return;
     const target = event.target as HTMLElement | null;
+    if (event.key === 'Escape' && fitted) {
+      event.preventDefault();
+      fit(false);
+      return;
+    }
     if (target?.closest('input, select, textarea, [contenteditable]')) return;
+    if (event.ctrlKey || event.metaKey || event.altKey) return;
     // Space presses a focused button or link; the arrows have no such use there.
     if (event.key === ' ' && target?.closest('button, a')) return;
     if (event.key === 'ArrowRight' || event.key === 'PageDown' || event.key === ' ') {
@@ -106,16 +152,70 @@
     } else if (event.key === 'ArrowLeft' || event.key === 'PageUp') {
       event.preventDefault();
       turn(false);
+    } else if (event.key === 'f' || event.key === 'F') {
+      event.preventDefault();
+      fit(!fitted);
     }
   }
 
-  /** A tap on the outer thirds of the page turns it; links are handled by the paginator. */
-  function onPageClick(event: MouseEvent): void {
-    if (event.defaultPrevented || !host) return;
+  function fit(on: boolean): void {
+    fitted = on;
+    if (on) hint();
+    host?.focus();
+  }
+
+  function hint(): void {
+    hinting = true;
+    clearTimeout(hintTimer);
+    hintTimer = setTimeout(() => (hinting = false), 1800);
+  }
+
+  function zoneAt(clientX: number): 'prev' | 'next' | undefined {
+    if (!host) return undefined;
     const box = host.getBoundingClientRect();
-    const x = (event.clientX - box.left) / box.width;
-    if (x < 1 / 3) turn(false);
-    else if (x > 2 / 3) turn(true);
+    const x = (clientX - box.left) / box.width;
+    return x < 1 / 3 ? 'prev' : x > 2 / 3 ? 'next' : undefined;
+  }
+
+  // A horizontal swipe turns the page; the click that follows it is not a tap.
+  let start: { x: number; y: number; id: number } | undefined;
+  let swiped = false;
+
+  function onPointerDown(event: PointerEvent): void {
+    if (!event.isPrimary) return;
+    start = { x: event.clientX, y: event.clientY, id: event.pointerId };
+    swiped = false;
+  }
+
+  function onPointerUp(event: PointerEvent): void {
+    if (!start || event.pointerId !== start.id) return;
+    const dx = event.clientX - start.x;
+    const dy = event.clientY - start.y;
+    start = undefined;
+    if (Math.abs(dx) > 40 && Math.abs(dx) > 1.5 * Math.abs(dy)) {
+      swiped = true;
+      turn(dx < 0);
+    }
+  }
+
+  function onPointerMove(event: PointerEvent): void {
+    zone = event.pointerType === 'mouse' ? zoneAt(event.clientX) : undefined;
+  }
+
+  /**
+   * A tap on the outer thirds of the page turns it, and a tap in the middle
+   * fits the page to the window or gives the chrome back. Links are handled by
+   * the paginator.
+   */
+  function onPageClick(event: MouseEvent): void {
+    if (swiped) {
+      swiped = false;
+      return;
+    }
+    if (event.defaultPrevented || !host) return;
+    const side = zoneAt(event.clientX);
+    if (side) turn(side === 'next');
+    else fit(!fitted);
   }
 
   function goTo(chapter: number, fragment?: string): void {
@@ -139,6 +239,61 @@
     marks = marks.filter((m) => m.id !== id);
   }
 
+  async function pinNote(): Promise<void> {
+    if (!ctrl || !session) return;
+    try {
+      const note = await addNote(session.bookId, ctrl.position());
+      notes = [...notes, note];
+      await tick();
+      document.getElementById(`note-${note.id}`)?.focus();
+    } catch (e) {
+      error = errorMessage(e);
+    }
+  }
+
+  function writeNote(id: string, text: string): void {
+    notes = notes.map((note) => (note.id === id ? { ...note, text } : note));
+    clearTimeout(pending.get(id));
+    pending.set(
+      id,
+      setTimeout(() => void storeNote(id, false), 600),
+    );
+  }
+
+  /** Keeps a note's text; a note left empty is taken off the page when it loses focus. */
+  async function storeNote(id: string, final = true): Promise<void> {
+    clearTimeout(pending.get(id));
+    pending.delete(id);
+    const note = notes.find((other) => other.id === id);
+    if (!note || (!final && note.text.trim() === '')) return;
+    try {
+      if (!(await saveNote(note, note.text))) notes = notes.filter((other) => other.id !== id);
+    } catch (e) {
+      error = errorMessage(e);
+    }
+  }
+
+  async function unpin(id: string): Promise<void> {
+    clearTimeout(pending.get(id));
+    pending.delete(id);
+    notes = notes.filter((note) => note.id !== id);
+    await removeNote(id);
+    host?.focus();
+  }
+
+  function fold(id: string): void {
+    folded = folded.includes(id) ? folded.filter((other) => other !== id) : [...folded, id];
+  }
+
+  const firstLine = (text: string) => text.trim().split('\n')[0] || 'Empty note';
+
+  function onBookFiles(event: Event): void {
+    const input = event.currentTarget as HTMLInputElement;
+    const files = [...(input.files ?? [])];
+    input.value = '';
+    if (files.length > 0) void addFiles(files, 'lectorium');
+  }
+
   async function restyle(patch: Partial<Settings>): Promise<void> {
     await changeSettings(patch);
     await ctrl?.setLook(look());
@@ -148,21 +303,58 @@
 
 <svelte:window onkeydown={onKey} />
 
-<section class="room lectorium" class:open-book={bookId} aria-labelledby="lectorium-title">
+<section
+  class="room lectorium"
+  class:open-book={bookId}
+  class:fitted
+  aria-labelledby="lectorium-title"
+>
   {#if !bookId}
     <RoomHero room="lectorium" />
+    <div class="pick-head">
+      <h2 class="pick-title">{app.shelf.length > 0 ? 'Choose a book' : 'Your shelf'}</h2>
+      <label class="button primary">
+        <Icon name="plus" size={18} />
+        Add EPUB books
+        <input type="file" accept={BOOK_FILES} multiple onchange={onBookFiles} />
+      </label>
+    </div>
     {#if app.shelf.length > 0}
-      <h2 class="pick-title">Choose a book</h2>
-      <Bookcase books={app.shelf} current={app.lastBookId} />
+      <Bookcase
+        books={app.shelf}
+        current={app.lastBookId}
+        landing={app.landing}
+        onlanded={landed}
+      />
     {:else}
       <Bookcase books={[]} />
+    {/if}
+    <div role="status" class="notices">
+      {#if app.noticeRoom === 'lectorium'}
+        {#each app.libraryNotices as notice, i (i)}
+          <p class={notice.tone}>{notice.text}</p>
+          {#if notice.details?.length}
+            <ul class="details">
+              {#each notice.details as detail (detail)}<li>{detail}</li>{/each}
+            </ul>
+          {/if}
+        {/each}
+      {/if}
+    </div>
+    {#if app.shelf.length === 0}
       <p class="empty">
-        No books yet. Add one in the <a href="#/bibliotheca">library</a>, where you can also find
-        free ones, and it opens here.
+        No books yet. Drop an EPUB file on this shelf and it lands there, or add one in the
+        <a href="#/bibliotheca">library</a>, where you can also find free ones. Choose a spine to
+        read the book.
       </p>
+      <Incipit delay={420} />
     {/if}
   {:else}
     <div class="reading-bar">
+      <a class="to-shelf" href="#/lectorium" title="Back to the shelf">
+        <Icon name="back" size={18} />
+        <span>All books</span>
+      </a>
       <div class="reading-title">
         <span class="room-tag" aria-hidden="true">Lectorium</span>
         <h1 id="lectorium-title">{book?.meta.title ?? 'Opening…'}</h1>
@@ -173,9 +365,29 @@
           class="panel-toggle"
           aria-expanded={panelOpen}
           aria-controls="reader-panel"
-          onclick={() => (panelOpen = !panelOpen)}>Contents</button
+          onclick={() => (panelOpen = !panelOpen)}
         >
-        <button type="button" onclick={mark} disabled={!session}>Bookmark this page</button>
+          <Icon name="contents" size={18} />
+          <span class="tool-label">Contents</span>
+        </button>
+        <button type="button" onclick={mark} disabled={!session} title="Bookmark this page">
+          <Icon name="bookmark" size={18} />
+          <span class="tool-label">Bookmark<span class="sr-only"> this page</span></span>
+        </button>
+        <button type="button" onclick={pinNote} disabled={!session} title="Pin a note to this page">
+          <Icon name="note" size={18} />
+          <span class="tool-label">Add note</span>
+        </button>
+        <button
+          type="button"
+          onclick={() => fit(true)}
+          disabled={!session}
+          aria-keyshortcuts="F"
+          title="Fit the page to the window (F)"
+        >
+          <Icon name="expand" size={18} />
+          <span class="tool-label">Full page</span>
+        </button>
         <div class="group" role="group" aria-label="Text size">
           <button
             type="button"
@@ -212,7 +424,7 @@
     {/if}
 
     <div class="reading" class:panel-open={panelOpen}>
-      <aside id="reader-panel" aria-label="Contents and bookmarks">
+      <aside id="reader-panel" aria-label="Contents, bookmarks and notes">
         <h2>Contents</h2>
         <Contents entries={contents} onpick={goTo} />
         <h2>Bookmarks</h2>
@@ -243,18 +455,111 @@
             {/each}
           </ul>
         {/if}
+        <h2>Notes</h2>
+        {#if notes.length === 0}
+          <p class="empty">No notes yet.</p>
+        {:else}
+          <ul class="marks notes-list">
+            {#each notes as note (note.id)}
+              <li>
+                <button
+                  type="button"
+                  class="link"
+                  onclick={() => {
+                    panelOpen = false;
+                    void ctrl?.goTo({ spineIndex: note.spineIndex, fraction: note.fraction });
+                  }}
+                >
+                  <span class="note-line">{firstLine(note.text)}</span>
+                  <small>{book ? Math.round(progressPercent(book, note)) : 0}%</small>
+                </button>
+                <button
+                  type="button"
+                  class="remove"
+                  aria-label="Delete note"
+                  onclick={() => unpin(note.id)}><Icon name="trash" size={16} /></button
+                >
+              </li>
+            {/each}
+          </ul>
+        {/if}
       </aside>
 
       <div class="page-area">
-        <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
         <div
-          class="pages"
-          bind:this={host}
-          tabindex="0"
-          role="document"
-          aria-label="Book page. Use the arrow keys to turn pages."
-          onclick={onPageClick}
-        ></div>
+          class="sheet"
+          class:hinting
+          class:zone-prev={zone === 'prev'}
+          class:zone-next={zone === 'next'}
+        >
+          <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
+          <div
+            class="pages"
+            bind:this={host}
+            tabindex="0"
+            role="document"
+            aria-label="Book page. Tap or swipe the sides, or use the arrow keys, to turn pages. Tap the middle or press F to fit the page to the window."
+            onclick={onPageClick}
+            onpointerdown={onPointerDown}
+            onpointerup={onPointerUp}
+            onpointercancel={() => (start = undefined)}
+            onpointermove={onPointerMove}
+            onpointerleave={() => (zone = undefined)}
+          ></div>
+          <span class="turn-hint turn-prev" aria-hidden="true"><Icon name="back" size={22} /></span>
+          <span class="turn-hint turn-next" aria-hidden="true"><Icon name="arrow" size={22} /></span
+          >
+
+          {#if pageNotes.length > 0}
+            <div class="page-notes">
+              {#each pageNotes as note (note.id)}
+                {@const isFolded = folded.includes(note.id)}
+                <div class="page-note" class:folded={isFolded}>
+                  <div class="note-head">
+                    <button
+                      type="button"
+                      class="note-fold"
+                      aria-expanded={!isFolded}
+                      aria-controls={`note-${note.id}`}
+                      onclick={() => fold(note.id)}
+                    >
+                      <Icon name="note" size={14} />
+                      <span class="note-line">{isFolded ? firstLine(note.text) : 'Note'}</span>
+                    </button>
+                    <button
+                      type="button"
+                      class="note-remove"
+                      aria-label="Delete note"
+                      onclick={() => unpin(note.id)}><Icon name="close" size={14} /></button
+                    >
+                  </div>
+                  <textarea
+                    id={`note-${note.id}`}
+                    aria-label="Note on this page"
+                    placeholder="Write a note…"
+                    rows="3"
+                    maxlength={NOTE_LENGTH}
+                    hidden={isFolded}
+                    value={note.text}
+                    oninput={(e) => writeNote(note.id, e.currentTarget.value)}
+                    onblur={() => storeNote(note.id)}></textarea>
+                </div>
+              {/each}
+            </div>
+          {/if}
+
+          {#if fitted}
+            <div class="fit-bar">
+              {#if session && where.pages > 0}
+                <span class="fit-where">{where.page + 1} / {where.pages}</span>
+              {/if}
+              <button type="button" onclick={() => fit(false)} aria-keyshortcuts="Escape">
+                <Icon name="close" size={16} />
+                Exit full page
+              </button>
+            </div>
+          {/if}
+        </div>
         <div class="page-nav">
           <button type="button" onclick={() => turn(false)} disabled={!session}>
             <Icon name="back" size={18} /> Previous

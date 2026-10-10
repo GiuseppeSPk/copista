@@ -20,6 +20,10 @@ export const app = $state({
   settings: { ...DEFAULT_SETTINGS } as Settings,
   shelf: [] as ShelfBook[],
   libraryNotices: [] as Notice[],
+  /** The room whose drop or button added the books the notices are about. */
+  noticeRoom: 'bibliotheca' as 'bibliotheca' | 'lectorium',
+  /** Books just added, newest first, still to land on the Lectorium's shelf. */
+  landing: [] as string[],
   /** A file dropped outside the Bibliotheca, waiting for the Scriptorium. */
   pendingConversion: undefined as File | undefined,
   /** A library book sent from its shelf card to the Scriptorium. */
@@ -78,11 +82,16 @@ export async function refreshShelf(): Promise<void> {
   app.shelf = await listShelf();
 }
 
-export async function addFiles(files: File[]): Promise<void> {
+export async function addFiles(
+  files: File[],
+  room: 'bibliotheca' | 'lectorium' = 'bibliotheca',
+): Promise<void> {
   const notices: Notice[] = [];
+  const added: string[] = [];
   for (const file of files) {
     try {
       const result = await importBook(file);
+      if (!result.alreadyPresent) added.unshift(result.book.id);
       notices.push({
         tone: 'ok',
         text: result.alreadyPresent
@@ -95,5 +104,12 @@ export async function addFiles(files: File[]): Promise<void> {
     }
   }
   app.libraryNotices = notices;
+  app.noticeRoom = room;
+  app.landing = [...added, ...app.landing.filter((id) => !added.includes(id))];
   await refreshShelf();
+}
+
+/** A book has come to rest on the shelf, so it will not fall again. */
+export function landed(id: string): void {
+  app.landing = app.landing.filter((other) => other !== id);
 }

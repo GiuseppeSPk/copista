@@ -1,10 +1,12 @@
 <script lang="ts">
   import { SAMPLE } from './catalogues';
   import Cover from './Cover.svelte';
+  import { BOOK_FILES, CONVERTIBLE_FILES } from './files';
   import Icon from './Icon.svelte';
+  import Incipit from './Incipit.svelte';
   import { hashOf } from './route';
   import { GITHUB_URL, roomInfo, type RoomName } from './rooms';
-  import { app } from './state.svelte';
+  import { addFiles, app, go } from './state.svelte';
   import TitleCover from './TitleCover.svelte';
 
   const IN = ['EPUB', 'DOCX', 'MD', 'TXT'];
@@ -27,6 +29,24 @@
 
   const door = (room: RoomName) => roomInfo(room);
 
+  function convert(event: Event): void {
+    const input = event.currentTarget as HTMLInputElement;
+    const file = input.files?.[0];
+    input.value = '';
+    if (!file) return;
+    app.pendingConversion = file;
+    go({ room: 'scriptorium' });
+  }
+
+  function addBooks(event: Event): void {
+    const input = event.currentTarget as HTMLInputElement;
+    const files = [...(input.files ?? [])];
+    input.value = '';
+    if (files.length === 0) return;
+    void addFiles(files);
+    go({ room: 'bibliotheca' });
+  }
+
   // The doors rise in on arrival, but not when a room's name is flying back to its plaque.
   const enter = document.documentElement.dataset.nav !== 'out';
 </script>
@@ -38,6 +58,18 @@
       Turn Word, Markdown and text files into PDF, web pages or e-books, and read your books, all in
       your browser. Nothing you open leaves this device.
     </p>
+    <div class="home-actions">
+      <label class="button primary">
+        <Icon name="convert" size={18} />
+        Choose a file to convert
+        <input type="file" accept={CONVERTIBLE_FILES} onchange={convert} />
+      </label>
+      <label class="button">
+        <Icon name="plus" size={18} />
+        Add EPUB books
+        <input type="file" accept={BOOK_FILES} multiple onchange={addBooks} />
+      </label>
+    </div>
   </header>
 
   <div class="doors">
@@ -149,6 +181,8 @@
       </span>
     </a>
   </div>
+
+  <Incipit />
 
   <aside class="star-strip" aria-label="Support Copista">
     <p>

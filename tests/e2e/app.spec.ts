@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
+import { readFileSync } from 'node:fs';
 
 const LONG_BOOK = 'tests/fixtures/generated/long-book.epub';
 const BASIC_DOCX = 'tests/fixtures/generated/basic.docx';
@@ -53,6 +54,24 @@ test('adds a book to the library and keeps it after a reload', async ({ page }) 
   await expect(page.getByRole('heading', { name: 'Long Book', level: 2 })).toBeVisible();
 });
 
+test('puts a book dropped on the Lectorium shelf there, ready to open', async ({ page }) => {
+  await page.goto('/#/lectorium');
+  await expect(page.getByText('No books yet.')).toBeVisible();
+  const bytes = readFileSync(LONG_BOOK).toString('base64');
+  await page.evaluate((base64) => {
+    const data = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
+    const transfer = new DataTransfer();
+    transfer.items.add(new File([data], 'long-book.epub', { type: 'application/epub+zip' }));
+    document.dispatchEvent(
+      new DragEvent('drop', { dataTransfer: transfer, bubbles: true, cancelable: true }),
+    );
+  }, bytes);
+  await expect(page.getByRole('status')).toContainText('Added “Long Book”.');
+  await expect(page.getByRole('heading', { level: 1, name: 'Lectorium' })).toBeVisible();
+  await page.getByRole('link', { name: 'Long Book' }).click();
+  await expect(page.locator('.where')).toContainText(/Page 1 of \d+/);
+});
+
 test('says a book is already in the library', async ({ page }) => {
   await addBook(page);
   await page.getByLabel('Add EPUB books').setInputFiles(LONG_BOOK);
@@ -104,6 +123,97 @@ test('adds, follows and deletes a bookmark', async ({ page }) => {
   await expect(marks).toHaveCount(1);
   await marks.getByRole('button', { name: 'Delete bookmark' }).click();
   await expect(marks).toHaveCount(0);
+});
+
+test('goes back to the shelf from a book in one click', async ({ page }) => {
+  await openReader(page);
+  await page.getByRole('link', { name: 'All books' }).click();
+  await expect(page.getByRole('heading', { level: 2, name: 'Choose a book' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Long Book' })).toBeVisible();
+});
+
+test('puts books on the shelf from its own button', async ({ page }) => {
+  await page.goto('/#/lectorium');
+  await page.getByLabel('Add EPUB books').setInputFiles(LONG_BOOK);
+  await expect(page.getByRole('status')).toContainText('Added “Long Book”.');
+  await expect(page.getByRole('heading', { level: 1, name: 'Lectorium' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Long Book' })).toBeVisible();
+});
+
+test('pins a note to a page and keeps it after a reload', async ({ page }) => {
+  await openReader(page);
+  await page.getByRole('button', { name: 'Next' }).click();
+  await expect(page.locator('.where')).toContainText(/Page 2 of/);
+  await page.getByRole('button', { name: 'Add note' }).click();
+  const note = page.getByRole('textbox', { name: 'Note on this page' });
+  await expect(note).toBeFocused();
+  await note.fill('Compare with the opening.');
+  await page.keyboard.press('Tab');
+  const listed = page.locator('.notes-list li');
+  await expect(listed).toContainText('Compare with the opening.');
+
+  // The note belongs to its page: it is gone on the next one and back on its own.
+  await page.getByRole('button', { name: 'Next' }).click();
+  await expect(note).toHaveCount(0);
+  await page.getByRole('button', { name: 'Previous' }).click();
+  await expect(note).toHaveValue('Compare with the opening.');
+
+  await page.reload();
+  await expect(note).toHaveValue('Compare with the opening.');
+  await page.locator('.page-note').getByRole('button', { name: 'Delete note' }).click();
+  await expect(note).toHaveCount(0);
+  await expect(listed).toHaveCount(0);
+  await page.reload();
+  await expect(page.locator('.where')).toContainText(/Page 2 of/);
+  await expect(note).toHaveCount(0);
+});
+
+test('takes an empty note off the page', async ({ page }) => {
+  await openReader(page);
+  await page.getByRole('button', { name: 'Add note' }).click();
+  await expect(page.getByRole('textbox', { name: 'Note on this page' })).toBeFocused();
+  await page.keyboard.press('Tab');
+  await page.keyboard.press('Tab');
+  await expect(page.locator('.page-note')).toHaveCount(0);
+});
+
+test('fits the page to the window and gives the chrome back', async ({ page }) => {
+  await openReader(page);
+  const bar = page.locator('.reading-bar');
+  await page.keyboard.press('f');
+  await expect(bar).toBeHidden();
+  const box = await page.locator('.pages').boundingBox();
+  const view = page.viewportSize()!;
+  expect(box!.width).toBeGreaterThan(view.width * 0.9);
+  await page.keyboard.press('Escape');
+  await expect(bar).toBeVisible();
+
+  // A tap in the middle of the page does the same, and so does the bar left in full page.
+  await page.locator('.pages').click();
+  await expect(bar).toBeHidden();
+  await page.getByRole('button', { name: 'Exit full page' }).click();
+  await expect(bar).toBeVisible();
+  await expect(page.locator('.where')).toContainText(/Page 1 of/);
+});
+
+test('turns the page with a tap on its sides or a swipe', async ({ page }) => {
+  await openReader(page);
+  // Raw mouse events skip Playwright's hit check: wait until the screen has stopped moving.
+  await expect(page.locator('html')).not.toHaveAttribute('data-nav');
+  const box = (await page.locator('.pages').boundingBox())!;
+  const y = box.y + box.height / 2;
+  await page.mouse.click(box.x + box.width * 0.9, y);
+  await expect(page.locator('.where')).toContainText(/Page 2 of/);
+  await page.mouse.click(box.x + box.width * 0.1, y);
+  await expect(page.locator('.where')).toContainText(/Page 1 of/);
+
+  // A drag to the left is a swipe to the next page, not a tap in the middle.
+  await page.mouse.move(box.x + box.width * 0.6, y);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width * 0.3, y + 5, { steps: 5 });
+  await page.mouse.up();
+  await expect(page.locator('.where')).toContainText(/Page 2 of/);
+  await expect(page.locator('.reading-bar')).toBeVisible();
 });
 
 test('changes the text size and keeps it', async ({ page }) => {
@@ -162,6 +272,8 @@ test.describe('Scriptorium', () => {
       await page.getByRole('button', { name: label, exact: true }).click();
       expect((await download).suggestedFilename()).toBe(`Long Book${extension}`);
       await expect(page.getByRole('status')).toContainText(`Saved “Long Book${extension}”.`);
+      const check = page.getByRole('region', { name: 'Checked against the original' });
+      await expect(check.getByRole('definition').first()).toContainText(/^\s*All [\d,]+/);
     });
   }
 
@@ -265,7 +377,7 @@ test('links to free libraries and searches them for what is typed', async ({ pag
   );
   await expect(free.getByRole('link', { name: 'Find Canti at Liber Liber' })).toHaveAttribute(
     'href',
-    'https://liberliber.it/?s=Canti',
+    'https://liberliber.it/autori/autori-l/giacomo-leopardi/canti/',
   );
 });
 
@@ -306,7 +418,7 @@ test('has no serious accessibility problems in any room, in either theme', async
       },
     ],
     ['Home, dark', () => page.getByRole('button', { name: 'Switch to dark theme' }).click()],
-    ['Archivum, dark', () => page.getByRole('link', { name: /Manage your data/ }).click()],
+    ['Archivum, dark', () => openRoom(page, 'Archivum')],
   ];
   await page.emulateMedia({ reducedMotion: 'reduce', colorScheme: 'light' });
   for (const [name, open] of screens) {
@@ -335,7 +447,7 @@ test.describe('home', () => {
     await page.goto('/');
     await expect(page.getByRole('heading', { level: 1, name: 'Copista' })).toBeVisible();
     for (const room of ['Scriptorium', 'Lectorium', 'Bibliotheca', 'Archivum'] as const) {
-      await page.getByRole('link', { name: TAB[room] }).click();
+      await page.getByRole('main').getByRole('link', { name: TAB[room] }).click();
       await expect(page.getByRole('heading', { level: 1, name: room })).toBeVisible();
       await expect(page.getByRole('list', { name: 'In this room' })).toBeVisible();
       await page.getByRole('link', { name: 'All rooms', exact: true }).click();
@@ -348,6 +460,30 @@ test.describe('home', () => {
     await page.getByRole('link', { name: 'Copista, all rooms' }).click();
     await page.getByRole('link', { name: 'Continue reading' }).click();
     await expect(page.locator('.where')).toContainText(/Page 1 of \d+/);
+  });
+
+  test('converts a file or adds books from the buttons under the lead', async ({ page }) => {
+    await page.goto('/');
+    await page.getByRole('main').getByLabel('Choose a file to convert').setInputFiles(BASIC_DOCX);
+    await expect(page.getByRole('heading', { level: 1, name: 'Scriptorium' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'EPUB', exact: true })).toBeEnabled();
+
+    await page.goto('/');
+    await page.getByRole('main').getByLabel('Add EPUB books').setInputFiles(LONG_BOOK);
+    await expect(page.getByRole('heading', { level: 1, name: 'Bibliotheca' })).toBeVisible();
+    await expect(page.getByRole('status')).toContainText('Added “Long Book”.');
+  });
+
+  test('reaches the hall from any room with one click or the 0 key', async ({ page }) => {
+    await page.goto('/#/scriptorium');
+    const rooms = page.getByRole('navigation', { name: 'Rooms' });
+    await rooms.getByRole('link', { name: 'Hall' }).click();
+    await expect(page.getByRole('heading', { level: 1, name: 'Copista' })).toBeVisible();
+    await openRoom(page, 'Archivum');
+    await page.keyboard.press('0');
+    await expect(page.getByRole('heading', { level: 1, name: 'Copista' })).toBeVisible();
+    // The rooms stay one click away from the hall itself.
+    await openRoom(page, 'Bibliotheca');
   });
 
   test('links to the project without sending anything', async ({ page }) => {

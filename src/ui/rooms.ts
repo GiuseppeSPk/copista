@@ -41,7 +41,7 @@ export const ROOMS: readonly RoomInfo[] = [
     short: 'Read',
     icon: 'read',
     about: 'The reading room. Pages turn like a book, and your place is kept for next time.',
-    can: ['Turn pages with the arrow keys', 'Jump through the contents', 'Keep bookmarks'],
+    can: ['Tap or swipe to turn pages', 'Pin notes to a page', 'Keep bookmarks'],
   },
   {
     room: 'scriptorium',

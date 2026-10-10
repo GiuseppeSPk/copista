@@ -29,6 +29,17 @@ export interface BookmarkRecord {
   createdAt: number;
 }
 
+/** A note the reader pinned to a page; it stays where it was left. */
+export interface NoteRecord {
+  id: string;
+  bookId: string;
+  spineIndex: number;
+  fraction: number;
+  text: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
 export class StorageFullError extends CopistaError {
   override name = 'StorageFullError';
   readonly neededBytes: number;
@@ -53,7 +64,7 @@ export class BookNotFoundError extends CopistaError {
 }
 
 const DB_NAME = 'copista';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 interface SettingRecord {
   key: string;
@@ -85,6 +96,7 @@ interface CopistaSchema extends DBSchema {
   files: { key: string; value: StoredFile };
   progress: { key: string; value: ProgressRecord };
   bookmarks: { key: string; value: BookmarkRecord; indexes: { byBook: string } };
+  notes: { key: string; value: NoteRecord; indexes: { byBook: string } };
   settings: { key: string; value: SettingRecord };
 }
 
@@ -92,13 +104,20 @@ let connection: Promise<IDBPDatabase<CopistaSchema>> | undefined;
 
 function db(): Promise<IDBPDatabase<CopistaSchema>> {
   connection ??= openDB<CopistaSchema>(DB_NAME, DB_VERSION, {
-    upgrade(database) {
-      database.createObjectStore('books', { keyPath: 'id' });
-      database.createObjectStore('files', { keyPath: 'id' });
-      database.createObjectStore('progress', { keyPath: 'bookId' });
-      const bookmarks = database.createObjectStore('bookmarks', { keyPath: 'id' });
-      bookmarks.createIndex('byBook', 'bookId');
-      database.createObjectStore('settings', { keyPath: 'key' });
+    // Each version adds to the one before, so a library kept by an older version keeps its books.
+    upgrade(database, oldVersion) {
+      if (oldVersion < 1) {
+        database.createObjectStore('books', { keyPath: 'id' });
+        database.createObjectStore('files', { keyPath: 'id' });
+        database.createObjectStore('progress', { keyPath: 'bookId' });
+        const bookmarks = database.createObjectStore('bookmarks', { keyPath: 'id' });
+        bookmarks.createIndex('byBook', 'bookId');
+        database.createObjectStore('settings', { keyPath: 'key' });
+      }
+      if (oldVersion < 2) {
+        const notes = database.createObjectStore('notes', { keyPath: 'id' });
+        notes.createIndex('byBook', 'bookId');
+      }
     },
     // Another tab wants to delete or upgrade the database: let it.
     blocking() {
@@ -192,16 +211,24 @@ export async function listBooks(): Promise<BookSummary[]> {
   return books.sort((a, b) => b.addedAt - a.addedAt).map(toSummary);
 }
 
-/** Removes a book together with its reading progress and bookmarks, all or nothing. */
+/** Removes a book together with its reading progress, bookmarks and notes, all or nothing. */
 export async function deleteBook(id: string): Promise<void> {
-  const tx = (await db()).transaction(['books', 'files', 'progress', 'bookmarks'], 'readwrite');
+  const tx = (await db()).transaction(
+    ['books', 'files', 'progress', 'bookmarks', 'notes'],
+    'readwrite',
+  );
   const bookmarks = tx.objectStore('bookmarks');
-  const marks = await bookmarks.index('byBook').getAllKeys(id);
+  const notes = tx.objectStore('notes');
+  const [marks, pinned] = await Promise.all([
+    bookmarks.index('byBook').getAllKeys(id),
+    notes.index('byBook').getAllKeys(id),
+  ]);
   await Promise.all([
     tx.objectStore('books').delete(id),
     tx.objectStore('files').delete(id),
     tx.objectStore('progress').delete(id),
     ...marks.map((key) => bookmarks.delete(key)),
+    ...pinned.map((key) => notes.delete(key)),
     tx.done,
   ]);
 }
@@ -228,6 +255,23 @@ export async function putBookmark(rec: BookmarkRecord): Promise<void> {
 
 export async function deleteBookmark(id: string): Promise<void> {
   await (await db()).delete('bookmarks', id);
+}
+
+/** A book's notes in reading order. */
+export async function listNotes(bookId: string): Promise<NoteRecord[]> {
+  const notes = await (await db()).getAllFromIndex('notes', 'byBook', bookId);
+  return notes.sort(
+    (a, b) => a.spineIndex - b.spineIndex || a.fraction - b.fraction || a.createdAt - b.createdAt,
+  );
+}
+
+export async function putNote(rec: NoteRecord): Promise<void> {
+  const database = await db();
+  await write(rec.text.length * 2, () => database.put('notes', rec));
+}
+
+export async function deleteNote(id: string): Promise<void> {
+  await (await db()).delete('notes', id);
 }
 
 export async function getSetting<T>(key: string): Promise<T | undefined> {

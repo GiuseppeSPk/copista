@@ -261,9 +261,11 @@ class DocumentWriter {
     this.orderedNum = savedOrdered;
   }
 
-  /** Tables become one paragraph per row (a documented limit). */
+  /** Tables become one paragraph per row (a documented limit), under their caption. */
   private table(table: Element): void {
     this.flush();
+    const caption = table.querySelector(':scope > caption');
+    if (caption) this.inBlock(this.block, () => this.children(caption, {}));
     const rows = table.querySelectorAll(
       ':scope > tr, :scope > thead > tr, :scope > tbody > tr, :scope > tfoot > tr',
     );

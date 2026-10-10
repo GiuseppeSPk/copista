@@ -5,12 +5,16 @@ import { bookPercent, clampPosition } from '../../reader/location';
 import {
   BookNotFoundError,
   deleteBookmark,
+  deleteNote,
   getBook,
   getProgress,
   listBookmarks,
+  listNotes,
   putBookmark,
+  putNote,
   putProgress,
   type BookmarkRecord,
+  type NoteRecord,
 } from '../../storage/db';
 
 export interface ReadingSession {
@@ -18,9 +22,12 @@ export interface ReadingSession {
   book: Book;
   position: Position;
   bookmarks: BookmarkRecord[];
+  notes: NoteRecord[];
 }
 
 const SNIPPET_LENGTH = 120;
+/** A note is a slip of paper, not a chapter. */
+export const NOTE_LENGTH = 2000;
 
 /** Opens a library book where the reader left off, or at the start. */
 export async function openSession(bookId: string): Promise<ReadingSession> {
@@ -34,7 +41,8 @@ export async function openSession(bookId: string): Promise<ReadingSession> {
         book.chapters.length,
       )
     : { spineIndex: 0, fraction: 0 };
-  return { bookId, book, position, bookmarks: await listBookmarks(bookId) };
+  const [bookmarks, notes] = await Promise.all([listBookmarks(bookId), listNotes(bookId)]);
+  return { bookId, book, position, bookmarks, notes };
 }
 
 export async function savePosition(bookId: string, pos: Position): Promise<void> {
@@ -66,6 +74,37 @@ export async function addBookmark(
 
 export async function removeBookmark(id: string): Promise<void> {
   await deleteBookmark(id);
+}
+
+/** Pins an empty note to the page at a position; it is kept at once, so it survives a reload. */
+export async function addNote(bookId: string, pos: Position): Promise<NoteRecord> {
+  const now = Date.now();
+  const note: NoteRecord = {
+    id: crypto.randomUUID(),
+    bookId,
+    spineIndex: pos.spineIndex,
+    fraction: pos.fraction,
+    text: '',
+    createdAt: now,
+    updatedAt: now,
+  };
+  await putNote(note);
+  return note;
+}
+
+/** Keeps a note's new text; a note left blank is taken off the page and returns undefined. */
+export async function saveNote(note: NoteRecord, text: string): Promise<NoteRecord | undefined> {
+  if (text.trim() === '') {
+    await deleteNote(note.id);
+    return undefined;
+  }
+  const saved = { ...note, text: text.slice(0, NOTE_LENGTH), updatedAt: Date.now() };
+  await putNote(saved);
+  return saved;
+}
+
+export async function removeNote(id: string): Promise<void> {
+  await deleteNote(id);
 }
 
 /** How far through the book a position is, weighting chapters by their length. */

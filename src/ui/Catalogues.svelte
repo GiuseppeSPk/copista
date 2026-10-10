@@ -29,7 +29,7 @@
           {#each catalogue.classics as book, b (book.title)}
             <li style:--s={b}>
               <a
-                href={catalogueHref(catalogue, book.title)}
+                href={book.href}
                 target="_blank"
                 rel="noopener noreferrer"
                 title="{book.title}, {book.author}"

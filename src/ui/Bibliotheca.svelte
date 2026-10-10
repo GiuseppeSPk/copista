@@ -1,6 +1,7 @@
 <script lang="ts">
   import { removeBook } from '../rooms/bibliotheca';
   import Catalogues from './Catalogues.svelte';
+  import { BOOK_FILES } from './files';
   import Icon from './Icon.svelte';
   import RoomHero from './RoomHero.svelte';
   import { addFiles, app, go, refreshShelf } from './state.svelte';
@@ -83,7 +84,7 @@
       Add EPUB books
       <input
         type="file"
-        accept=".epub,application/epub+zip"
+        accept={BOOK_FILES}
         multiple
         disabled={busy}
         onchange={(e) => {
@@ -113,12 +114,27 @@
       {/if}
     {/each}
     {#if removeError}<p class="error">{removeError}</p>{/if}
+    {#if !busy && app.landing.length > 0}
+      <p class="landing-note">
+        <a href={hashOf({ room: 'lectorium' })}
+          >See {app.landing.length === 1 ? 'it' : 'them'} land on your shelf</a
+        >
+      </p>
+    {/if}
   </div>
 
   {#if app.shelf.length === 0}
     <div class="drop-zone">
-      <Icon name="library" size={32} />
-      <p class="empty">No books yet. Add an EPUB file to start reading.</p>
+      <!-- A file comes down and stands on the shelf as a book: what adding one does. -->
+      <div class="shelf-demo" aria-hidden="true">
+        <span class="demo-file">EPUB</span>
+        <span class="demo-spine" style:--h="54px"></span>
+        <span class="demo-spine" style:--h="64px"></span>
+        <span class="demo-spine new" style:--h="60px"></span>
+        <span class="demo-spine" style:--h="50px"></span>
+        <span class="demo-spine" style:--h="62px"></span>
+      </div>
+      <p class="empty">No books yet. Add an EPUB file and it goes on your shelf.</p>
       <p class="hint">
         Drop EPUB files anywhere on this page, or find a free one below. To convert a document, open
         the <a href="#/scriptorium">Scriptorium</a>.

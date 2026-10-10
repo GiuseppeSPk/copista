@@ -50,7 +50,7 @@ export async function storageUsage(): Promise<{ usedBytes: number; quotaBytes: n
   return { usedBytes: usage ?? 0, quotaBytes: quota ?? 0 };
 }
 
-/** Removes every book, position, bookmark, setting and cached app file. */
+/** Removes every book, position, bookmark, note, setting and cached app file. */
 export async function deleteAllData(): Promise<void> {
   await deleteAllStorage();
   if (typeof globalThis.caches === 'undefined') return;

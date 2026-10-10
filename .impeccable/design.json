@@ -1,0 +1,188 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-09T00:00:00Z",
+  "title": "Design System: Copista",
+  "extensions": {
+    "colorMeta": {
+      "stamp-violet": {
+        "role": "primary",
+        "displayName": "Stamp Violet",
+        "canonical": "#4f2a9a",
+        "tonalRamp": ["#1f0f40", "#2f185f", "#3f207d", "#4f2a9a", "#6a48b5", "#8c72cc", "#b49cf0", "#efeaf9"]
+      },
+      "violet-wash": { "role": "primary", "displayName": "Violet Wash", "canonical": "#efeaf9" },
+      "rule-red": {
+        "role": "tertiary",
+        "displayName": "Rule Red",
+        "canonical": "#c8322b",
+        "tonalRamp": ["#4a110e", "#701a16", "#9a241f", "#c8322b", "#dc5a52", "#ff8a80", "#ffb8b1", "#ffe5e2"]
+      },
+      "paper": { "role": "neutral", "displayName": "Paper", "canonical": "#f7f6f2" },
+      "card": { "role": "neutral", "displayName": "Card", "canonical": "#ffffff" },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Ink",
+        "canonical": "#1c1a21",
+        "tonalRamp": ["#15141a", "#1c1a21", "#2f2d38", "#474453", "#5d5a66", "#8a8696", "#b9b5c4", "#dcd9e2"]
+      },
+      "muted": { "role": "neutral", "displayName": "Muted", "canonical": "#5d5a66" },
+      "line": { "role": "neutral", "displayName": "Line", "canonical": "#dcd9e2" },
+      "line-strong": { "role": "neutral", "displayName": "Line Strong", "canonical": "#b9b5c4" },
+      "control": { "role": "neutral", "displayName": "Control Border", "canonical": "#8a8696" }
+    },
+    "typographyMeta": {
+      "headline": { "displayName": "Room name", "purpose": "The room heading, once per room." },
+      "title": { "displayName": "Section", "purpose": "Section headings and the ticket legs." },
+      "body": { "displayName": "Body", "purpose": "Leads, prose and ledger values." },
+      "label": { "displayName": "Label", "purpose": "Buttons, tab names and form labels." },
+      "stamp": { "displayName": "Stamp word", "purpose": "The word on the stamp only." },
+      "caption": { "displayName": "Caption", "purpose": "Tab subtitles and the stamp date." }
+    },
+    "shadows": [
+      {
+        "name": "stamp-inner-rule",
+        "value": "inset 0 0 0 2px var(--card), inset 0 0 0 3px var(--violet)",
+        "purpose": "The stamp's inner ruling; not a depth effect."
+      }
+    ],
+    "motion": [
+      {
+        "name": "ease",
+        "value": "cubic-bezier(0.16, 1, 0.3, 1)",
+        "purpose": "The one easing curve, exponential ease-out."
+      },
+      {
+        "name": "dash",
+        "value": "200ms",
+        "purpose": "The tab stroke slides to the open room; the room enters 40px from the side of travel with a 4px blur."
+      },
+      {
+        "name": "press",
+        "value": "240ms",
+        "purpose": "The stamp presses in once per finished job, scale 1.35 to 1."
+      }
+    ],
+    "breakpoints": [
+      { "name": "ticket-stack", "value": "860px" },
+      { "name": "bottom-bar", "value": "700px" },
+      { "name": "shelf-list", "value": "560px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The one action that matters in a region.",
+      "html": "<button class=\"ds-btn ds-btn-primary\">Add EPUB books</button>",
+      "css": ".ds-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 36px; padding: 7px 14px; border: 1px solid var(--control, #8a8696); border-radius: 8px; background: var(--card, #fff); color: var(--ink, #1c1a21); font: 600 14px/20px system-ui, sans-serif; cursor: pointer; } .ds-btn-primary { border-color: var(--violet, #4f2a9a); background: var(--violet, #4f2a9a); color: var(--violet-ink, #fff); } .ds-btn-primary:hover { background: color-mix(in srgb, var(--violet, #4f2a9a) 86%, var(--ink, #1c1a21)); } .ds-btn:focus-visible { outline: 2px solid var(--violet, #4f2a9a); outline-offset: 2px; }"
+    },
+    {
+      "name": "Button",
+      "kind": "button",
+      "refersTo": "button",
+      "description": "Secondary actions and format choices.",
+      "html": "<button class=\"ds-btn-default\">Convert</button>",
+      "css": ".ds-btn-default { display: inline-flex; align-items: center; justify-content: center; min-height: 36px; padding: 7px 14px; border: 1px solid var(--control, #8a8696); border-radius: 8px; background: var(--card, #fff); color: var(--ink, #1c1a21); font: 600 14px/20px system-ui, sans-serif; cursor: pointer; } .ds-btn-default:hover { border-color: var(--ink, #1c1a21); } .ds-btn-default:focus-visible { outline: 2px solid var(--violet, #4f2a9a); outline-offset: 2px; }"
+    },
+    {
+      "name": "Danger Button",
+      "kind": "button",
+      "refersTo": "button-danger",
+      "description": "Deleting only.",
+      "html": "<button class=\"ds-btn-danger\">Delete all my data</button>",
+      "css": ".ds-btn-danger { min-height: 36px; padding: 7px 14px; border: 1px solid var(--red, #c8322b); border-radius: 8px; background: var(--card, #fff); color: var(--red, #c8322b); font: 600 14px/20px system-ui, sans-serif; cursor: pointer; } .ds-btn-danger:hover { background: var(--red, #c8322b); color: var(--card, #fff); } .ds-btn-danger:focus-visible { outline: 2px solid var(--violet, #4f2a9a); outline-offset: 2px; }"
+    },
+    {
+      "name": "Room Tab",
+      "kind": "nav",
+      "refersTo": "masthead",
+      "description": "A numbered drawer tab; the open one has a filled key and the dash under it.",
+      "html": "<a class=\"ds-tab\" aria-current=\"page\" href=\"#\"><kbd>1</kbd><span>Bibliotheca</span><small>Library</small></a>",
+      "css": ".ds-tab { position: relative; display: inline-grid; grid-template-columns: auto auto; column-gap: 10px; padding: 12px 14px; color: var(--ink, #1c1a21); font: 14px/1.25 system-ui, sans-serif; text-decoration: none; } .ds-tab kbd { grid-row: span 2; align-self: center; padding: 0 5px; border: 1px solid var(--line-strong, #b9b5c4); border-radius: 5px; font: 600 12px system-ui, sans-serif; } .ds-tab small { color: var(--muted, #5d5a66); font-size: 12px; } .ds-tab[aria-current='page'] span { font-weight: 750; } .ds-tab[aria-current='page'] kbd { border-color: var(--violet, #4f2a9a); background: var(--violet, #4f2a9a); color: var(--violet-ink, #fff); } .ds-tab[aria-current='page']::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: var(--violet, #4f2a9a); } .ds-tab:hover span { color: var(--violet, #4f2a9a); }"
+    },
+    {
+      "name": "Book Card",
+      "kind": "card",
+      "refersTo": "book-card",
+      "description": "One book on the shelf; a coverless book shows a ruled catalogue card.",
+      "html": "<article class=\"ds-card\"><div class=\"ds-cover\">No Cover</div><strong>No Cover</strong><span>Ada Example</span></article>",
+      "css": ".ds-card { display: grid; gap: 8px; width: 180px; padding: 10px 10px 12px; border: 1px solid var(--line, #dcd9e2); border-radius: 12px; background: var(--card, #fff); color: var(--ink, #1c1a21); font: 14px system-ui, sans-serif; } .ds-card span { color: var(--muted, #5d5a66); } .ds-cover { display: grid; place-items: center; aspect-ratio: 2 / 3; border-radius: 6px; background: var(--violet-wash, #efeaf9); box-shadow: inset 0 0 0 8px var(--violet-wash, #efeaf9), inset 0 0 0 9px var(--violet, #4f2a9a); color: var(--violet, #4f2a9a); font-weight: 700; }"
+    },
+    {
+      "name": "Text Field",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Text fields and selects share the button's box.",
+      "html": "<input class=\"ds-input\" type=\"text\" placeholder=\"From the file name if empty\">",
+      "css": ".ds-input { min-height: 36px; padding: 7px 14px; border: 1px solid var(--control, #8a8696); border-radius: 8px; background: var(--card, #fff); color: var(--ink, #1c1a21); font: 14px/20px system-ui, sans-serif; } .ds-input::placeholder { color: var(--muted, #5d5a66); } .ds-input:focus-visible { outline: 2px solid var(--violet, #4f2a9a); outline-offset: 2px; }"
+    },
+    {
+      "name": "Stamp",
+      "kind": "custom",
+      "refersTo": "stamp",
+      "description": "The Copista stamp, pressed once per finished conversion.",
+      "html": "<div class=\"ds-stamp\"><span class=\"ds-stamp-label\">Copied</span><span class=\"ds-stamp-note\">9 OCT 2026</span></div>",
+      "css": ".ds-stamp { display: inline-grid; justify-items: center; gap: 2px; margin: 12px; padding: 10px 18px 8px; border: 3px solid var(--violet, #4f2a9a); border-radius: 6px; box-shadow: inset 0 0 0 2px var(--card, #fff), inset 0 0 0 3px var(--violet, #4f2a9a); color: var(--violet, #4f2a9a); font-family: system-ui, sans-serif; transform: rotate(-6deg); } .ds-stamp-label { padding-left: 0.14em; font-size: 20px; font-weight: 800; line-height: 1.1; letter-spacing: 0.14em; text-transform: uppercase; } .ds-stamp-note { font-size: 12px; font-weight: 700; letter-spacing: 0.08em; font-variant-numeric: tabular-nums; }"
+    },
+    {
+      "name": "Ticket",
+      "kind": "custom",
+      "refersTo": "ticket",
+      "description": "The Scriptorium's From / To / Done container with dashed perforations.",
+      "html": "<div class=\"ds-ticket\"><section><h3>From</h3></section><section><h3>To</h3></section><section><h3>Done</h3></section></div>",
+      "css": ".ds-ticket { display: grid; grid-template-columns: 1fr 1.25fr 1fr; width: 520px; border: 1px solid var(--line-strong, #b9b5c4); border-radius: 14px; background: var(--card, #fff); color: var(--ink, #1c1a21); font-family: system-ui, sans-serif; } .ds-ticket section { padding: 20px 24px 32px; } .ds-ticket section + section { border-left: 1px dashed var(--line-strong, #b9b5c4); } .ds-ticket h3 { margin: 0; font-size: 16px; font-weight: 700; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Card Catalogue and the Date Stamp",
+    "overview": "Copista is a set of four drawers. Each room is reached in one keystroke (1 to 4) or one tap, does one kind of job, and every finished conversion gets the Copista stamp: a violet, slightly tilted, double-ruled rectangle. The same stamp is the brand mark in the top bar and the app icon, so the thing you see when a job is done is the thing you recognise the app by.\n\nThe surface is an operating tool, not a showcase. Paper ground, white cards, ink text, thin rules. Nothing on screen is ornamental unless it marks state: the open room, the one action that matters, or a finished job. The look stays quiet so people can move around fast.",
+    "keyCharacteristics": [
+      "One accent colour, violet, reserved for state and the primary action.",
+      "One authored move between rooms, the dash; one authored mark for finished work, the stamp.",
+      "Each room has its own interior: a shelf of book cards, a reader that hides its chrome, a three-part ticket, a ruled ledger.",
+      "Phones get the room tabs in a bottom bar within thumb reach."
+    ],
+    "rules": [
+      {
+        "name": "The Stamp Ink Rule",
+        "body": "Violet means \"this is where you are\" or \"do this\" or \"this is done\". If an element is none of the three, it is not violet.",
+        "section": "colors"
+      },
+      {
+        "name": "The Red Ink Rule",
+        "body": "Red appears only for errors and for deleting. It never decorates.",
+        "section": "colors"
+      },
+      {
+        "name": "The Tabular Count Rule",
+        "body": "Counts, sizes and dates use tabular numerals so they line up in the ledger and on the stamp.",
+        "section": "typography"
+      },
+      {
+        "name": "The One Line Rule",
+        "body": "The Scriptorium reads left to right as one journey: what you have, what you want, what you got. Do not add a fourth leg or a side panel.",
+        "section": "layout"
+      },
+      {
+        "name": "The Flat Drawer Rule",
+        "body": "No drop shadows on cards, the ticket or menus. If something must stand out, give it a stronger rule or the violet wash.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do keep violet for the open room, the primary action, the dash and the stamp.",
+      "Do keep every room one keystroke or one tap away, and keep the bottom bar on phones.",
+      "Do press the stamp once per finished job and nowhere else.",
+      "Do give every motion a reduced-motion version with no movement.",
+      "Do use tabular numerals for counts, sizes and dates."
+    ],
+    "donts": [
+      "Don't add drop shadows, gradients or glass effects; the system is flat paper and rules.",
+      "Don't use red for anything but errors and deleting.",
+      "Don't add a label above a heading; the room name speaks for itself.",
+      "Don't add a second authored animation between rooms; the dash is the only one.",
+      "Don't add ornament that does not mark state; the user asked for an uncluttered look."
+    ]
+  }
+}

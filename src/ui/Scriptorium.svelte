@@ -6,12 +6,14 @@
     inspect,
     type OutputFormat,
   } from '../rooms/scriptorium';
+  import type { Collation } from '../core/convert/census';
   import { app } from './state.svelte';
-  import { download, printHtml } from './files';
+  import { CONVERTIBLE_FILES, download, printHtml } from './files';
   import Icon from './Icon.svelte';
   import RoomHero from './RoomHero.svelte';
   import Stamp from './Stamp.svelte';
   import { FORMAT_LABELS, errorMessage } from './text';
+  import { collationNote, collationRows, type CollationRow } from './collation';
 
   interface Picked {
     source: { file: File } | { bookId: string };
@@ -30,6 +32,29 @@
   /** The stamp of the last finished job; `job` counts jobs so each one presses its own. */
   let stamp = $state<{ job: number; label: string; note: string }>();
   let jobs = 0;
+  /** What the copy, read back, holds of the original; `pending` while it is being read. */
+  let collation = $state<
+    | { job: number; pending: true }
+    | { job: number; pending: false; rows: CollationRow[]; note?: string }
+    | { job: number; pending: false; failed: true }
+  >();
+
+  async function check(job: number, target: OutputFormat, run: () => Promise<Collation>) {
+    collation = { job, pending: true };
+    try {
+      const result = await run();
+      if (collation?.job !== job) return;
+      const note = collationNote(target);
+      collation = {
+        job,
+        pending: false,
+        rows: collationRows(result, target),
+        ...(note ? { note } : {}),
+      };
+    } catch {
+      if (collation?.job === job) collation = { job, pending: false, failed: true };
+    }
+  }
 
   function today(): string {
     return new Date()
@@ -41,6 +66,7 @@
     picked = undefined;
     message = undefined;
     stamp = undefined;
+    collation = undefined;
     title = '';
     author = '';
     shelfChoice = '';
@@ -56,6 +82,7 @@
     const book = app.shelf.find((b) => b.id === id);
     message = undefined;
     stamp = undefined;
+    collation = undefined;
     picked = book && {
       source: { bookId: book.id },
       name: book.title,
@@ -87,6 +114,7 @@
     busy = true;
     message = undefined;
     stamp = undefined;
+    collation = undefined;
     try {
       const meta = picked.needsMeta
         ? {
@@ -111,6 +139,7 @@
         message = { tone: 'ok', text: `Saved “${out.fileName}”.` };
         stamp = { job, label: 'Copied', note: today() };
       }
+      void check(job, target, out.check);
     } catch (e) {
       message = { tone: 'error', text: errorMessage(e) };
     } finally {
@@ -130,7 +159,7 @@
         Choose a file
         <input
           type="file"
-          accept=".epub,.docx,.md,.markdown,.txt,application/epub+zip,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/markdown,text/plain"
+          accept={CONVERTIBLE_FILES}
           disabled={busy}
           onchange={(e) => {
             const input = e.currentTarget;
@@ -211,6 +240,30 @@
         {#key stamp.job}
           <Stamp label={stamp.label} note={stamp.note} />
         {/key}
+      {/if}
+      {#if collation}
+        <section class="collation" aria-labelledby="collation-title" aria-live="polite">
+          <h3 id="collation-title">Checked against the original</h3>
+          {#if collation.pending}
+            <p class="hint">Reading the copy back…</p>
+          {:else if 'failed' in collation}
+            <p class="hint">The copy could not be read back, so it was not checked.</p>
+          {:else}
+            <dl class="facts">
+              {#each collation.rows as row (row.label)}
+                <dt>{row.label}</dt>
+                <dd class:lost={row.lost}>
+                  {row.value}
+                  {#if row.reason}<span class="why">{row.reason}</span>{/if}
+                  {#if row.missing?.length}
+                    <span class="why">Missing, for example: {row.missing.join(', ')}</span>
+                  {/if}
+                </dd>
+              {/each}
+            </dl>
+            {#if collation.note}<p class="hint">{collation.note}</p>{/if}
+          {/if}
+        </section>
       {/if}
     </section>
   </div>

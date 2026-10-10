@@ -37,10 +37,14 @@ offline once loaded. The privacy claim can be checked, not only promised.
   - Bibliotheca: the library of EPUB books kept in the browser, with links
     to free public-domain libraries (Standard Ebooks, Project Gutenberg,
     Liber Liber, Wikisource);
-  - Lectorium: paged reading with contents, bookmarks, text size and page
-    colours; it remembers the position;
+  - Lectorium: paged reading with contents, bookmarks, notes pinned to a
+    page, text size and page colours; pages turn by tap, swipe or arrow key,
+    a tap in the middle fits the page to the window, and it remembers the
+    position;
   - Scriptorium: conversion between EPUB, Word (.docx), Markdown, plain text,
-    a single web page, and PDF through the print dialog;
+    a single web page, and PDF through the print dialog; each copy is read
+    back and checked against the original, and the user sees what arrived
+    and what the format left out;
   - Archivum: reading settings, space used, and deleting all stored data.
 - A file can be dropped in any room and lands in the right one.
 
@@ -75,7 +79,7 @@ offline once loaded. The privacy claim can be checked, not only promised.
   room opens with its Latin name set large in Cinzel, what it is and what
   can be done there; animations visible, also on click; a professional look
   that does not read as machine-made; a GitHub star invite that asks for
-  no data.
+  no data. Later the same day the light theme's violet became a rubric red.
 - Cinzel is bundled with the app (SIL Open Font License, admitted by the
   licence check), so the strict content security policy still holds.
 

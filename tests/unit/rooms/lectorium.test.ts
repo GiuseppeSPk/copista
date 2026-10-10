@@ -3,10 +3,14 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { readEpub } from '../../../src/core/epub/read';
 import { BookNotFoundError } from '../../../src/storage/db';
 import {
+  NOTE_LENGTH,
   addBookmark,
+  addNote,
   openSession,
   progressPercent,
   removeBookmark,
+  removeNote,
+  saveNote,
   savePosition,
 } from '../../../src/rooms/lectorium/index';
 import { bookPercent } from '../../../src/reader/location';
@@ -41,6 +45,7 @@ describe('lectorium', () => {
     expect(session.book.chapters).toHaveLength(3);
     expect(session.position).toEqual({ spineIndex: 0, fraction: 0 });
     expect(session.bookmarks).toEqual([]);
+    expect(session.notes).toEqual([]);
   });
 
   it('pulls a stored position back inside the book', async () => {
@@ -77,6 +82,23 @@ describe('lectorium', () => {
     ]);
     await removeBookmark(middle.id);
     expect((await openSession(ID)).bookmarks.map((m) => m.snippet)).toEqual(['early', 'late']);
+  });
+
+  it('pins a note to a page and gives it back when the book reopens', async () => {
+    const pinned = await addNote(ID, { spineIndex: 1, fraction: 0.5 });
+    expect(pinned).toMatchObject({ bookId: ID, spineIndex: 1, fraction: 0.5, text: '' });
+    const saved = await saveNote(pinned, 'Compare with chapter one.');
+    expect(saved).toMatchObject({ id: pinned.id, text: 'Compare with chapter one.' });
+    expect((await openSession(ID)).notes).toEqual([saved]);
+  });
+
+  it('takes a blank note off the page and cuts a long one to the limit', async () => {
+    const blank = await addNote(ID, { spineIndex: 0, fraction: 0 });
+    expect(await saveNote(blank, ' \n ')).toBeUndefined();
+    const long = await addNote(ID, { spineIndex: 0, fraction: 0 });
+    expect((await saveNote(long, 'x'.repeat(NOTE_LENGTH + 50)))!.text).toHaveLength(NOTE_LENGTH);
+    await removeNote(long.id);
+    expect((await openSession(ID)).notes).toEqual([]);
   });
 
   it('measures progress by chapter length', async () => {

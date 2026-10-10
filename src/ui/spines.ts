@@ -31,5 +31,5 @@ export function spineOf(title: string): Spine {
   };
 }
 
-/** Outlines for an empty shelf: books that are not there yet, of varied sizes. */
-export const GHOSTS: Spine[] = Array.from({ length: 16 }, (_, i) => spineOf(`ghost ${i}`));
+/** Shadows for an empty shelf, of varied sizes: enough for the widest row; the rest wrap out of sight. */
+export const GHOSTS: Spine[] = Array.from({ length: 28 }, (_, i) => spineOf(`ghost ${i}`));

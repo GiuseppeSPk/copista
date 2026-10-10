@@ -33,7 +33,7 @@ describe('spineOf', () => {
 });
 
 describe('GHOSTS', () => {
-  it('fills an empty shelf with sixteen outlines', () => {
-    expect(GHOSTS).toHaveLength(16);
+  it('has enough shadows to fill the widest shelf', () => {
+    expect(GHOSTS).toHaveLength(28);
   });
 });
