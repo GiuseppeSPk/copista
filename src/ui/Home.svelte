@@ -2,12 +2,14 @@
   import { SAMPLE } from './catalogues';
   import Cover from './Cover.svelte';
   import { BOOK_FILES, CONVERTIBLE_FILES } from './files';
+  import Guide from './Guide.svelte';
   import Icon from './Icon.svelte';
   import Incipit from './Incipit.svelte';
   import { hashOf } from './route';
   import { GITHUB_URL, roomInfo, type RoomName } from './rooms';
   import Sortes from './Sortes.svelte';
   import { addFiles, app, go } from './state.svelte';
+  import { stillMotion } from './theme.svelte';
   import TitleCover from './TitleCover.svelte';
 
   const IN = ['EPUB', 'DOCX', 'MD', 'TXT'];
@@ -48,6 +50,13 @@
     go({ room: 'bibliotheca' });
   }
 
+  /** Down to the guide, which takes the focus so the keyboard carries on from there. */
+  function showGuide(): void {
+    const title = document.getElementById('guide-title');
+    title?.scrollIntoView({ behavior: stillMotion() ? 'auto' : 'smooth', block: 'start' });
+    title?.focus({ preventScroll: true });
+  }
+
   // The doors rise in on arrival, but not when a room's name is flying back to its plaque.
   const enter = document.documentElement.dataset.nav !== 'out';
 </script>
@@ -55,6 +64,12 @@
 <section class="home" class:enter aria-labelledby="home-title">
   <header class="home-head">
     <h1 id="home-title" class="home-name">Copista</h1>
+    <p class="tagline">
+      Keep a copy of your books, and read them offline.
+      <button type="button" class="link to-guide" onclick={showGuide}
+        >See how it works <Icon name="arrow" size={16} /></button
+      >
+    </p>
     <p class="lead">
       Turn Word, Markdown and text files into PDF, web pages or e-books, and read your books, all in
       your browser. Nothing you open leaves this device.
@@ -187,6 +202,8 @@
     <Incipit />
     <Sortes delay={90} />
   </div>
+
+  <Guide />
 
   <aside class="star-strip" aria-label="Support Copista">
     <p>

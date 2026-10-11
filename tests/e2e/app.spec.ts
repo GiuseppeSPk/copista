@@ -512,6 +512,18 @@ test.describe('home', () => {
     }
   });
 
+  test('leads from the first line to a guide of the four rooms', async ({ page }) => {
+    await page.goto('/');
+    await page.getByRole('button', { name: 'See how it works' }).click();
+    const title = page.getByRole('heading', { level: 2, name: 'How it works' });
+    await expect(title).toBeFocused();
+    await expect(title).toBeInViewport();
+    const guide = page.getByRole('region', { name: 'How it works' });
+    await expect(guide.getByRole('listitem')).toHaveCount(4);
+    await guide.getByRole('link', { name: /Open the Scriptorium/ }).click();
+    await expect(page.getByRole('heading', { level: 1, name: 'Scriptorium' })).toBeVisible();
+  });
+
   test('offers to continue the last book read', async ({ page }) => {
     await openReader(page);
     await page.getByRole('link', { name: 'Copista, all rooms' }).click();
