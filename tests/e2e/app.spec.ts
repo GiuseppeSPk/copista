@@ -140,6 +140,63 @@ test('puts books on the shelf from its own button', async ({ page }) => {
   await expect(page.getByRole('link', { name: 'Long Book' })).toBeVisible();
 });
 
+test('opens the file picker from every button and from the empty shelves', async ({ page }) => {
+  async function picks(target: ReturnType<Page['locator']>, multiple: boolean): Promise<void> {
+    const chooser = page.waitForEvent('filechooser', { timeout: 5000 });
+    await target.click();
+    expect((await chooser).isMultiple()).toBe(multiple);
+  }
+  const main = page.getByRole('main');
+
+  await page.goto('/');
+  await picks(main.locator('label', { hasText: 'Choose a file to convert' }), false);
+  await picks(main.locator('label', { hasText: 'Add EPUB books' }), true);
+
+  await page.goto('/#/bibliotheca');
+  await picks(main.locator('label', { hasText: 'Add EPUB books' }), true);
+  await picks(main.locator('.drop-zone'), true);
+
+  await page.goto('/#/lectorium');
+  await picks(main.locator('label', { hasText: 'Add EPUB books' }), true);
+  await picks(main.locator('.pick-area'), true);
+
+  await page.goto('/#/scriptorium');
+  await picks(main.locator('label', { hasText: 'Choose a file' }), false);
+});
+
+test('takes a click on a room while the screen is still changing', async ({ page }) => {
+  await page.goto('/');
+  await expect(page.getByRole('heading', { level: 1, name: 'Copista' })).toBeVisible();
+  await page.getByRole('main').getByRole('link', { name: TAB.Bibliotheca }).click();
+  // Click as soon as the room is there, while the move into it is still playing.
+  await expect(page.getByRole('heading', { level: 1, name: 'Bibliotheca' })).toBeAttached();
+  expect(await page.evaluate(() => document.documentElement.dataset.nav)).toBe('in');
+  const button = page.getByRole('main').locator('label', { hasText: 'Add EPUB books' });
+  const box = await button.boundingBox();
+  expect(box).not.toBeNull();
+  const chooser = page.waitForEvent('filechooser', { timeout: 5000 });
+  await page.mouse.click(box!.x + box!.width / 2, box!.y + box!.height / 2);
+  await chooser;
+});
+
+test('opens a room at its top, however far down the hall was', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('link', { name: /^Open the Bibliotheca/ }).click();
+  await expect(page.getByRole('heading', { level: 1, name: 'Bibliotheca' })).toBeInViewport();
+  expect(await page.evaluate(() => scrollY)).toBe(0);
+});
+
+test('changes rooms as fast as the keys are pressed, without errors', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  await page.goto('/');
+  await expect(page.getByRole('heading', { level: 1, name: 'Copista' })).toBeVisible();
+  for (const key of ['1', '2', '3', '4', '0', '3']) await page.keyboard.press(key);
+  await expect(page.getByRole('heading', { level: 1, name: 'Scriptorium' })).toBeVisible();
+  await expect(page.locator('html')).not.toHaveAttribute('data-nav');
+  expect(errors).toEqual([]);
+});
+
 test('pins a note to a page and keeps it after a reload', async ({ page }) => {
   await openReader(page);
   await page.getByRole('button', { name: 'Next' }).click();

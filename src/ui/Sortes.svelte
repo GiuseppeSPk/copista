@@ -139,6 +139,7 @@
       flushSync();
       const transition = start(settle);
       const done = () => (morphing = false);
+      void transition.ready.catch(() => undefined);
       void transition.finished.then(done, done);
       // The page changes inside the transition, a frame or so later: wait for it before focusing.
       await transition.updateCallbackDone.catch(() => {});

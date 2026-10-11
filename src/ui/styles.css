@@ -460,8 +460,37 @@ a.button {
   position: absolute;
   inset: 0;
   width: 100%;
+  height: 100%;
   opacity: 0;
   cursor: pointer;
+}
+
+/* An empty shelf or frame that opens the file picker when clicked, like the button that names it. */
+.pick-area {
+  position: relative;
+}
+
+.pick-area > .area-input {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.pick-area a {
+  position: relative;
+  z-index: 2;
+}
+
+.drop-zone.pick-area {
+  transition: border-color 160ms var(--ease);
+}
+
+.drop-zone.pick-area:hover {
+  border-color: var(--accent);
 }
 
 .button:has(input:focus-visible) {

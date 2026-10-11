@@ -7,7 +7,15 @@
   import Lectorium from './Lectorium.svelte';
   import Mark from './Mark.svelte';
   import Scriptorium from './Scriptorium.svelte';
-  import { addFiles, app, followHash, go, loadSettings, refreshShelf } from './state.svelte';
+  import {
+    addFiles,
+    app,
+    followHash,
+    go,
+    hurryMotion,
+    loadSettings,
+    refreshShelf,
+  } from './state.svelte';
   import { hashOf, type Route } from './route';
   import { GITHUB_URL, ROOMS, type RoomName } from './rooms';
   import { look, toggleTheme, watchTheme } from './theme.svelte';
@@ -89,6 +97,28 @@
     target.classList.add('rippling');
   }
 
+  /** A press made while the screen moves between rooms, to be given to what lies under it. */
+  let pressed: { x: number; y: number; settled: Promise<void> } | undefined;
+
+  function onPressEarly(event: PointerEvent): void {
+    const settled = event.button === 0 ? hurryMotion() : undefined;
+    pressed = settled && { x: event.clientX, y: event.clientY, settled };
+  }
+
+  function onClickEarly(event: MouseEvent): void {
+    const press = pressed;
+    pressed = undefined;
+    if (!press || event.target !== document.documentElement) return;
+    // Given in a task of its own: a click passed on while this one is still being dispatched
+    // may not be allowed to open a file picker.
+    void press.settled.then(() =>
+      setTimeout(() => {
+        const under = document.elementFromPoint(press.x, press.y);
+        if (under instanceof HTMLElement && under !== document.documentElement) under.click();
+      }),
+    );
+  }
+
   function onRippleEnd(event: AnimationEvent): void {
     if (event.animationName === 'ripple') {
       (event.target as HTMLElement).classList.remove('rippling');
@@ -145,7 +175,12 @@
   });
 </script>
 
-<svelte:window onhashchange={followHash} onkeydown={onKey} />
+<svelte:window
+  onhashchange={followHash}
+  onkeydown={onKey}
+  onpointerdowncapture={onPressEarly}
+  onclickcapture={onClickEarly}
+/>
 <svelte:document
   onpointerdown={onPress}
   onanimationend={onRippleEnd}

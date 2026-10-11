@@ -327,7 +327,19 @@
         onlanded={landed}
       />
     {:else}
-      <Bookcase books={[]} />
+      <div class="pick-area">
+        <!-- The empty shelf opens the file picker too; keyboards use the button above. -->
+        <input
+          class="area-input"
+          type="file"
+          accept={BOOK_FILES}
+          multiple
+          tabindex="-1"
+          aria-hidden="true"
+          onchange={onBookFiles}
+        />
+        <Bookcase books={[]} />
+      </div>
     {/if}
     <div role="status" class="notices">
       {#if app.noticeRoom === 'lectorium'}
@@ -343,7 +355,8 @@
     </div>
     {#if app.shelf.length === 0}
       <p class="empty">
-        No books yet. Drop an EPUB file on this shelf and it lands there, or add one in the
+        No books yet. Click the shelf or drop an EPUB file on it and the book lands there, or add
+        one in the
         <a href="#/bibliotheca">library</a>, where you can also find free ones. Choose a spine to
         read the book.
       </p>

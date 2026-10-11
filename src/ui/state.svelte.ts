@@ -48,9 +48,28 @@ function motionBetween(from: Route, to: Route): string | undefined {
   return order(to) > order(from) ? 'forward' : 'back';
 }
 
+/** The move between rooms still on screen, if any. */
+let moving: ViewTransition | undefined;
+
+/**
+ * Ends the move between rooms at once, for a reader who presses before it is over: while it
+ * plays, the browser sends every click to the page root. Resolves when the new room is in place.
+ */
+export function hurryMotion(): Promise<void> | undefined {
+  if (!moving) return undefined;
+  const done = moving.finished.then(
+    () => undefined,
+    () => undefined,
+  );
+  moving.skipTransition();
+  return done;
+}
+
 export function followHash(): void {
   const next = parseHash(location.hash);
   const update = (): void => {
+    // Another room opens at its top, not at the height the last one was scrolled to.
+    if (app.route.room !== next.room) scrollTo({ top: 0, behavior: 'instant' });
     app.route = next;
     if (next.room === 'lectorium' && next.bookId) app.lastBookId = next.bookId;
   };
@@ -65,7 +84,11 @@ export function followHash(): void {
     update();
     await tick();
   });
+  moving = transition;
+  // A change that starts before this one is ready skips it, and the browser then rejects `ready`.
+  void transition.ready.catch(() => undefined);
   void transition.finished.finally(() => {
+    if (moving === transition) moving = undefined;
     if (root.dataset.nav === motion) delete root.dataset.nav;
   });
 }

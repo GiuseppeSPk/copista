@@ -34,6 +34,12 @@
     }
   }
 
+  function onPick(event: Event): void {
+    const input = event.currentTarget as HTMLInputElement;
+    void add([...(input.files ?? [])]);
+    input.value = '';
+  }
+
   function convertBook(id: string): void {
     app.pendingBookId = id;
     go({ room: 'scriptorium' });
@@ -81,18 +87,9 @@
 
   <div class="toolbar">
     <label class="button primary">
+      <Icon name="plus" size={18} />
       Add EPUB books
-      <input
-        type="file"
-        accept={BOOK_FILES}
-        multiple
-        disabled={busy}
-        onchange={(e) => {
-          const input = e.currentTarget;
-          void add([...(input.files ?? [])]);
-          input.value = '';
-        }}
-      />
+      <input type="file" accept={BOOK_FILES} multiple disabled={busy} onchange={onPick} />
     </label>
     <span class="hint">or drop them anywhere on this page</span>
     {#if import.meta.env.DEV && corpus.length > 0}
@@ -124,7 +121,18 @@
   </div>
 
   {#if app.shelf.length === 0}
-    <div class="drop-zone">
+    <div class="drop-zone pick-area">
+      <!-- The whole frame opens the file picker too; keyboards use the button above. -->
+      <input
+        class="area-input"
+        type="file"
+        accept={BOOK_FILES}
+        multiple
+        disabled={busy}
+        tabindex="-1"
+        aria-hidden="true"
+        onchange={onPick}
+      />
       <!-- A file comes down and stands on the shelf as a book: what adding one does. -->
       <div class="shelf-demo" aria-hidden="true">
         <span class="demo-file">EPUB</span>
@@ -136,8 +144,8 @@
       </div>
       <p class="empty">No books yet. Add an EPUB file and it goes on your shelf.</p>
       <p class="hint">
-        Drop EPUB files anywhere on this page, or find a free one below. To convert a document, open
-        the <a href="#/scriptorium">Scriptorium</a>.
+        Click here or drop EPUB files anywhere on this page, or find a free one below. To convert a
+        document, open the <a href="#/scriptorium">Scriptorium</a>.
       </p>
     </div>
   {:else}

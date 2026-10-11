@@ -223,7 +223,7 @@ Rounded rectangles: 3px on the spine and 5px on the fore-edge for typographic co
 All motion uses one exponential ease-out (`cubic-bezier(0.16, 1, 0.3, 1)`). Entrances run around 600 to 1100ms, exits about 250ms. The one exception is a book falling onto a shelf, which speeds up as it drops, as weight does.
 
 - **Hall entrance:** the light behind the name widens in, the name is inscribed (letter-spacing closes, blur clears, about 1s), the ruled line draws out from its centre, and the lead and the doors rise in one after another.
-- **Into a room:** the plaque on the door grows into the room's name (a view transition); the rest of the page fades down and the room rises in. Back to the hall, the name shrinks into its plaque.
+- **Into a room:** the plaque on the door grows into the room's name (a view transition); the rest of the page fades down and the room rises in. Back to the hall, the name shrinks into its plaque. A press during the change finishes it at once and the click lands on what is under the pointer, so no click is lost to the animation.
 - **Between rooms:** the new room slides in from the side of the tab that was picked; the dash under the tabs slides to the open one.
 - **Room opening:** the description and the list of what can be done rise in after the name.
 - **Press:** a pressed button, tab or door sends a faint ring out from the point of the press and dips to 97%.
@@ -251,6 +251,7 @@ Under reduced motion everything still changes, but nothing travels: no transitio
 - **Danger:** red text and red border; fills red on hover. Only "Delete all my data" and the per-book delete.
 - **Icon-only:** carries an accessible name.
 - A file input lives invisibly over a button-styled label so the whole button is the click target, with the accent focus ring.
+- An empty drop zone in the library and an empty bookcase are click targets too: an invisible file input covers them (out of the tab order, since the button above does the same), and the drop zone's dashed border turns accent under the pointer.
 
 ### Doors
 
