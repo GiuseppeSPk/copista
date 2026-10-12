@@ -105,6 +105,12 @@ export async function refreshShelf(): Promise<void> {
   app.shelf = await listShelf();
 }
 
+/**
+ * How many books still fall onto the shelf. They drop one after another, so a large import
+ * would keep the shelf half empty for a minute; the rest are simply there.
+ */
+const LANDING_MAX = 12;
+
 export async function addFiles(
   files: File[],
   room: 'bibliotheca' | 'lectorium' = 'bibliotheca',
@@ -128,7 +134,10 @@ export async function addFiles(
   }
   app.libraryNotices = notices;
   app.noticeRoom = room;
-  app.landing = [...added, ...app.landing.filter((id) => !added.includes(id))];
+  app.landing = [...added, ...app.landing.filter((id) => !added.includes(id))].slice(
+    0,
+    LANDING_MAX,
+  );
   await refreshShelf();
 }
 

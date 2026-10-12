@@ -1,6 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
+import { epubZip, nav, opf, xhtml } from '../fixtures/epub-builder';
 
 const LONG_BOOK = 'tests/fixtures/generated/long-book.epub';
 const BASIC_DOCX = 'tests/fixtures/generated/basic.docx';
@@ -138,6 +139,43 @@ test('puts books on the shelf from its own button', async ({ page }) => {
   await expect(page.getByRole('status')).toContainText('Added “Long Book”.');
   await expect(page.getByRole('heading', { level: 1, name: 'Lectorium' })).toBeVisible();
   await expect(page.getByRole('link', { name: 'Long Book' })).toBeVisible();
+});
+
+test('lets only the newest books fall onto the shelf after a large import', async ({ page }) => {
+  const files = Array.from({ length: 15 }, (_, i) => ({
+    name: `shelf-${i}.epub`,
+    mimeType: 'application/epub+zip',
+    buffer: Buffer.from(
+      epubZip({
+        'OEBPS/content.opf': opf({
+          title: `Shelf Book ${i}`,
+          identifier: `urn:uuid:00000000-0000-4000-8000-${String(i).padStart(12, '0')}`,
+          items: [
+            { id: 'nav', href: 'nav.xhtml', mediaType: 'application/xhtml+xml', properties: 'nav' },
+            { id: 'c1', href: 'c1.xhtml', mediaType: 'application/xhtml+xml' },
+          ],
+          spine: ['c1'],
+        }),
+        'OEBPS/nav.xhtml': nav([{ label: 'One', href: 'c1.xhtml' }]),
+        'OEBPS/c1.xhtml': xhtml('One', `<p>Book ${i}.</p>`),
+      }),
+    ),
+  }));
+  await page.goto('/#/lectorium');
+  await page.getByLabel('Add EPUB books').setInputFiles(files);
+  // Read the shelf the moment the books are on it, before the first one has finished falling.
+  const shelf = await page.waitForFunction(() => {
+    const books = [...document.querySelectorAll('.bookcase li')];
+    if (books.length < 15) return undefined;
+    const falling = (title: string): boolean =>
+      books.some((li) => li.textContent?.includes(title) && li.classList.contains('landing'));
+    return {
+      falling: books.filter((li) => li.classList.contains('landing')).length,
+      oldest: falling('Shelf Book 0'),
+      newest: falling('Shelf Book 14'),
+    };
+  });
+  expect(await shelf.jsonValue()).toEqual({ falling: 12, oldest: false, newest: true });
 });
 
 test('opens the file picker from every button and from the empty shelves', async ({ page }) => {
