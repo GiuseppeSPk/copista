@@ -141,14 +141,16 @@ test('puts books on the shelf from its own button', async ({ page }) => {
   await expect(page.getByRole('link', { name: 'Long Book' })).toBeVisible();
 });
 
-test('lets only the newest books fall onto the shelf after a large import', async ({ page }) => {
-  const files = Array.from({ length: 15 }, (_, i) => ({
+/** A one-chapter EPUB to put on the shelf; i keeps each book's identifier apart. */
+function tinyBook(i: number, title: string, creators: string[] = []) {
+  return {
     name: `shelf-${i}.epub`,
     mimeType: 'application/epub+zip',
     buffer: Buffer.from(
       epubZip({
         'OEBPS/content.opf': opf({
-          title: `Shelf Book ${i}`,
+          title,
+          creators,
           identifier: `urn:uuid:00000000-0000-4000-8000-${String(i).padStart(12, '0')}`,
           items: [
             { id: 'nav', href: 'nav.xhtml', mediaType: 'application/xhtml+xml', properties: 'nav' },
@@ -160,7 +162,11 @@ test('lets only the newest books fall onto the shelf after a large import', asyn
         'OEBPS/c1.xhtml': xhtml('One', `<p>Book ${i}.</p>`),
       }),
     ),
-  }));
+  };
+}
+
+test('lets only the newest books fall onto the shelf after a large import', async ({ page }) => {
+  const files = Array.from({ length: 15 }, (_, i) => tinyBook(i, `Shelf Book ${i}`));
   await page.goto('/#/lectorium');
   await page.getByLabel('Add EPUB books').setInputFiles(files);
   // Read the shelf the moment the books are on it, before the first one has finished falling.
@@ -176,6 +182,35 @@ test('lets only the newest books fall onto the shelf after a large import', asyn
     };
   });
   expect(await shelf.jsonValue()).toEqual({ falling: 12, oldest: false, newest: true });
+});
+
+test('finds a book on a large shelf and keeps the order chosen', async ({ page }) => {
+  await page.goto('/#/bibliotheca');
+  await page
+    .getByLabel('Add EPUB books')
+    .setInputFiles([
+      tinyBook(1, 'The Raven', ['Edgar Allan Poe']),
+      tinyBook(2, 'Emma', ['Jane Austen']),
+      tinyBook(3, 'Le città invisibili', ['Italo Calvino']),
+    ]);
+  const books = page.getByRole('list', { name: 'Books' }).getByRole('heading', { level: 2 });
+  await expect(books).toHaveCount(3);
+  await expect(page.getByText('3 books')).toBeVisible();
+
+  await page.getByRole('searchbox', { name: 'Find a book' }).fill('citta');
+  await expect(books).toHaveText(['Le città invisibili']);
+  await expect(page.getByText('1 of 3 books')).toBeVisible();
+
+  await page.getByRole('searchbox', { name: 'Find a book' }).fill('tolstoy');
+  await expect(page.getByText('No book on your shelf matches “tolstoy”.')).toBeVisible();
+  await page.getByRole('button', { name: 'Show all books' }).click();
+  await expect(books).toHaveCount(3);
+
+  await page.getByLabel('Order').selectOption('author');
+  await expect(books).toHaveText(['Emma', 'Le città invisibili', 'The Raven']);
+  await page.reload();
+  await expect(page.getByLabel('Order')).toHaveValue('author');
+  await expect(books).toHaveText(['Emma', 'Le città invisibili', 'The Raven']);
 });
 
 test('opens the file picker from every button and from the empty shelves', async ({ page }) => {

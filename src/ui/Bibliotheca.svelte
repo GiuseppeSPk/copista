@@ -1,5 +1,12 @@
 <script lang="ts">
   import { removeBook } from '../rooms/bibliotheca';
+  import {
+    findBooks,
+    getShelfOrder,
+    putShelfOrder,
+    SHELF_ORDERS,
+    type ShelfOrder,
+  } from '../rooms/bibliotheca/find';
   import Catalogues from './Catalogues.svelte';
   import { BOOK_FILES } from './files';
   import Icon from './Icon.svelte';
@@ -10,6 +17,24 @@
 
   let busy = $state(false);
   let removeError = $state('');
+  let query = $state('');
+  let order = $state<ShelfOrder>('added');
+  const shown = $derived(findBooks(app.shelf, query, order));
+
+  const ORDER_LABEL: Record<ShelfOrder, string> = {
+    added: 'Recently added',
+    title: 'Title',
+    author: 'Author',
+  };
+
+  void getShelfOrder()
+    .then((stored) => (order = stored))
+    .catch(() => undefined);
+
+  function onOrder(event: Event): void {
+    order = (event.currentTarget as HTMLSelectElement).value as ShelfOrder;
+    void putShelfOrder(order).catch(() => undefined);
+  }
 
   // Cover images live as blob URLs only while the shelf shows them.
   const covers = $derived(
@@ -149,48 +174,80 @@
       </p>
     </div>
   {:else}
-    <ul class="shelf" aria-label="Books">
-      {#each app.shelf as book (book.id)}
-        <li class="card">
-          <a
-            class="cover"
-            href={hashOf({ room: 'lectorium', bookId: book.id })}
-            tabindex="-1"
-            aria-hidden="true"
-          >
-            {#if covers.get(book.id)}
-              <img src={covers.get(book.id)} alt="" />
-            {:else}
-              <span>{book.title}</span>
-            {/if}
-          </a>
-          <div class="about">
-            <h2>{book.title}</h2>
-            <p class="authors">{book.authors.join(', ') || 'Unknown author'}</p>
-          </div>
-          <div class="actions">
-            <button
-              type="button"
-              class="primary"
-              onclick={() => go({ room: 'lectorium', bookId: book.id })}
+    {#if app.shelf.length > 1 || query}
+      <div class="shelf-tools">
+        <input
+          type="search"
+          aria-label="Find a book"
+          placeholder="Find by title or author"
+          autocomplete="off"
+          spellcheck="false"
+          bind:value={query}
+        />
+        <label>
+          Order
+          <select value={order} onchange={onOrder}>
+            {#each SHELF_ORDERS as option (option)}
+              <option value={option}>{ORDER_LABEL[option]}</option>
+            {/each}
+          </select>
+        </label>
+        <p class="hint" aria-live="polite">
+          {query.trim()
+            ? `${shown.length} of ${app.shelf.length} books`
+            : `${app.shelf.length} books`}
+        </p>
+      </div>
+    {/if}
+    {#if shown.length === 0}
+      <div class="no-match">
+        <p class="empty">No book on your shelf matches “{query.trim()}”.</p>
+        <button type="button" onclick={() => (query = '')}>Show all books</button>
+      </div>
+    {:else}
+      <ul class="shelf" aria-label="Books">
+        {#each shown as book (book.id)}
+          <li class="card">
+            <a
+              class="cover"
+              href={hashOf({ room: 'lectorium', bookId: book.id })}
+              tabindex="-1"
+              aria-hidden="true"
             >
-              Read<span class="sr-only"> {book.title}</span>
-            </button>
-            <button type="button" onclick={() => convertBook(book.id)}>
-              Convert<span class="sr-only"> {book.title}</span>
-            </button>
-            <button
-              type="button"
-              class="icon-only"
-              title="Remove"
-              onclick={() => remove(book.id, book.title)}
-            >
-              <Icon name="trash" size={18} /><span class="sr-only">Remove {book.title}</span>
-            </button>
-          </div>
-        </li>
-      {/each}
-    </ul>
+              {#if covers.get(book.id)}
+                <img src={covers.get(book.id)} alt="" />
+              {:else}
+                <span>{book.title}</span>
+              {/if}
+            </a>
+            <div class="about">
+              <h2>{book.title}</h2>
+              <p class="authors">{book.authors.join(', ') || 'Unknown author'}</p>
+            </div>
+            <div class="actions">
+              <button
+                type="button"
+                class="primary"
+                onclick={() => go({ room: 'lectorium', bookId: book.id })}
+              >
+                Read<span class="sr-only"> {book.title}</span>
+              </button>
+              <button type="button" onclick={() => convertBook(book.id)}>
+                Convert<span class="sr-only"> {book.title}</span>
+              </button>
+              <button
+                type="button"
+                class="icon-only"
+                title="Remove"
+                onclick={() => remove(book.id, book.title)}
+              >
+                <Icon name="trash" size={18} /><span class="sr-only">Remove {book.title}</span>
+              </button>
+            </div>
+          </li>
+        {/each}
+      </ul>
+    {/if}
   {/if}
 
   <Catalogues />

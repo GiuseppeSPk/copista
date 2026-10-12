@@ -591,6 +591,45 @@ button.link:hover:not(:disabled) {
 
 /* Bibliotheca: a shelf of uniform cards. */
 
+/* A large library is found by title or author and put in order; the count says how much shows. */
+.shelf-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  margin-top: 16px;
+}
+
+.shelf-tools input[type='search'] {
+  flex: 1 1 16em;
+  width: auto;
+  max-width: 28em;
+}
+
+.shelf-tools label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.shelf-tools .hint {
+  font-variant-numeric: tabular-nums;
+}
+
+.no-match {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  margin-top: 24px;
+}
+
+.no-match .empty {
+  margin: 0;
+}
+
 .shelf {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
