@@ -1,5 +1,6 @@
 import { strFromU8, unzipSync } from 'fflate';
 import { describe, expect, it } from 'vitest';
+import { BOOK_CSS_KEY, bookFromSections } from '../../../../src/core/convert/build';
 import { readEpub } from '../../../../src/core/epub/read';
 import { writeEpub } from '../../../../src/core/epub/write';
 import { htmlToXhtml } from '../../../../src/core/epub/xhtml';
@@ -72,6 +73,23 @@ describe('writeEpub', () => {
     );
     expect(again.chapters[1]!.html).toContain(`href="${again.chapters[2]!.href}#end"`);
     expect(again.warnings).toEqual([]);
+  });
+
+  it('carries the stylesheet of a book Copista made to the EPUB and back', async () => {
+    const made = bookFromSections(
+      [{ title: 'One', html: '<h1>One</h1><table><tr><td>a</td></tr></table>' }],
+      {
+        title: 'T',
+        author: 'A',
+      },
+    );
+    const files = unzipSync(writeEpub(made));
+    const chapter = strFromU8(files['EPUB/text/c001.xhtml']!);
+    expect(chapter).toMatch(/<link rel="stylesheet"[^>]*href="[^"]*book\.css"/);
+    const back = await readEpub(writeEpub(made));
+    const [key] = back.chapters[0]!.stylesheets;
+    expect(new TextDecoder().decode(back.resources.get(key!)!.data)).toContain('border-collapse');
+    expect(made.resources.has(BOOK_CSS_KEY)).toBe(true);
   });
 
   it('drops blocked urls and replaces images it cannot keep with their alt text', async () => {

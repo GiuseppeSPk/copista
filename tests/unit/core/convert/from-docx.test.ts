@@ -39,7 +39,9 @@ describe('fromDocx', () => {
     expect(h).toContain(
       'A <u>marked</u> word<sup><a href="text/c001.xhtml#footnote-1" id="footnote-ref-1">[1]</a></sup>',
     );
-    expect(h).toContain('The note.');
+    expect(h).toMatch(
+      /<h2 class="notes">Notes<\/h2><ol class="notes"><li id="footnote-1">.*The note\./s,
+    );
   });
 
   it('keeps the Title paragraph and nests lists marked by style alone', async () => {

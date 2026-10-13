@@ -1,6 +1,6 @@
 import { strFromU8, unzipSync } from 'fflate';
 import { describe, expect, it } from 'vitest';
-import { bookFromSections } from '../../../../src/core/convert/build';
+import { BOOK_CSS_KEY, bookFromSections } from '../../../../src/core/convert/build';
 import { fromDocx } from '../../../../src/core/convert/from-docx';
 import { toDocx } from '../../../../src/core/convert/to-docx';
 import { readEpub } from '../../../../src/core/epub/read';
@@ -42,7 +42,9 @@ describe('toDocx', () => {
       'c | d',
     ])
       expect(back.chapters[0]!.html).toContain(s);
-    expect(back.resources.size).toBe(1);
+    // The one picture, and the stylesheet every book Copista makes carries.
+    expect([...back.resources.keys()].filter((k) => k !== BOOK_CSS_KEY)).toHaveLength(1);
+    expect(back.resources.get(BOOK_CSS_KEY)?.mediaType).toBe('text/css');
   });
 
   it('starts every chapter after the first on a new page', async () => {

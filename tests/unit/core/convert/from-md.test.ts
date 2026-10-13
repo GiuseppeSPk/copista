@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { BOOK_CSS_KEY } from '../../../../src/core/convert/build';
 import {
   fromMarkdown,
   parseFrontMatter,
@@ -53,7 +54,7 @@ describe('fromMarkdown', () => {
     expect(html.match(/<img [^>]*src="images\/img001\.png"/g)).toHaveLength(2);
     expect(html).not.toContain('pic.png');
     expect(html).not.toContain('bmp');
-    expect([...m.resources.keys()]).toEqual(['images/img001.png']);
+    expect([...m.resources.keys()]).toEqual(['images/img001.png', BOOK_CSS_KEY]);
     expect(m.resources.get('images/img001.png')).toMatchObject({
       mediaType: 'image/png',
       data: new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
@@ -78,7 +79,11 @@ describe('fromMarkdown', () => {
     expect(html.match(/src="images\/pic001\.png"/g)).toHaveLength(2);
     expect(html).toContain('src="images/pic002.jpg"');
     expect(html).not.toContain('missing.png');
-    expect([...m.resources.keys()]).toEqual(['images/pic001.png', 'images/pic002.jpg']);
+    expect([...m.resources.keys()]).toEqual([
+      'images/pic001.png',
+      'images/pic002.jpg',
+      BOOK_CSS_KEY,
+    ]);
     expect(m.resources.get('images/pic002.jpg')).toMatchObject({ mediaType: 'image/jpeg' });
   });
 
@@ -107,11 +112,20 @@ describe('fromMarkdown', () => {
     expect(one).toContain('<code>code [^a]</code>');
     expect(one).not.toContain('second</em> note');
     expect(two).toContain(
-      '<ol class="footnotes"><li id="footnote-1"><p>The first note. ' +
+      '<h2 class="notes">Notes</h2>' +
+        '<ol class="footnotes notes"><li id="footnote-1"><p>The first note. ' +
         '<a href="text/c001.xhtml#footnote-ref-1">↑</a></p></li>' +
         '<li id="footnote-2"><p>The <em>second</em> note,\non two lines. ' +
         '<a href="text/c001.xhtml#footnote-ref-2">↑</a></p></li></ol>',
     );
+  });
+
+  it('heads the notes in the language of the book, once', async () => {
+    const m = await fromMarkdown(enc('Una frase[^a].\n\n[^a]: La nota.\n'), { language: 'it' });
+    const html = m.chapters[0]!.html;
+    expect(html).toContain('<h2 class="notes">Note</h2><ol class="footnotes notes">');
+    expect(html.match(/<h2/g)).toHaveLength(1);
+    expect(m.chapters[0]!.stylesheets).toEqual([BOOK_CSS_KEY]);
   });
 
   it('leaves a footnote mark with no note as it is', async () => {

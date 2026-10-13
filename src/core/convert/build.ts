@@ -22,6 +22,32 @@ export const IMAGE_EXTENSIONS: Record<string, string> = {
   'image/webp': 'webp',
 };
 
+/** The stylesheet every book Copista makes carries, in the reader's colours whatever the theme. */
+export const BOOK_CSS_KEY = 'styles/book.css';
+const BOOK_CSS = `table { border-collapse: collapse; margin: 1em 0; max-width: 100%; }
+th, td { border: 1px solid currentColor; padding: 0.3em 0.6em; text-align: left; vertical-align: top; }
+td > p, th > p { margin: 0; }
+pre { padding: 0.6em 0.8em; border-radius: 4px; background: rgba(128, 128, 128, 0.15);
+  white-space: pre-wrap; overflow-wrap: break-word; }
+code { font-family: monospace; font-size: 0.92em; }
+:not(pre) > code { padding: 0 0.2em; border-radius: 3px; background: rgba(128, 128, 128, 0.15); }
+blockquote { margin: 1em 1.5em; padding-left: 0.8em; border-left: 3px solid rgba(128, 128, 128, 0.5); }
+img { max-width: 100%; height: auto; }
+p.title { font-size: 1.8em; font-weight: bold; text-align: center; margin: 1.5em 0 0.5em; }
+p.subtitle { font-size: 1.2em; font-style: italic; text-align: center; margin: 0 0 1.5em; }
+h2.notes { margin-top: 2em; }
+ol.notes, ol.footnotes { font-size: 0.9em; }
+`;
+
+/** The heading put over the notes gathered at the end, by language. */
+const NOTES_HEADING: Record<string, string> = {
+  en: 'Notes',
+  it: 'Note',
+  fr: 'Notes',
+  es: 'Notas',
+  de: 'Anmerkungen',
+};
+
 function fragmentOf(html: string): DocumentFragment {
   const template = document.createElement('template');
   template.innerHTML = html;
@@ -162,10 +188,33 @@ function linkFragments(chapters: Chapter[]): void {
 }
 
 /**
+ * Puts a heading over a list of notes (Markdown footnotes, Word footnotes and
+ * endnotes) unless one is already there.
+ */
+function headNotes(html: string, language: string): string {
+  const fragment = fragmentOf(html);
+  let changed = false;
+  for (const list of [...fragment.children].filter((e) => e.localName === 'ol')) {
+    const first = list.firstElementChild;
+    if (first?.localName !== 'li' || !/^(?:footnote|endnote)-\d+$/.test(first.id)) continue;
+    if (/^h[1-6]$/.test(list.previousElementSibling?.localName ?? '')) continue;
+    const heading = document.createElement('h2');
+    heading.className = 'notes';
+    heading.textContent = NOTES_HEADING[language.slice(0, 2).toLowerCase()] ?? 'Notes';
+    list.before(heading);
+    list.classList.add('notes');
+    changed = true;
+  }
+  return changed ? serialize([...fragment.childNodes]) : html;
+}
+
+/**
  * Builds a reflowable book with one chapter per section. Section HTML is
  * sanitized; chapters are `text/c001.xhtml`, `text/c002.xhtml`, … and an
  * untitled section takes the book's title. Without a language, the text's
- * own is guessed, then English assumed.
+ * own is guessed, then English assumed. Each chapter links the book's own
+ * stylesheet, which draws table borders and code boxes, and notes gathered
+ * at the end get a heading.
  */
 export function bookFromSections(
   sections: Section[],
@@ -180,9 +229,16 @@ export function bookFromSections(
       href: `text/${id}.xhtml`,
       title: section.title || meta.title,
       html: settleImages(sanitizeHtml(section.html), resources, inlined),
-      stylesheets: [],
+      stylesheets: [BOOK_CSS_KEY],
       inlineCss: '',
     };
+  });
+  const language = meta.language || guessLanguage(chapters.map((c) => c.html).join(' ')) || 'en';
+  for (const chapter of chapters) chapter.html = headNotes(chapter.html, language);
+  resources.set(BOOK_CSS_KEY, {
+    href: BOOK_CSS_KEY,
+    mediaType: 'text/css',
+    data: new TextEncoder().encode(BOOK_CSS),
   });
   linkFragments(chapters);
   const toc: TocEntry[] = chapters.map((chapter, i) => ({
@@ -194,7 +250,7 @@ export function bookFromSections(
     meta: {
       title: meta.title,
       authors: meta.author === '' ? [] : [meta.author],
-      language: meta.language || guessLanguage(chapters.map((c) => c.html).join(' ')) || 'en',
+      language,
       identifier: `urn:uuid:${crypto.randomUUID()}`,
       layout: 'reflowable',
     },
