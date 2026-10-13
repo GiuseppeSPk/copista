@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import Archivum from './Archivum.svelte';
+  import Auditorium from './Auditorium.svelte';
   import Bibliotheca from './Bibliotheca.svelte';
   import Home from './Home.svelte';
   import Icon from './Icon.svelte';
@@ -67,10 +68,10 @@
           : 'Drop to convert',
   );
 
-  /** Key 0 goes back to the hall and keys 1 to 4 open the rooms, unless the reader is typing. */
+  /** Key 0 goes back to the hall and keys 1 to 5 open the rooms, unless the reader is typing. */
   function onKey(event: KeyboardEvent): void {
     if (event.ctrlKey || event.metaKey || event.altKey || event.repeat) return;
-    const index = '01234'.indexOf(event.key);
+    const index = '012345'.indexOf(event.key);
     if (index < 0 || event.key.length !== 1) return;
     const target = event.target as HTMLElement | null;
     // An open dialog (the print preview) keeps the keys to itself.
@@ -274,6 +275,8 @@
           {/key}
         {:else if app.route.room === 'scriptorium'}
           <Scriptorium />
+        {:else if app.route.room === 'auditorium'}
+          <Auditorium />
         {:else}
           <Archivum />
         {/if}

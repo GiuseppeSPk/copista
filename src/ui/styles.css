@@ -1421,6 +1421,77 @@ button.link:hover:not(:disabled) {
   max-width: 480px;
 }
 
+/* Auditorium: hear the two readers, then set up the voice. */
+.samples {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr));
+  gap: 12px 16px;
+  margin: 0 0 16px;
+  padding: 0;
+  list-style: none;
+}
+
+.samples li {
+  display: grid;
+  gap: 6px;
+}
+
+.sample-name {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.sample-name small {
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.samples audio {
+  width: 100%;
+}
+
+.auditorium .note {
+  color: var(--muted);
+  font-style: italic;
+}
+
+.auditorium .facts {
+  margin-bottom: 16px;
+}
+
+.readers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+  margin: 0 0 16px;
+  padding: 0;
+  border: 0;
+}
+
+.readers label,
+.accept {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.download {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  margin: 16px 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.download progress {
+  flex: 1 1 200px;
+  accent-color: var(--accent);
+}
+
 /* Lectorium: the chrome steps back for the page. */
 
 .lectorium.open-book {
@@ -2079,7 +2150,7 @@ button.link:hover:not(:disabled) {
   text-align: center;
 }
 
-/* Home: a frontispiece and four arched doors, all in one view. */
+/* Home: a frontispiece and five arched doors, all in one view. */
 
 .home {
   width: 100%;
@@ -2287,6 +2358,11 @@ button.link:hover:not(:disabled) {
   grid-template-columns: repeat(var(--columns), minmax(0, 1fr));
   gap: var(--gap);
   container-type: inline-size;
+}
+
+/* The fifth door, the optional voice, takes a row of its own under the four. */
+.door-listen {
+  grid-column: 1 / -1;
 }
 
 .door {
@@ -2754,6 +2830,13 @@ button.link:hover:not(:disabled) {
   margin: 0;
   padding: 0;
   list-style: none;
+}
+
+/* The five steps in one row once they fit, so none is left alone on a row. */
+@media (min-width: 1024px) {
+  .guide-steps {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
 }
 
 .guide-step {
@@ -3892,7 +3975,7 @@ button:active:not(:disabled),
 
   .masthead ul {
     display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns: repeat(6, minmax(0, 1fr));
     gap: 0;
     width: 100%;
     height: var(--nav-h);
@@ -3952,7 +4035,7 @@ button:active:not(:disabled),
 
   .doors {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-areas: 'convert' 'read' 'library' 'data';
+    grid-template-areas: 'convert' 'read' 'library' 'data' 'listen';
     gap: 12px;
   }
 
@@ -4095,7 +4178,7 @@ button:active:not(:disabled),
 }
 
 @media (max-width: 560px) {
-  /* One door under another: a low arch keeps the four of them short. */
+  /* One door under another: a low arch keeps the five of them short. */
   .doors {
     --columns: 1;
   }

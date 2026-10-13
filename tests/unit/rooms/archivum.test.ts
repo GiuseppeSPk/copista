@@ -9,6 +9,7 @@ import {
   storageUsage,
   updateSettings,
 } from '../../../src/rooms/archivum/index';
+import type { VoiceId } from '../../../src/voice/narrator';
 import { deleteAllStorage, listBooks, putBook, putSetting } from '../../../src/storage/db';
 
 beforeEach(async () => {
@@ -27,6 +28,7 @@ describe('archivum', () => {
       mode: 'pages',
       pace: 200,
       guideLine: false,
+      voice: 'M2',
     };
     expect(await getSettings()).toEqual(defaults);
     expect(DEFAULT_SETTINGS).toEqual(defaults);
@@ -59,7 +61,14 @@ describe('archivum', () => {
       mode: 'pages',
       pace: 200,
       guideLine: false,
+      voice: 'M2',
     });
+  });
+
+  it('keeps the Lectrix as the voice and ignores a voice it does not know', async () => {
+    expect((await updateSettings({ voice: 'F1' })).voice).toBe('F1');
+    expect((await updateSettings({ voice: 'X1' as VoiceId })).voice).toBe('F1');
+    expect((await getSettings()).voice).toBe('F1');
   });
 
   it('reports storage use when the browser can tell', async () => {

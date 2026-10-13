@@ -34,7 +34,8 @@ export default defineConfig({
         ],
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,svg,png,woff2,webmanifest}'],
+        // txt is the voice's licence and notices, so they can be read offline too.
+        globPatterns: ['**/*.{js,css,html,svg,png,woff2,webmanifest,txt}'],
         // The link preview picture is for other sites, not for the app offline.
         // onnxruntime-web is for the voice only: cached when first used, with the voice.
         globIgnores: ['og-image.png', 'ort/**'],

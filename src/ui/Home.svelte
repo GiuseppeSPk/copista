@@ -196,6 +196,22 @@
         <span class="door-go"><Icon name="arrow" size={18} /></span>
       </span>
     </a>
+
+    <a
+      class="door door-listen"
+      href={hashOf({ room: 'auditorium' })}
+      aria-labelledby="door-auditorium"
+      onpointermove={follow}
+      style:--i={4}
+    >
+      <span class="door-icon"><Icon name="listen" size={22} /></span>
+      <span class="door-title" id="door-auditorium">{door('auditorium').action}</span>
+      <span class="door-body">A voice that reads your books aloud, on this device. Optional.</span>
+      <span class="door-foot">
+        <span class="plaque" style:--vt="title-auditorium">Auditorium</span>
+        <span class="door-go"><Icon name="arrow" size={18} /></span>
+      </span>
+    </a>
   </div>
 
   <div class="hall-pair">

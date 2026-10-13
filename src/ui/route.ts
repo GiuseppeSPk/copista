@@ -4,11 +4,18 @@ export type Route =
   | { room: 'bibliotheca' }
   | { room: 'lectorium'; bookId?: string }
   | { room: 'scriptorium' }
-  | { room: 'archivum' };
+  | { room: 'archivum' }
+  | { room: 'auditorium' };
 
 export type Room = Route['room'];
 
-const ROOMS: readonly Room[] = ['bibliotheca', 'lectorium', 'scriptorium', 'archivum'];
+const ROOMS: readonly Room[] = [
+  'bibliotheca',
+  'lectorium',
+  'scriptorium',
+  'archivum',
+  'auditorium',
+];
 
 export function parseHash(hash: string): Route {
   const path = hash.replace(/^#\/?/, '');

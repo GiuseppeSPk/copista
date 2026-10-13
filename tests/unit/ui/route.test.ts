@@ -12,6 +12,7 @@ describe('parseHash', () => {
     expect(parseHash('#/scriptorium')).toEqual({ room: 'scriptorium' });
     expect(parseHash('#/archivum')).toEqual({ room: 'archivum' });
     expect(parseHash('#/lectorium')).toEqual({ room: 'lectorium' });
+    expect(parseHash('#/auditorium')).toEqual({ room: 'auditorium' });
   });
 
   it('reads the book being read', () => {
@@ -35,6 +36,7 @@ describe('parseHash', () => {
       { room: 'lectorium', bookId: 'a b#c' },
       { room: 'scriptorium' },
       { room: 'archivum' },
+      { room: 'auditorium' },
     ] as const) {
       expect(parseHash(hashOf(route))).toEqual(route);
     }

@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { readFileSync } from 'node:fs';
 
 test('works without a network after the first visit', async ({ page, context }) => {
   await page.goto('/#/bibliotheca');
@@ -85,6 +86,39 @@ test.describe('cross-origin isolation for the voice', () => {
     const preview = page.getByRole('dialog', { name: 'Save as PDF' });
     await expect(preview).toBeVisible();
     await expect(preview.getByText('Laying out the pages…')).toHaveCount(0);
+    expect(blocked).toEqual([]);
+  });
+
+  test('runs a model in the voice worker of the built site', async ({ page }) => {
+    const blocked: string[] = [];
+    page.on('console', (message) => {
+      if (/Content Security Policy|Cross-Origin|COEP/i.test(message.text())) {
+        blocked.push(message.text());
+      }
+    });
+    const precache = await (await page.request.get('/sw.js')).text();
+    expect(precache).toContain('licences/notices.txt');
+    const worker = /assets\/worker-[\w-]+\.js/.exec(precache)?.[0];
+    expect(worker).toBeDefined();
+
+    await page.evaluate(() => caches.open('copista-voice-v1'));
+    await page.reload();
+    expect(await page.evaluate(() => crossOriginIsolated)).toBe(true);
+
+    const model = [...readFileSync('tests/fixtures/identity.onnx')];
+    const reply = await page.evaluate(
+      ([url, bytes]) =>
+        new Promise<{ type: string; samples?: number[]; message?: string }>((resolve) => {
+          const voice = new Worker(url, { type: 'module' });
+          voice.onmessage = ({ data }) => {
+            voice.terminate();
+            resolve(data.type === 'audio' ? { type: data.type, samples: [...data.samples] } : data);
+          };
+          voice.postMessage({ id: 1, type: 'probe', model: new Uint8Array(bytes).buffer });
+        }),
+      [worker!, model] as const,
+    );
+    expect(reply).toEqual({ type: 'audio', samples: [42] });
     expect(blocked).toEqual([]);
   });
 });

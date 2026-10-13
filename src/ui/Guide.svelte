@@ -20,6 +20,10 @@
       title: 'Keep it to yourself',
       how: 'No account, nothing uploaded. The Archivum shows what is kept in this browser and erases it in one click.',
     },
+    auditorium: {
+      title: 'Listen to a book',
+      how: 'Hear the Lector and the Lectrix, then set up the voice once. It reads aloud on this device, offline, and works best on recent phones and computers.',
+    },
   };
 </script>
 
@@ -38,7 +42,7 @@
     {/each}
   </ol>
   <p class="guide-keys">
-    Each number is also a key: press <kbd>1</kbd> to <kbd>4</kbd> to open that room, and
+    Each number is also a key: press <kbd>1</kbd> to <kbd>5</kbd> to open that room, and
     <kbd>0</kbd> to come back to the hall.
   </p>
 </section>

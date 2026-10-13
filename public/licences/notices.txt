@@ -1,0 +1,76 @@
+Copista's read-aloud voice: notices
+===================================
+
+The voice is optional. Nothing below is downloaded until you set it up in the Auditorium.
+
+
+1. The model: Supertonic 3
+--------------------------
+
+Copyright (c) 2026 Supertone Inc.
+
+The voice is a modified copy of Supertonic 3 by Supertone Inc.
+(https://huggingface.co/supertone-oss-archive/supertonic-3), taken at commit
+aafc6e32416a594460b32413efc49d7fe4ce6d46 and published at
+https://huggingface.co/GiuseppeSPk/copista-voice.
+
+What was changed: in onnx/duration_predictor.onnx, onnx/text_encoder.onnx,
+onnx/vector_estimator.onnx and onnx/vocoder.onnx, every float32 weight larger than 4 KB is
+stored as float16, and a Cast node turns it back into float32 when the model loads, so all
+computation stays in float32. Nothing else in the graphs was changed. onnx/tts.json,
+onnx/unicode_indexer.json, voice_styles/M2.json and voice_styles/F1.json are unchanged
+copies.
+
+The model and this copy are released under the BigScience OpenRAIL-M licence, including the
+use-based restrictions in its paragraph 5 and Attachment A. The full text is in
+openrail-m.txt, next to this file.
+
+This copy is not an official release and is not affiliated with or endorsed by Supertone Inc.
+
+
+2. Supertonic's code
+--------------------
+
+Copista's text and audio helper for the voice is ported from the code in
+https://github.com/supertone-inc/supertonic, released under the MIT licence:
+
+Copyright (c) 2025 Supertone Inc.
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software
+and associated documentation files (the "Software"), to deal in the Software without
+restriction, including without limitation the rights to use, copy, modify, merge, publish,
+distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the
+Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or
+substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING
+BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+
+3. ONNX Runtime Web
+-------------------
+
+The voice runs with onnxruntime-web 1.30.0 (https://github.com/microsoft/onnxruntime),
+released under the MIT licence:
+
+Copyright (c) Microsoft Corporation
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software
+and associated documentation files (the "Software"), to deal in the Software without
+restriction, including without limitation the rights to use, copy, modify, merge, publish,
+distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the
+Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or
+substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING
+BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.

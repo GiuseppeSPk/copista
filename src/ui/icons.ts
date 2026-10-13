@@ -4,6 +4,7 @@ export const PATHS = {
   read: 'M12 6.6C10 5.1 7 4.6 3 5v13.2c4-.4 7 .1 9 1.6 2-1.5 5-2 9-1.6V5c-4-.4-7 .1-9 1.6zM12 6.6v13.2',
   convert: 'M4 8h15m-4-4 4 4-4 4M20 16H5m4-4-4 4 4 4',
   archive: 'M3 4.5h18v4.5H3zM5 9v10.5h14V9M9.5 13h5',
+  listen: 'M4 15v-3a8 8 0 0 1 16 0v3M4 15h3.5v5.5H4zM16.5 15H20v5.5h-3.5z',
   arrow: 'M4 12h16m-6-6 6 6-6 6',
   external: 'M14 4h6v6m0-6-9 9m7 1v6H4V6h6',
   back: 'M20 12H4m6-6-6 6 6 6',

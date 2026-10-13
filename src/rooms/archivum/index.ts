@@ -1,8 +1,9 @@
 import { DEFAULT_PACE, snapPace } from '../../reader/autoscroll';
 import type { ReadingMode, Theme } from '../../reader/render';
 import { deleteAllStorage, getSetting, putSetting } from '../../storage/db';
+import type { VoiceId } from '../../voice/narrator';
 
-export type { ReadingMode };
+export type { ReadingMode, VoiceId };
 
 export interface Settings {
   fontSizePercent: number;
@@ -11,6 +12,8 @@ export interface Settings {
   /** Autoscroll pace in words per minute. */
   pace: number;
   guideLine: boolean;
+  /** Who reads aloud: the Lector (M2) or the Lectrix (F1). */
+  voice: VoiceId;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -19,11 +22,13 @@ export const DEFAULT_SETTINGS: Settings = {
   mode: 'pages',
   pace: DEFAULT_PACE,
   guideLine: false,
+  voice: 'M2',
 };
 
 const SETTINGS_KEY = 'reader';
 const THEMES: readonly Theme[] = ['light', 'dark', 'sepia'];
 const MODES: readonly ReadingMode[] = ['pages', 'scroll'];
+const VOICES: readonly VoiceId[] = ['M2', 'F1'];
 const MIN_FONT = 80;
 const MAX_FONT = 200;
 
@@ -48,6 +53,7 @@ function merge(base: Settings, patch: Partial<Settings>): Settings {
         ? snapPace(patch.pace)
         : base.pace,
     guideLine: typeof patch.guideLine === 'boolean' ? patch.guideLine : base.guideLine,
+    voice: VOICES.includes(patch.voice as VoiceId) ? (patch.voice as VoiceId) : base.voice,
   };
 }
 

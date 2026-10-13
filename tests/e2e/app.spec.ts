@@ -25,6 +25,7 @@ const TAB = {
   Lectorium: 'Read a book',
   Scriptorium: 'Convert a file',
   Archivum: 'Manage your data',
+  Auditorium: 'Listen to a book',
 } as const;
 
 type Room = keyof typeof TAB;
@@ -297,7 +298,7 @@ test('changes rooms as fast as the keys are pressed, without errors', async ({ p
   page.on('pageerror', (error) => errors.push(error.message));
   await page.goto('/');
   await expect(page.getByRole('heading', { level: 1, name: 'Copista' })).toBeVisible();
-  for (const key of ['1', '2', '3', '4', '0', '3']) await page.keyboard.press(key);
+  for (const key of ['1', '2', '3', '4', '5', '0', '3']) await page.keyboard.press(key);
   await expect(page.getByRole('heading', { level: 1, name: 'Scriptorium' })).toBeVisible();
   await expect(page.locator('html')).not.toHaveAttribute('data-nav');
   expect(errors).toEqual([]);
@@ -813,11 +814,100 @@ test('deletes all data from the Archivum', async ({ page }) => {
   await expect(page.getByText('No books yet.')).toBeVisible();
 });
 
+test.describe('Auditorium', () => {
+  test.beforeEach(async ({ page }) => {
+    // The fake voice keeps its state in this key; the real one would download 200 MB.
+    await page.addInitScript(() => {
+      if (localStorage.getItem('copista-test-voice') === null) {
+        localStorage.setItem('copista-test-voice', 'absent');
+      }
+    });
+    await page.goto('/#/auditorium');
+  });
+
+  test('plays both samples before anything is set up', async ({ page }) => {
+    await expect(page.locator('.samples audio')).toHaveCount(2);
+    for (const name of ['lector', 'lectrix']) {
+      for (const extension of ['webm', 'm4a']) {
+        const response = await page.request.get(`/voice/${name}.${extension}`);
+        expect(response.status()).toBe(200);
+      }
+    }
+    for (const file of ['openrail-m.txt', 'notices.txt']) {
+      expect((await page.request.get(`/licences/${file}`)).status()).toBe(200);
+    }
+  });
+
+  test('sets up the voice once the licence is accepted, then removes it', async ({ page }) => {
+    const download = page.getByRole('button', { name: 'Download the voice' });
+    await expect(page.getByText('Works best on recent phones and computers.')).toBeVisible();
+    await expect(download).toBeDisabled();
+    await page.getByLabel('I accept the licence and its use restrictions').check();
+    await download.click();
+    await expect(page.getByRole('status')).toContainText('The voice is ready.');
+
+    await page.getByRole('radio', { name: 'The Lectrix' }).check();
+    // The choice is saved a moment after the click; reload only once it is.
+    await expect
+      .poll(() =>
+        page.evaluate(
+          () =>
+            new Promise((resolve) => {
+              indexedDB.open('copista').onsuccess = ({ target }) => {
+                const db = (target as IDBOpenDBRequest).result;
+                const get = db.transaction('settings').objectStore('settings').get('reader');
+                get.onsuccess = () => {
+                  db.close();
+                  resolve(get.result?.value?.voice);
+                };
+              };
+            }),
+        ),
+      )
+      .toBe('F1');
+    await page.reload();
+    await expect(page.getByRole('radio', { name: 'The Lectrix' })).toBeChecked();
+
+    await page.getByRole('button', { name: 'Remove the voice' }).click();
+    await expect(page.getByRole('status')).toContainText('has been removed');
+    await expect(page.getByRole('button', { name: 'Download the voice' })).toBeDisabled();
+  });
+
+  test('stops a download when asked', async ({ page }) => {
+    await page.getByLabel('I accept the licence and its use restrictions').check();
+    await page.getByRole('button', { name: 'Download the voice' }).click();
+    await page.getByRole('button', { name: 'Cancel' }).click();
+    await expect(page.getByRole('status')).toContainText('Download stopped.');
+    await expect(page.getByRole('button', { name: 'Download the voice' })).toBeVisible();
+  });
+
+  test('opens from the fifth key', async ({ page }) => {
+    await page.goto('/');
+    await page.keyboard.press('5');
+    await expect(page.getByRole('heading', { level: 1, name: 'Auditorium' })).toBeVisible();
+  });
+
+  test('fits its six tabs on the narrowest phone', async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 640 });
+    await expect(page.getByRole('heading', { level: 1, name: 'Auditorium' })).toBeVisible();
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollWidth - window.innerWidth,
+    );
+    expect(overflow).toBeLessThanOrEqual(0);
+    const links = page.getByRole('navigation', { name: 'Rooms' }).getByRole('link');
+    for (const link of await links.all()) {
+      const box = (await link.boundingBox())!;
+      expect(box.x).toBeGreaterThanOrEqual(0);
+      expect(box.x + box.width).toBeLessThanOrEqual(320);
+    }
+  });
+});
+
 test('makes no request outside its own site', async ({ page, baseURL }) => {
   const foreign = watchForeignRequests(page, baseURL!);
   await openReader(page);
   await page.getByRole('button', { name: 'Next' }).click();
-  for (const room of ['Scriptorium', 'Archivum', 'Bibliotheca'] as const) {
+  for (const room of ['Scriptorium', 'Archivum', 'Auditorium', 'Bibliotheca'] as const) {
     await openRoom(page, room);
   }
   await page.getByRole('link', { name: 'Copista, all rooms' }).click();
@@ -1021,7 +1111,7 @@ test.describe('on a phone-sized screen', () => {
     await expect(page.getByRole('button', { name: 'Part 2' })).toBeVisible();
     await page.getByRole('button', { name: 'Part 2' }).click();
     await expect(page.locator('.where')).toContainText('chapter 2 of 3');
-    for (const room of ['Bibliotheca', 'Scriptorium', 'Archivum'] as const) {
+    for (const room of ['Bibliotheca', 'Scriptorium', 'Archivum', 'Auditorium'] as const) {
       await openRoom(page, room);
       expect(await overflow()).toBeLessThanOrEqual(0);
     }
@@ -1038,6 +1128,7 @@ test('has no serious accessibility problems in any room, in either theme', async
     ['Bibliotheca', () => openRoom(page, 'Bibliotheca')],
     ['Scriptorium', () => openRoom(page, 'Scriptorium')],
     ['Archivum', () => openRoom(page, 'Archivum')],
+    ['Auditorium', () => openRoom(page, 'Auditorium')],
     [
       'Home',
       async () => {
@@ -1047,6 +1138,7 @@ test('has no serious accessibility problems in any room, in either theme', async
     ],
     ['Home, dark', () => page.getByRole('button', { name: 'Switch to dark theme' }).click()],
     ['Archivum, dark', () => openRoom(page, 'Archivum')],
+    ['Auditorium, dark', () => openRoom(page, 'Auditorium')],
   ];
   await page.emulateMedia({ reducedMotion: 'reduce', colorScheme: 'light' });
   for (const [name, open] of screens) {
@@ -1074,7 +1166,13 @@ test.describe('home', () => {
   test('opens each room from its door and comes back', async ({ page }) => {
     await page.goto('/');
     await expect(page.getByRole('heading', { level: 1, name: 'Copista' })).toBeVisible();
-    for (const room of ['Scriptorium', 'Lectorium', 'Bibliotheca', 'Archivum'] as const) {
+    for (const room of [
+      'Scriptorium',
+      'Lectorium',
+      'Bibliotheca',
+      'Archivum',
+      'Auditorium',
+    ] as const) {
       await page.getByRole('main').getByRole('link', { name: TAB[room] }).click();
       await expect(page.getByRole('heading', { level: 1, name: room })).toBeVisible();
       await expect(page.getByRole('list', { name: 'In this room' })).toBeVisible();
@@ -1083,14 +1181,14 @@ test.describe('home', () => {
     }
   });
 
-  test('leads from the first line to a guide of the four rooms', async ({ page }) => {
+  test('leads from the first line to a guide of the five rooms', async ({ page }) => {
     await page.goto('/');
     await page.getByRole('button', { name: 'See how it works' }).click();
     const title = page.getByRole('heading', { level: 2, name: 'How it works' });
     await expect(title).toBeFocused();
     await expect(title).toBeInViewport();
     const guide = page.getByRole('region', { name: 'How it works' });
-    await expect(guide.getByRole('listitem')).toHaveCount(4);
+    await expect(guide.getByRole('listitem')).toHaveCount(5);
     await guide.getByRole('link', { name: /Open the Scriptorium/ }).click();
     await expect(page.getByRole('heading', { level: 1, name: 'Scriptorium' })).toBeVisible();
   });
