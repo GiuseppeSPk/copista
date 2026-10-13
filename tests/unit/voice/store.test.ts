@@ -178,7 +178,9 @@ describe('reading and removing', () => {
 });
 
 describe('pickSteps', () => {
-  it('keeps 8 steps only when the device reads well ahead of time', () => {
+  it('uses 16 steps when the device has room for twice the work, else 8, else 6', () => {
+    expect(pickSteps(0.39)).toBe(16);
+    expect(pickSteps(0.4)).toBe(8);
     expect(pickSteps(0.79)).toBe(8);
     expect(pickSteps(0.8)).toBe(6);
   });

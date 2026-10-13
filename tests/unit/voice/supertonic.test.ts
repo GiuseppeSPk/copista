@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { TextIds, latentSize, parseStyle, preprocessText } from '../../../src/voice/supertonic';
+import {
+  TextIds,
+  latentSize,
+  noise,
+  parseStyle,
+  preprocessText,
+} from '../../../src/voice/supertonic';
 
 // Expected strings computed once with the original helper's UnicodeProcessor.
 // NFKD splits an accented letter into the letter and a combining accent.
@@ -33,6 +39,21 @@ describe('latentSize', () => {
       ttl: { chunk_compress_factor: 6, latent_dim: 24 },
     };
     expect(latentSize(1, cfg)).toEqual({ length: 15, dim: 144 });
+  });
+});
+
+describe('noise', () => {
+  it('repeats for the same seed, so a sentence always sounds the same', () => {
+    expect(noise(64, 1)).toEqual(noise(64, 1));
+    expect(noise(64, 1)).not.toEqual(noise(64, 2));
+  });
+
+  it('is roughly standard normal', () => {
+    const xs = noise(20000, 3);
+    const mean = xs.reduce((a, b) => a + b, 0) / xs.length;
+    const variance = xs.reduce((a, b) => a + (b - mean) ** 2, 0) / xs.length;
+    expect(Math.abs(mean)).toBeLessThan(0.05);
+    expect(Math.abs(variance - 1)).toBeLessThan(0.05);
   });
 });
 

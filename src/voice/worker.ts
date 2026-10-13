@@ -18,7 +18,9 @@ interface WorkerScope {
 const scope = self as unknown as WorkerScope;
 
 const ORT_DIR = new URL(`${import.meta.env.BASE_URL}ort/1.30.0/`, scope.location.href).href;
-const SPEED = 1.05;
+const SPEED = 1.1;
+/** The noise each voice starts from, chosen by ear on Italian prose. */
+const SEED: Record<VoiceId, number> = { M2: 2, F1: 1 };
 const WARM_UP = 'Buongiorno.';
 const SELF_TEST = 'Buongiorno, oggi leggiamo insieme un racconto.';
 /** Each piece ends with this much silence, left out when timing the self-test. */
@@ -62,11 +64,11 @@ async function hasWebGpu(): Promise<boolean> {
 }
 
 /** Times one sentence at 8 steps, after a short one to warm the backend up. */
-async function selfTest(voice: Supertonic): Promise<6 | 8> {
+async function selfTest(voice: Supertonic): Promise<6 | 8 | 16> {
   const s = await style('M2');
-  await voice.speak(WARM_UP, 'it', s, 8, SPEED);
+  await voice.speak(WARM_UP, 'it', s, 8, SPEED, SEED.M2);
   const start = performance.now();
-  const samples = await voice.speak(SELF_TEST, 'it', s, 8, SPEED);
+  const samples = await voice.speak(SELF_TEST, 'it', s, 8, SPEED, SEED.M2);
   const seconds = samples.length / voice.sampleRate - SILENCE;
   return pickSteps((performance.now() - start) / 1000 / Math.max(seconds, 0.1));
 }
@@ -117,13 +119,13 @@ async function load(): Promise<void> {
 async function speak(text: string, lang: Lang, voice: VoiceId): Promise<Float32Array> {
   await load();
   try {
-    return await tts!.speak(text, lang, await style(voice), profile!.steps, SPEED);
+    return await tts!.speak(text, lang, await style(voice), profile!.steps, SPEED, SEED[voice]);
   } catch (error) {
     if (!isDeviceLost(error) || profile?.backend !== 'webgpu') throw error;
     wasmOnly = true;
     await close().catch(() => {});
     await load();
-    return tts!.speak(text, lang, await style(voice), profile!.steps, SPEED);
+    return tts!.speak(text, lang, await style(voice), profile!.steps, SPEED, SEED[voice]);
   }
 }
 

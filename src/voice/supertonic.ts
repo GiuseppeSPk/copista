@@ -152,12 +152,27 @@ export function latentSize(seconds: number, cfg: TtsConfig): { length: number; d
   };
 }
 
-/** Standard normal noise, by Box-Muller. */
-function noise(size: number): Float32Array {
+/** Uniform numbers in [0, 1) from a 32-bit seed (mulberry32). */
+function uniform(seed: number): () => number {
+  let a = seed | 0;
+  return () => {
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/**
+ * Standard normal noise, by Box-Muller. The intonation follows the noise, so a
+ * fixed seed makes the same sentence sound the same every time.
+ */
+export function noise(size: number, seed: number): Float32Array {
+  const random = uniform(seed);
   const out = new Float32Array(size);
   for (let i = 0; i < size; i++) {
-    const u1 = Math.max(0.0001, Math.random());
-    const u2 = Math.random();
+    const u1 = Math.max(0.0001, random());
+    const u2 = random();
     out[i] = Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
   }
   return out;
@@ -204,6 +219,7 @@ export class Supertonic {
     style: Style,
     steps: number,
     speed: number,
+    seed: number,
   ): Promise<Float32Array> {
     const { Tensor } = this.ort;
     const s = this.sessions;
@@ -231,7 +247,7 @@ export class Supertonic {
     });
 
     const { length, dim } = latentSize(seconds, this.cfg);
-    let latent = noise(dim * length);
+    let latent = noise(dim * length, seed);
     const latentMask = new Tensor('float32', new Float32Array(length).fill(1), [1, 1, length]);
     const totalStep = new Tensor('float32', new Float32Array([steps]), [1]);
     for (let step = 0; step < steps; step++) {

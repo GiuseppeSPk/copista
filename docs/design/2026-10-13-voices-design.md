@@ -14,6 +14,11 @@ What Giuseppe decided by ear (four rounds of samples, 2026-10-13):
 - Engine: Supertonic 3. Piper's Italian was poor, and Kokoro is too slow without WebGPU.
 - Settings: 8 steps and speed 1.05. At speed 0.95 the intonation was worse, and 16 steps were
   slower than real time.
+- Revised on 2026-10-14, after five more blind rounds on the PC: 16 steps where the device keeps
+  up (fewer distortions and odd stretches), speed 1.1 for both voices (smoother), and a fixed
+  noise seed per voice (M2: 2, F1: 1), so a sentence sounds the same every time. Commas are left
+  alone: reading each clause on its own, or rewriting commas as ellipses or semicolons, made the
+  reading choppier. Full-precision weights were not preferred over fp16.
 - Voices: M2 (male) and F1 (female). The other styles sounded foreign in Italian.
 - Weights: full precision. int8 is clearly worse. Our fp16 copy (200 MB) was accepted by ear.
 - Text: no stress marks. Plain text gave the best samples, and the penultimate-syllable rule
@@ -120,7 +125,8 @@ Same Manzoni sentence, fp16 weights, Chrome on Android, served over HTTPS on the
 - **Fall back on loss.** If WebGPU is lost while speaking, the worker reloads the model on wasm
   and repeats the sentence. That device stays on wasm for the rest of the session.
 - **Steps by self-test.** When the model first loads, the worker times one short sentence at 8
-  steps. If its RTF is below 0.8, it keeps 8 steps; otherwise it uses 6. The result is stored
+  steps. If its RTF is below 0.4, it uses 16 steps (about twice the work); below 0.8, 8 steps;
+  otherwise 6. The result is stored
   with the voice and measured again when the backend changes.
 - **The voice is offered on every device.** Giuseppe chose this over hiding it on slow phones.
   The Auditorium says "Works best on recent phones and computers." before the download. On a
@@ -278,7 +284,8 @@ layering test is extended to cover it.
 - A buffer of about two minutes; no exporting or storing of generated audio.
 - The language switch limited to the book's language, IT and EN.
 - The self-test threshold: 8 steps when RTF is below 0.8, which leaves room for the screen
-  being off and for other work in the page.
+  being off and for other work in the page; 16 steps when it is below 0.4. 16 steps have not
+  been timed on a phone yet.
 - Pieces of up to 300 characters, highlighted as a whole, rather than one sentence at a time.
 
 ## 12. Testing

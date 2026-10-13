@@ -20,7 +20,7 @@ export type WorkerRequest =
 
 /** Messages from the worker. */
 export type WorkerReply =
-  | { id: number; type: 'ready'; sampleRate: number; backend: 'webgpu' | 'wasm'; steps: 6 | 8 }
+  | { id: number; type: 'ready'; sampleRate: number; backend: 'webgpu' | 'wasm'; steps: 6 | 8 | 16 }
   | { id: number; type: 'audio'; samples: Float32Array }
   | { id: number; type: 'error'; message: string };
 

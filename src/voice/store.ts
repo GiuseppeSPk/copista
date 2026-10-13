@@ -69,14 +69,21 @@ export class VoiceDownloadError extends CopistaError {
 /** How the voice runs on this device, measured once by the self-test. */
 export interface Profile {
   backend: 'webgpu' | 'wasm';
-  steps: 6 | 8;
+  steps: 6 | 8 | 16;
 }
 
-/** The profile's key in the voice cache. It is never fetched. */
-const PROFILE = fileUrl('copista-profile.json');
+/**
+ * The profile's key in the voice cache. It is never fetched. The name changed
+ * when 16 steps were added, so devices measured before are measured again.
+ */
+const PROFILE = fileUrl('copista-profile-2.json');
 
-/** 8 steps when a piece takes less than 0.8 of its own length to make, else 6. */
-export function pickSteps(rtf: number): 6 | 8 {
+/**
+ * From the time a piece takes at 8 steps, as a share of its own length: 16 steps
+ * when twice that is still below 0.8, 8 when it is below 0.8, else 6.
+ */
+export function pickSteps(rtf: number): 6 | 8 | 16 {
+  if (rtf < 0.4) return 16;
   return rtf < 0.8 ? 8 : 6;
 }
 
