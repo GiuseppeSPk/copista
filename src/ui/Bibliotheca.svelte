@@ -71,7 +71,7 @@
   }
 
   async function remove(id: string, title: string): Promise<void> {
-    if (!confirm(`Remove “${title}” and its bookmarks from this browser?`)) return;
+    if (!confirm(`Remove “${title}” with its bookmarks and notes from this browser?`)) return;
     removeError = '';
     try {
       await removeBook(id);

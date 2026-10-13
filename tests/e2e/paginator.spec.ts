@@ -94,6 +94,31 @@ for (const viewport of [
       expect(Math.abs(after.fraction - before.fraction)).toBeLessThanOrEqual(1 / after.pageCount);
     });
 
+    test('comes back to the same page when the viewport narrows and widens again', async ({
+      page,
+    }) => {
+      const before = await page.evaluate(async () => {
+        await window.harness.open('longChapter', 0, { fraction: 0 });
+        for (let i = 0; i < 3; i++) window.harness.next();
+        return window.harness.info();
+      });
+      for (let round = 0; round < 3; round++) {
+        await page.setViewportSize({
+          width: Math.round(viewport.width * 0.55),
+          height: viewport.height,
+        });
+        await expect
+          .poll(() => page.evaluate(() => window.harness.info().pageCount))
+          .not.toBe(before.pageCount);
+        await page.setViewportSize(viewport);
+        await expect
+          .poll(() => page.evaluate(() => window.harness.info().pageCount))
+          .toBe(before.pageCount);
+      }
+      const after = await page.evaluate(() => window.harness.info());
+      expect(after.page).toBe(before.page);
+    });
+
     test('loads images and stylesheets from blob URLs', async ({ page }) => {
       await page.evaluate(() => window.harness.open('epub3Nav', 1, { fraction: 0 }));
       const loaded = await page.evaluate(() => {

@@ -58,6 +58,12 @@ export class Paginator {
   private frame: Frame | null = null;
   private currentPage = 0;
   private count = 0;
+  /**
+   * The place in the chapter the reader is at, as a fraction. Only a move by
+   * the reader changes it: a new layout finds the page that holds it, so
+   * turning a phone back and forth does not creep back a page each time.
+   */
+  private anchor = 0;
   /** Width of one page, which is also the distance between two columns. */
   private pageWidth = 0;
   private cancelPending: (() => void) | null = null;
@@ -96,7 +102,7 @@ export class Paginator {
   }
 
   fraction(): number {
-    return fractionForPage(this.currentPage, this.count);
+    return this.anchor;
   }
 
   /** Replaces the shown chapter; the old one stays visible until the new one is laid out. */
@@ -129,35 +135,34 @@ export class Paginator {
     this.frame = { element, doc };
     this.listen(doc);
     this.layout();
-    this.currentPage =
-      'fragment' in target
-        ? this.pageOfFragment(target.fragment)
-        : pageForFraction(target.fraction, this.count);
-    this.scroll();
+    if ('fragment' in target) {
+      this.turnTo(this.pageOfFragment(target.fragment));
+    } else {
+      this.turnTo(pageForFraction(target.fraction, this.count));
+      // A place inside the page is kept as it is, so a change of text size can come back to it.
+      if (target.fraction > 0 && target.fraction < 1) this.anchor = target.fraction;
+    }
     element.style.visibility = '';
     previous?.element.remove();
   }
 
   next(): boolean {
     if (this.currentPage >= this.count - 1) return false;
-    this.currentPage++;
-    this.scroll();
+    this.turnTo(this.currentPage + 1);
     return true;
   }
 
   prev(): boolean {
     if (this.currentPage <= 0) return false;
-    this.currentPage--;
-    this.scroll();
+    this.turnTo(this.currentPage - 1);
     return true;
   }
 
-  /** Lays the chapter out again for the host's current size, staying at the same fraction. */
+  /** Lays the chapter out again for the host's current size, staying at the same place. */
   relayout(): Promise<void> {
     if (this.frame !== null) {
-      const fraction = this.fraction();
       this.layout();
-      this.currentPage = pageForFraction(fraction, this.count);
+      this.currentPage = pageForFraction(this.anchor, this.count);
       this.scroll();
     }
     return Promise.resolve();
@@ -172,6 +177,14 @@ export class Paginator {
     this.frame = null;
     this.currentPage = 0;
     this.count = 0;
+    this.anchor = 0;
+  }
+
+  /** Shows a page the reader moved to, which becomes the place to keep. */
+  private turnTo(page: number): void {
+    this.currentPage = page;
+    this.anchor = fractionForPage(page, this.count);
+    this.scroll();
   }
 
   private queueRelayout(): void {
@@ -271,8 +284,7 @@ export class Paginator {
       if (this.frame?.doc !== doc || scroller === null || this.pageWidth === 0) return;
       if (Math.abs(scroller.scrollLeft - this.currentPage * this.pageWidth) < 1) return;
       const page = Math.round(scroller.scrollLeft / this.pageWidth);
-      this.currentPage = Math.min(this.count - 1, Math.max(0, page));
-      this.scroll();
+      this.turnTo(Math.min(this.count - 1, Math.max(0, page)));
     });
   }
 

@@ -400,6 +400,11 @@ test('reports an unknown book in the reader', async ({ page }) => {
   await page.goto('/#/read/nothing-here');
   await expect(page.getByRole('alert')).toBeVisible();
   await expect(page.getByRole('link', { name: 'Back to the library' })).toBeVisible();
+  // The room's tab does not lead back to a book that is not there.
+  await page.getByRole('link', { name: 'Back to the library' }).click();
+  await openRoom(page, 'Lectorium');
+  await expect(page).toHaveURL(/#\/lectorium$/);
+  await expect(page.getByRole('alert')).toHaveCount(0);
 });
 
 test.describe('Scriptorium', () => {

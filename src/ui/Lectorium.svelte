@@ -14,7 +14,7 @@
   } from '../rooms/lectorium';
   import { ReadingController } from '../rooms/lectorium/controller';
   import { pageForFraction } from '../reader/location';
-  import type { BookmarkRecord, NoteRecord } from '../storage/db';
+  import { BookNotFoundError, type BookmarkRecord, type NoteRecord } from '../storage/db';
   import type { TocEntry } from '../core/model/book';
   import { BOOK_FILES } from './files';
   import { addFiles, app, changeSettings, landed } from './state.svelte';
@@ -120,7 +120,10 @@
         hint();
       })
       .catch((e: unknown) => {
-        if (!cancelled) error = errorMessage(e);
+        if (cancelled) return;
+        error = errorMessage(e);
+        // A book that is not here is not one to come back to from the room's tab.
+        if (e instanceof BookNotFoundError && app.lastBookId === bookId) app.lastBookId = undefined;
       });
 
     return () => {
@@ -248,7 +251,11 @@
 
   function goTo(chapter: number, fragment?: string): void {
     panelOpen = false;
-    void ctrl?.goTo({ spineIndex: chapter, ...(fragment ? { fragment } : {}) });
+    jump({ spineIndex: chapter, ...(fragment ? { fragment } : {}) });
+  }
+
+  function jump(target: Parameters<ReadingController['goTo']>[0]): void {
+    void ctrl?.goTo(target).catch((e: unknown) => (error = errorMessage(e)));
   }
 
   async function mark(): Promise<void> {
@@ -264,8 +271,12 @@
   }
 
   async function unmark(id: string): Promise<void> {
-    await removeBookmark(id);
-    marks = marks.filter((m) => m.id !== id);
+    try {
+      await removeBookmark(id);
+      marks = marks.filter((m) => m.id !== id);
+    } catch (e) {
+      error = errorMessage(e);
+    }
   }
 
   async function pinNote(): Promise<void> {
@@ -306,8 +317,12 @@
   async function unpin(id: string): Promise<void> {
     clearTimeout(pending.get(id));
     pending.delete(id);
-    notes = notes.filter((note) => note.id !== id);
-    await removeNote(id);
+    try {
+      await removeNote(id);
+      notes = notes.filter((note) => note.id !== id);
+    } catch (e) {
+      error = errorMessage(e);
+    }
     host?.focus();
   }
 
@@ -325,9 +340,13 @@
   }
 
   async function restyle(patch: Partial<Settings>): Promise<void> {
-    await changeSettings(patch);
-    await ctrl?.setLook(look());
-    refreshWhere();
+    try {
+      await changeSettings(patch);
+      await ctrl?.setLook(look());
+      refreshWhere();
+    } catch (e) {
+      error = errorMessage(e);
+    }
   }
 </script>
 
@@ -517,7 +536,7 @@
                     class="link"
                     onclick={() => {
                       panelOpen = false;
-                      void ctrl?.goTo({ spineIndex: m.spineIndex, fraction: m.fraction });
+                      jump({ spineIndex: m.spineIndex, fraction: m.fraction });
                     }}
                   >
                     {m.snippet || `Chapter ${m.spineIndex + 1}`}
@@ -546,7 +565,7 @@
                     class="link"
                     onclick={() => {
                       panelOpen = false;
-                      void ctrl?.goTo({ spineIndex: note.spineIndex, fraction: note.fraction });
+                      jump({ spineIndex: note.spineIndex, fraction: note.fraction });
                     }}
                   >
                     <span class="note-line">{firstLine(note.text)}</span>
