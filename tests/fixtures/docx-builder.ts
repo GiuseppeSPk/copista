@@ -78,6 +78,12 @@ const STYLES =
   '<w:basedOn w:val="Normal"/></w:style>' +
   '<w:style w:type="paragraph" w:styleId="IntenseQuote"><w:name w:val="Intense Quote"/>' +
   '<w:basedOn w:val="Normal"/></w:style>' +
+  '<w:style w:type="paragraph" w:styleId="Title"><w:name w:val="Title"/>' +
+  '<w:basedOn w:val="Normal"/></w:style>' +
+  '<w:style w:type="paragraph" w:styleId="ListBullet2"><w:name w:val="List Bullet 2"/>' +
+  '<w:basedOn w:val="Normal"/></w:style>' +
+  '<w:style w:type="paragraph" w:styleId="ListNumber2"><w:name w:val="List Number 2"/>' +
+  '<w:basedOn w:val="Normal"/></w:style>' +
   '</w:styles>\n';
 
 /** numId 1 is a bullet list, numId 2 a decimal list. */

@@ -42,6 +42,25 @@ describe('fromDocx', () => {
     expect(h).toContain('The note.');
   });
 
+  it('keeps the Title paragraph and nests lists marked by style alone', async () => {
+    const b = await fromDocx(
+      docxZip({
+        body:
+          paragraph(run('A Journey'), 'Title') +
+          paragraph(run('pack'), 'ListParagraph', { numId: 1 }) +
+          paragraph(run('pens'), 'ListBullet2') +
+          paragraph(run('go'), 'ListParagraph', { numId: 2 }) +
+          paragraph(run('first stop'), 'ListNumber2'),
+      }),
+      { fileName: 'journey.docx' },
+    );
+    expect(b.meta.title).toBe('A Journey');
+    const h = b.chapters[0]!.html;
+    expect(h).toContain('<p class="title">A Journey</p>');
+    expect(h).toContain('<ul><li>pack<ul><li>pens</li></ul></li></ul>');
+    expect(h).toContain('<ol><li>go<ol><li>first stop</li></ol></li></ol>');
+  });
+
   it('names a document without metadata after its file', async () => {
     const plain = await fromDocx(DOCX.noHeadings(), { fileName: 'Report.docx' });
     expect(plain.meta.title).toBe('Report');

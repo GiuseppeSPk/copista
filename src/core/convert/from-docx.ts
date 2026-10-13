@@ -7,10 +7,19 @@ import { bookFromSections, IMAGE_EXTENSIONS, splitByHeading } from './build';
 const DC = 'http://purl.org/dc/elements/1.1/';
 const NOT_WORD = 'This file is not a Word document (.docx).';
 
-/** Added to mammoth's own map, which drops quotation styles and underlining. */
+/**
+ * Added to mammoth's own map, which drops quotation, title and underlining styles and
+ * flattens lists nested by style alone (List Bullet 2 with no numbering of its own).
+ */
 const STYLE_MAP = [
   "p[style-name='Quote'] => blockquote > p:fresh",
   "p[style-name='Intense Quote'] => blockquote > p:fresh",
+  "p[style-name='Title'] => p.title:fresh",
+  "p[style-name='Subtitle'] => p.subtitle:fresh",
+  "p[style-name='List Bullet 2'] => ul|ol > li > ul > li:fresh",
+  "p[style-name='List Number 2'] => ul|ol > li > ol > li:fresh",
+  "p[style-name='List Bullet 3'] => ul|ol > li > ul|ol > li > ul > li:fresh",
+  "p[style-name='List Number 3'] => ul|ol > li > ul|ol > li > ol > li:fresh",
   'u => u',
 ];
 
@@ -21,6 +30,12 @@ function coreProperties(zip: Zip): { title: string; author: string; language: st
   const field = (name: string): string =>
     (doc?.getElementsByTagNameNS(DC, name)[0]?.textContent ?? '').replace(/\s+/g, ' ').trim();
   return { title: field('title'), author: field('creator'), language: field('language') };
+}
+
+/** The text of the first paragraph set in Word's Title style. */
+function titleParagraph(html: string): string {
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  return (doc.querySelector('p.title')?.textContent ?? '').replace(/\s+/g, ' ').trim();
 }
 
 function titleFromFileName(fileName: string | undefined): string {
@@ -34,7 +49,8 @@ function titleFromFileName(fileName: string | undefined): string {
  * Converts a Word document to a book, split at its Heading 1 paragraphs (or
  * Heading 2 when it has none). Images the EPUB format supports become
  * resources; the others (EMF, WMF, TIFF…) are dropped. The title falls back
- * to the file name, then "Untitled"; the author to "Unknown".
+ * to the paragraph in Word's Title style, the file name, then "Untitled"; the
+ * author to "Unknown".
  */
 export async function fromDocx(data: Uint8Array, opts: { fileName?: string } = {}): Promise<Book> {
   let zip: Zip;
@@ -80,7 +96,7 @@ export async function fromDocx(data: Uint8Array, opts: { fileName?: string } = {
   return bookFromSections(
     splitByHeading(html),
     {
-      title: core.title || titleFromFileName(opts.fileName) || 'Untitled',
+      title: core.title || titleParagraph(html) || titleFromFileName(opts.fileName) || 'Untitled',
       author: core.author || 'Unknown',
       language: core.language,
     },
