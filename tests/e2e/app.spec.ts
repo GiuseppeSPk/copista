@@ -783,6 +783,144 @@ test('links to free libraries and searches them for what is typed', async ({ pag
   );
 });
 
+test.describe('scroll mode', () => {
+  /** Opens the long book and switches the reader to one scrolling column. */
+  async function openScrolling(page: Page): Promise<void> {
+    await openReader(page);
+    await page.getByRole('button', { name: 'Text', exact: true }).click();
+    await page.getByRole('button', { name: 'Scroll', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Scroll', exact: true })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    await page.keyboard.press('Escape');
+    await expect(page.locator('.where')).toContainText('Chapter 1 of 3');
+  }
+
+  const scrollTop = (page: Page): Promise<number> =>
+    page.locator('.pages').evaluate((host) => host.scrollTop);
+
+  test('chooses scroll mode in the text panel and keeps it after a reload', async ({ page }) => {
+    await openScrolling(page);
+    await expect(page.locator('.where')).not.toContainText('Page');
+    await expect(page.getByRole('button', { name: 'Play' })).toBeVisible();
+    await page.reload();
+    await expect(page.locator('.where')).toContainText('Chapter 1 of 3');
+    await expect(page.getByRole('button', { name: 'Play' })).toBeVisible();
+    await expect(page.locator('.pages')).toHaveAttribute('aria-label', /Scroll to read/);
+  });
+
+  test('plays and pauses with the bar, a tap and Space', async ({ page }) => {
+    await openScrolling(page);
+    const before = await scrollTop(page);
+    await page.getByRole('button', { name: 'Play' }).click();
+    await expect(page.getByRole('button', { name: 'Pause' })).toBeVisible();
+    await expect.poll(() => scrollTop(page)).toBeGreaterThan(before + 5);
+    await page.getByRole('button', { name: 'Pause' }).click();
+    await expect(page.getByRole('button', { name: 'Play' })).toBeVisible();
+    const stopped = await scrollTop(page);
+    await page.waitForTimeout(400);
+    expect(await scrollTop(page)).toBe(stopped);
+
+    // A tap on the text starts it, and Space stops it.
+    await page.locator('.pages').click();
+    await expect(page.getByRole('button', { name: 'Pause' })).toBeVisible();
+    await expect(page.locator('.pages')).toBeFocused();
+    await page.keyboard.press(' ');
+    await expect(page.getByRole('button', { name: 'Play' })).toBeVisible();
+  });
+
+  test('sets the pace with the buttons and the keys, and keeps it', async ({ page }) => {
+    await openScrolling(page);
+    const pace = page.locator('.pace');
+    await expect(pace).toHaveText('200 words/min');
+    await page.getByRole('button', { name: 'Faster' }).click();
+    await expect(pace).toHaveText('225 words/min');
+    await page.reload();
+    await expect(pace).toHaveText('225 words/min');
+    await page.locator('.pages').focus();
+    await page.keyboard.press('-');
+    await expect(pace).toHaveText('200 words/min');
+    await page.keyboard.press('+');
+    await expect(pace).toHaveText('225 words/min');
+    const slower = page.getByRole('button', { name: 'Slower' });
+    for (let i = 0; i < 5; i++) await slower.click();
+    await expect(pace).toHaveText('100 words/min');
+    await expect(slower).toBeDisabled();
+  });
+
+  test('keeps the pace and the mode when the text grows', async ({ page }) => {
+    await openScrolling(page);
+    await page.getByRole('button', { name: 'Faster' }).click();
+    await page.getByRole('button', { name: 'Text', exact: true }).click();
+    await page.getByRole('button', { name: 'Larger text' }).click();
+    await expect(page.locator('.size')).toHaveText('110%');
+    await page.keyboard.press('Escape');
+    await expect(page.locator('.pace')).toHaveText('225 words/min');
+    await expect(page.locator('.where')).toContainText('Chapter 1 of 3');
+  });
+
+  test('goes back to pages at the same chapter, with the page counter', async ({ page }) => {
+    await openScrolling(page);
+    await page.getByRole('button', { name: 'Part 2' }).click();
+    await expect(page.locator('.where')).toContainText('Chapter 2 of 3');
+    await page.getByRole('button', { name: 'Play' }).click();
+    await expect(page.getByRole('button', { name: 'Pause' })).toBeVisible();
+    // Opening the text panel stops the text before the mode changes.
+    await page.getByRole('button', { name: 'Text', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Play' })).toBeVisible();
+    await page.getByRole('button', { name: 'Pages', exact: true }).click();
+    await expect(page.locator('.where')).toContainText(/Page \d+ of \d+ · chapter 2 of 3/);
+    await expect(page.locator('.autoscroll-bar')).toBeHidden();
+  });
+
+  test('shows the guide line only in scroll mode with its switch on', async ({ page }) => {
+    await openReader(page);
+    await page.getByRole('button', { name: 'Text', exact: true }).click();
+    await expect(page.getByRole('switch', { name: 'Guide line' })).toBeHidden();
+    await page.getByRole('button', { name: 'Scroll', exact: true }).click();
+    const line = page.getByRole('switch', { name: 'Guide line' });
+    await expect(line).toHaveAttribute('aria-checked', 'false');
+    await expect(page.locator('.guide-line')).toHaveCount(0);
+    await line.click();
+    await expect(line).toHaveAttribute('aria-checked', 'true');
+    await expect(page.locator('.guide-line')).toBeVisible();
+    await page.getByRole('button', { name: 'Pages', exact: true }).click();
+    await expect(page.locator('.guide-line')).toHaveCount(0);
+    await expect(line).toBeHidden();
+  });
+
+  test.describe('on a small phone', () => {
+    test.use({ viewport: { width: 360, height: 640 } });
+
+    test('fits the bar without sideways scrolling, in full page too', async ({ page }) => {
+      await openScrolling(page);
+      const overflow = (): Promise<number> =>
+        page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+      expect(await overflow()).toBeLessThanOrEqual(0);
+      for (const name of ['Slower', 'Faster', 'Play']) {
+        const box = await page.getByRole('button', { name }).boundingBox();
+        expect(box!.x).toBeGreaterThanOrEqual(0);
+        expect(box!.x + box!.width).toBeLessThanOrEqual(360);
+      }
+      await page.keyboard.press('f');
+      const bar = await page.locator('.autoscroll-bar').boundingBox();
+      const exit = await page.getByRole('button', { name: 'Exit full page' }).boundingBox();
+      expect(bar!.y + bar!.height).toBeLessThanOrEqual(exit!.y);
+      expect(await overflow()).toBeLessThanOrEqual(0);
+    });
+
+    test('stops moving when the contents open', async ({ page }) => {
+      await openScrolling(page);
+      await page.getByRole('button', { name: 'Play' }).click();
+      await expect(page.getByRole('button', { name: 'Pause' })).toBeVisible();
+      await page.getByRole('button', { name: 'Contents' }).click();
+      await expect(page.getByRole('tab', { name: 'Contents' })).toBeVisible();
+      await expect(page.locator('.autoscroll-bar')).not.toHaveClass(/playing/);
+    });
+  });
+});
+
 test.describe('on a phone-sized screen', () => {
   test.use({ viewport: { width: 375, height: 700 } });
 

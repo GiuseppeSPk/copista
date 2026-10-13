@@ -13,6 +13,7 @@
     type ReadingSession,
   } from '../rooms/lectorium';
   import { ReadingController } from '../rooms/lectorium/controller';
+  import { PACES, stepPace } from '../reader/autoscroll';
   import { pageForFraction } from '../reader/location';
   import { BookNotFoundError, type BookmarkRecord, type NoteRecord } from '../storage/db';
   import type { TocEntry } from '../core/model/book';
@@ -46,6 +47,8 @@
   // The tap zones show for a moment when a book opens or the page is fitted.
   let hinting = $state(false);
   let zone = $state<'prev' | 'next' | undefined>();
+  // The text moves by itself, in scroll mode only.
+  let playing = $state(false);
 
   // The window behind a fitted page shows no scrollbar. Only the scrollbar is
   // hidden: flipping the root's overflow while the page is still being laid out
@@ -56,6 +59,12 @@
     return () => root.classList.remove('page-fitted');
   });
 
+  // Anything that takes the reader's eyes off the text stops it moving.
+  $effect(() => {
+    if (panelOpen || lookOpen || error) ctrl?.pause();
+  });
+
+  const scrolling = $derived(app.settings.mode === 'scroll');
   const book = $derived(session?.book);
   const contents = $derived<TocEntry[]>(
     !book
@@ -114,7 +123,7 @@
         session = opened;
         marks = opened.bookmarks;
         notes = opened.notes;
-        ctrl = new ReadingController(host, opened, look(), refreshWhere);
+        ctrl = new ReadingController(host, opened, look(), refreshWhere, (p) => (playing = p));
         await ctrl.open();
         host.focus();
         hint();
@@ -160,6 +169,16 @@
     if (event.ctrlKey || event.metaKey || event.altKey) return;
     // Space presses a focused button or link; the arrows have no such use there.
     if (event.key === ' ' && target?.closest('button, a')) return;
+    if (
+      scrolling &&
+      (event.key === ' ' || event.key === '+' || event.key === '=' || event.key === '-')
+    ) {
+      event.preventDefault();
+      if (event.key === ' ') togglePlay();
+      else changePace(event.key === '-' ? -1 : 1);
+      return;
+    }
+    // In scroll mode the up and down arrows stay the browser's and scroll the text.
     if (event.key === 'ArrowRight' || event.key === 'PageDown' || event.key === ' ') {
       event.preventDefault();
       turn(true);
@@ -220,6 +239,10 @@
 
   function onPointerUp(event: PointerEvent): void {
     if (!start || event.pointerId !== start.id) return;
+    if (scrolling) {
+      start = undefined;
+      return;
+    }
     const dx = event.clientX - start.x;
     const dy = event.clientY - start.y;
     start = undefined;
@@ -230,13 +253,13 @@
   }
 
   function onPointerMove(event: PointerEvent): void {
-    zone = event.pointerType === 'mouse' ? zoneAt(event.clientX) : undefined;
+    zone = event.pointerType === 'mouse' && !scrolling ? zoneAt(event.clientX) : undefined;
   }
 
   /**
    * A tap on the outer thirds of the page turns it, and a tap in the middle
    * fits the page to the window or gives the chrome back. Links are handled by
-   * the paginator.
+   * the paginator. In scroll mode a tap starts or stops the text moving.
    */
   function onPageClick(event: MouseEvent): void {
     if (swiped) {
@@ -244,9 +267,27 @@
       return;
     }
     if (event.defaultPrevented || !host) return;
+    if (scrolling) {
+      togglePlay();
+      return;
+    }
     const side = zoneAt(event.clientX);
     if (side) turn(side === 'next');
     else fit(!fitted);
+  }
+
+  function togglePlay(): void {
+    if (!ctrl) return;
+    if (ctrl.playing) ctrl.pause();
+    else ctrl.play();
+  }
+
+  /** One step slower or faster; a moving text changes speed at once. */
+  function changePace(step: 1 | -1): void {
+    const pace = stepPace(app.settings.pace, step);
+    if (pace === app.settings.pace) return;
+    ctrl?.setPace(pace);
+    changeSettings({ pace }).catch((e: unknown) => (error = errorMessage(e)));
   }
 
   function goTo(chapter: number, fragment?: string): void {
@@ -341,8 +382,11 @@
 
   async function restyle(patch: Partial<Settings>): Promise<void> {
     try {
+      const mode = app.settings.mode;
       await changeSettings(patch);
-      await ctrl?.setLook(look());
+      if (app.settings.mode !== mode) await ctrl?.setMode(app.settings.mode);
+      else if (patch.fontSizePercent !== undefined || patch.theme !== undefined)
+        await ctrl?.setLook(look());
       refreshWhere();
     } catch (e) {
       error = errorMessage(e);
@@ -356,6 +400,7 @@
   class="room lectorium"
   class:open-book={bookId}
   class:fitted
+  class:scrolling={bookId && scrolling}
   aria-labelledby="lectorium-title"
 >
   {#if !bookId}
@@ -456,7 +501,7 @@
             class="look-toggle"
             aria-expanded={lookOpen}
             aria-controls="reader-look"
-            title="Text size and page colours"
+            title="Text size, page colours and reading mode"
             onclick={() => (lookOpen = !lookOpen)}
           >
             <Icon name="text" size={18} />
@@ -490,6 +535,29 @@
                 >
               {/each}
             </div>
+            <div class="group modes" role="group" aria-label="Reading">
+              {#each [['pages', 'Pages'], ['scroll', 'Scroll']] as const as [value, label] (value)}
+                <button
+                  type="button"
+                  class="mode"
+                  aria-pressed={app.settings.mode === value}
+                  onclick={() => restyle({ mode: value })}>{label}</button
+                >
+              {/each}
+            </div>
+            {#if scrolling}
+              <label class="guide-switch">
+                <span>Guide line</span>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={app.settings.guideLine}
+                  aria-label="Guide line"
+                  onclick={() => restyle({ guideLine: !app.settings.guideLine })}
+                  ><span class="knob" aria-hidden="true"></span></button
+                >
+              </label>
+            {/if}
           </div>
         </div>
       </div>
@@ -587,7 +655,7 @@
       <div class="page-area">
         <div
           class="sheet"
-          class:hinting
+          class:hinting={hinting && !scrolling}
           class:zone-prev={zone === 'prev'}
           class:zone-next={zone === 'next'}
         >
@@ -597,7 +665,9 @@
             bind:this={host}
             tabindex="0"
             role="document"
-            aria-label="Book page. Tap or swipe the sides, or use the arrow keys, to turn pages. Tap the middle or press F to fit the page to the window."
+            aria-label={scrolling
+              ? 'Book text. Scroll to read. Tap or press Space to start or stop scrolling by itself.'
+              : 'Book page. Tap or swipe the sides, or use the arrow keys, to turn pages. Tap the middle or press F to fit the page to the window.'}
             onclick={onPageClick}
             onpointerdown={onPointerDown}
             onpointerup={onPointerUp}
@@ -608,6 +678,9 @@
           <span class="turn-hint turn-prev" aria-hidden="true"><Icon name="back" size={22} /></span>
           <span class="turn-hint turn-next" aria-hidden="true"><Icon name="arrow" size={22} /></span
           >
+          {#if scrolling && app.settings.guideLine}
+            <div class="guide-line" aria-hidden="true"></div>
+          {/if}
 
           {#if pageNotes.length > 0}
             <div class="page-notes">
@@ -641,16 +714,45 @@
                     hidden={isFolded}
                     value={note.text}
                     oninput={(e) => writeNote(note.id, e.currentTarget.value)}
+                    onfocus={() => ctrl?.pause()}
                     onblur={() => storeNote(note.id)}></textarea>
                 </div>
               {/each}
             </div>
           {/if}
 
+          {#if scrolling && session}
+            <div class="autoscroll-bar" class:playing role="group" aria-label="Scrolling by itself">
+              <button
+                type="button"
+                aria-label="Slower"
+                aria-keyshortcuts="-"
+                title="Slower (−)"
+                disabled={app.settings.pace <= (PACES[0] ?? 0)}
+                onclick={() => changePace(-1)}><Icon name="minus" size={18} /></button
+              >
+              <span class="pace">{app.settings.pace} words/min</span>
+              <button
+                type="button"
+                aria-label="Faster"
+                aria-keyshortcuts="+"
+                title="Faster (+)"
+                disabled={app.settings.pace >= (PACES[PACES.length - 1] ?? Infinity)}
+                onclick={() => changePace(1)}><Icon name="plus" size={18} /></button
+              >
+              <button type="button" class="play" aria-keyshortcuts="Space" onclick={togglePlay}>
+                <Icon name={playing ? 'pause' : 'play'} size={18} />
+                {playing ? 'Pause' : 'Play'}
+              </button>
+            </div>
+          {/if}
+
           {#if fitted}
             <div class="fit-bar">
-              {#if session && where.pages > 0}
+              {#if session && where.pages > 0 && !scrolling}
                 <span class="fit-where">{where.page + 1} / {where.pages}</span>
+              {:else if session && scrolling}
+                <span class="fit-where">{Math.round(where.percent)}%</span>
               {/if}
               <button type="button" onclick={() => fit(false)} aria-keyshortcuts="Escape">
                 <Icon name="close" size={16} />
@@ -664,7 +766,13 @@
             <Icon name="back" size={18} /> <span class="nav-label">Previous</span>
           </button>
           <p class="where" aria-live="polite">
-            {#if session && where.pages > 0}
+            {#if session && scrolling}
+              <span class="of-chapters"
+                >{`Chapter ${where.chapter + 1} of ${book?.chapters.length} · `}</span
+              >{`${Math.round(where.percent)}%`}{#if chapterTitle}<span class="chapter"
+                  ><span class="sep">{' · '}</span>{chapterTitle}</span
+                >{/if}
+            {:else if session && where.pages > 0}
               Page {where.page + 1} of {where.pages}<span class="of-chapters"
                 >{` · chapter ${where.chapter + 1} of ${book?.chapters.length}`}</span
               >{` · ${Math.round(where.percent)}%`}{#if chapterTitle}<span class="chapter"

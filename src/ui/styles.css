@@ -1507,9 +1507,57 @@ button.link:hover:not(:disabled) {
   color: #f1ece6;
 }
 
-.reading-bar .swatch[aria-pressed='true'] {
+.reading-bar .swatch[aria-pressed='true'],
+.reading-bar .mode[aria-pressed='true'] {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
+}
+
+.modes {
+  gap: 6px;
+}
+
+.reading-bar .mode {
+  flex: 1;
+  min-width: 64px;
+}
+
+/* An on and off switch: the knob slides to the right when the line shows. */
+.guide-switch {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 14px;
+}
+
+.reading-bar .guide-switch button {
+  position: relative;
+  width: 44px;
+  min-height: 26px;
+  padding: 0;
+  border-radius: 999px;
+}
+
+.guide-switch .knob {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--muted);
+  transition: transform 160ms var(--ease);
+}
+
+.reading-bar .guide-switch button[aria-checked='true'] {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+
+.guide-switch button[aria-checked='true'] .knob {
+  background: var(--card);
+  transform: translateX(18px);
 }
 
 .reading-bar button,
@@ -1905,6 +1953,90 @@ button.link:hover:not(:disabled) {
   min-height: 32px;
   padding: 4px 12px;
   border-radius: 999px;
+}
+
+/* The text that moves by itself: its pace and the button that starts it. */
+.autoscroll-bar {
+  position: absolute;
+  bottom: max(12px, env(safe-area-inset-bottom));
+  left: 0;
+  right: 0;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: max-content;
+  max-width: calc(100% - 16px);
+  margin-inline: auto;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--card) 92%, transparent);
+  box-shadow: 0 8px 18px -10px rgb(0 0 0 / 0.4);
+  font-size: 13px;
+  transition: opacity 300ms var(--ease);
+}
+
+/* While the text moves, the bar steps back; a finger or a pointer on it brings it forward. */
+.autoscroll-bar.playing {
+  opacity: 0.5;
+}
+
+.autoscroll-bar.playing:hover,
+.autoscroll-bar.playing:focus-within {
+  opacity: 1;
+}
+
+.autoscroll-bar button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 36px;
+  min-height: 36px;
+  padding: 4px 8px;
+  border-color: var(--line-strong);
+  border-radius: 999px;
+  background: var(--card);
+}
+
+.autoscroll-bar .play {
+  min-width: 88px;
+  padding-inline: 12px;
+}
+
+.pace {
+  min-width: 7.5em;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  white-space: nowrap;
+}
+
+/* In full page the bar to leave it sits under the pace. */
+.lectorium.fitted .autoscroll-bar {
+  bottom: calc(max(12px, env(safe-area-inset-bottom)) + 52px);
+}
+
+/* The last button of a chapter stays clear of the bar over it. */
+.lectorium.scrolling .copista-edge-next {
+  margin-bottom: 72px !important;
+}
+
+.lectorium.fitted.scrolling .copista-edge-next {
+  margin-bottom: 124px !important;
+}
+
+/* A line a third of the way down where the eye can rest while the text moves. */
+.guide-line {
+  position: absolute;
+  top: 33.3%;
+  left: 0;
+  right: 0;
+  z-index: 2;
+  height: 0;
+  border-top: 2px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  pointer-events: none;
 }
 
 /* The shelf's heading and the button that fills it. */

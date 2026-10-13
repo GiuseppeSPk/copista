@@ -20,6 +20,9 @@ export const PATHS = {
   expand: 'M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5',
   close: 'M6 6l12 12M18 6 6 18',
   plus: 'M12 5v14M5 12h14',
+  minus: 'M5 12h14',
+  play: 'M7.5 4.5v15L19 12z',
+  pause: 'M8 5v14M16 5v14',
   text: 'M4 7V5h10v2M9 5v14M7 19h4M14 12v-1.5h6V12M17 10.5V19M15.5 19h3',
 } as const;
 
