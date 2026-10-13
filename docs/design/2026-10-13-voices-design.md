@@ -61,8 +61,8 @@ Out:
   | `tts.json`, `unicode_indexer.json`, two voice styles | small |
   | **Total** | **about 200 MB** |
 
-  The onnxruntime-web wasm files (MIT, roughly 10 to 20 MB) are served from copista.org. The
-  browser fetches them on demand; they are not precached.
+  The onnxruntime-web files (MIT, about 27 MB) are served from copista.org, so the whole
+  voice is about 227 MB. The browser fetches them on demand; they are not precached.
 - **Call.** `tts.call(text, lang, style, 8, 1.05, 0.3)` runs in a dedicated Worker. Its
   helper is adapted from Supertonic's `web/helper.js` and keeps the MIT notice.
 - **Behind an interface.** The app talks to `Narrator.speak(text, lang, voice) → Float32Array`
@@ -144,7 +144,8 @@ The files therefore go in a **Hugging Face model repository** under Giuseppe's a
 model card carries the OpenRAIL-M licence, Attachment A, and a note that the weights were
 converted to fp16 by us. The app fetches from a URL pinned to one commit of that repository.
 
-**Content Security Policy.** `connect-src` gains `https://huggingface.co https://*.hf.co`.
+**Content Security Policy.** `connect-src` gains `https://huggingface.co https://*.hf.co`;
+`media-src 'self' blob:` lets the audio play, and `script-src` gains `'wasm-unsafe-eval'`.
 Phase 0 recorded these from a real download: a file URL on `huggingface.co` redirects to
 `huggingface.co/api/resolve-cache/...` and then to `us.aws.cdn.hf.co`. The repository is
 `GiuseppeSPk/copista-voice`, pinned to commit `cddb9ee79954ec63e65ebc147464b0610b648c2c`. This
