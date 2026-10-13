@@ -1,6 +1,7 @@
 import { svelte } from '@sveltejs/vite-plugin-svelte';
 import { defineConfig } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
+import { ort } from './scripts/vite-ort';
 
 export default defineConfig({
   // The app sits at the root of copista.org; BASE_PATH serves it under a folder instead.
@@ -10,6 +11,7 @@ export default defineConfig({
   build: { target: 'es2022', sourcemap: true },
   plugins: [
     svelte(),
+    ort(),
     VitePWA({
       registerType: 'autoUpdate',
       injectRegister: 'script',
@@ -34,8 +36,16 @@ export default defineConfig({
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,woff2,webmanifest}'],
         // The link preview picture is for other sites, not for the app offline.
-        globIgnores: ['og-image.png'],
+        // onnxruntime-web is for the voice only: cached when first used, with the voice.
+        globIgnores: ['og-image.png', 'ort/**'],
         navigateFallback: 'index.html',
+        runtimeCaching: [
+          {
+            urlPattern: /\/ort\/\d+\.\d+\.\d+\//,
+            handler: 'CacheFirst',
+            options: { cacheName: 'copista-voice-v1', cacheableResponse: { statuses: [200] } },
+          },
+        ],
       },
     }),
   ],
