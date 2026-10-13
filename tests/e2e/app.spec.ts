@@ -499,6 +499,22 @@ test.describe('Scriptorium', () => {
     ).toBeVisible();
   });
 
+  test('opens the book of a copy in another format in the reader', async ({ page }) => {
+    await page.getByLabel('Choose files').setInputFiles({
+      name: 'notes.md',
+      mimeType: 'text/markdown',
+      buffer: Buffer.from('# One\n\nSome *text* to read here.\n'),
+    });
+    const download = page.waitForEvent('download');
+    await page.getByRole('button', { name: 'Word', exact: true }).click();
+    await download;
+    await page.getByRole('button', { name: 'Read it here' }).click();
+    await expect(page).toHaveURL(/#\/read\//);
+    await expect(
+      page.frameLocator('.pages iframe').getByText('Some text to read here.'),
+    ).toBeVisible();
+  });
+
   test('converts Markdown to EPUB with the title typed in', async ({ page }) => {
     await page.getByLabel('Choose files').setInputFiles({
       name: 'notes.md',
@@ -689,6 +705,11 @@ test.describe('Scriptorium', () => {
     const download = page.waitForEvent('download');
     await page.getByRole('button', { name: 'Text', exact: true }).click();
     expect((await download).suggestedFilename()).toBe('Long Book.txt');
+    // The copy is read from the book already on the shelf, not a second one.
+    await page.getByRole('button', { name: 'Read it here' }).click();
+    await expect(page).toHaveURL(`/#/read/${encodeURIComponent(book!)}`);
+    await openRoom(page, 'Bibliotheca');
+    await expect(page.getByRole('button', { name: 'Read Long Book' })).toHaveCount(1);
   });
 });
 

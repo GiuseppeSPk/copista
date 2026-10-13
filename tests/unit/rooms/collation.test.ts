@@ -56,9 +56,9 @@ describe('collation of a copy', () => {
   });
 
   it('reports what Word and Markdown leave behind', async () => {
+    // Word keeps the note's mark as a link to it, but no table or web link.
     expect(counts((await collationOf('docx')).parts)).toEqual({
       ...EVERYTHING,
-      notes: 0,
       tables: 0,
       links: 0,
     });

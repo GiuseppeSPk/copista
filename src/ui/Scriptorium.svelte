@@ -41,8 +41,11 @@
   >();
   /** The pages of the last PDF, kept so the preview can be opened again. */
   let pages = $state.raw<{ title: string; full: PrintCopy; withoutPictures: () => PrintCopy }>();
-  /** The last EPUB made, which the reader can open here instead of in another app. */
-  let made = $state.raw<{ blob: Blob; fileName: string }>();
+  /**
+   * The book of the last copy, which the reader can open here instead of in
+   * another app: one already on the shelf, or an EPUB to put there first.
+   */
+  let made = $state.raw<{ bookId: string } | { epub: () => Promise<File> }>();
 </script>
 
 <script lang="ts">
@@ -269,10 +272,12 @@
             ...(author.trim() ? { author: author.trim() } : {}),
           }
         : {};
+      const source = picked.source;
       const out =
-        'file' in picked.source
-          ? await convert(picked.source.file, target, meta, pictureFiles)
-          : await convertLibraryBook(picked.source.bookId, target);
+        'file' in source
+          ? await convert(source.file, target, meta, pictureFiles)
+          : await convertLibraryBook(source.bookId, target);
+      made = readable(source, picked.format, meta, pictureFiles, target, out);
       if (out.kind === 'print') {
         pages = {
           title: out.title,
@@ -284,7 +289,6 @@
       } else {
         const job = ++jobs;
         download(out.blob, out.fileName);
-        if (target === 'epub') made = { blob: out.blob, fileName: out.fileName };
         message = { tone: 'ok', text: `Saved “${out.fileName}”.` };
         stamp = { job, label: 'Copied', note: today() };
         void check(job, target, out.check);
@@ -379,15 +383,43 @@
     else go({ room: 'lectorium' });
   }
 
-  /** Puts the new EPUB on the shelf and opens it in the Lectorium. */
+  const asEpub = (blob: Blob, fileName: string): File =>
+    new File([blob], fileName, { type: 'application/epub+zip' });
+
+  /**
+   * Where the book of a copy can be read: the library book it was made from,
+   * the EPUB just made or chosen, or else an EPUB made from the same file.
+   */
+  function readable(
+    source: Picked['source'],
+    format: string,
+    meta: { title?: string; author?: string },
+    withPictures: File[],
+    target: OutputFormat,
+    out: Awaited<ReturnType<typeof convert>>,
+  ): NonNullable<typeof made> {
+    if ('bookId' in source) return { bookId: source.bookId };
+    if (target === 'epub' && out.kind === 'file') {
+      return { epub: async () => asEpub(out.blob, out.fileName) };
+    }
+    if (format === 'epub') return { epub: async () => source.file };
+    return {
+      epub: async () => {
+        const copy = await convert(source.file, 'epub', meta, withPictures);
+        if (copy.kind !== 'file') throw new Error('The book could not be made ready to read.');
+        return asEpub(copy.blob, copy.fileName);
+      },
+    };
+  }
+
+  /** Opens the book of the last copy in the Lectorium, putting it on the shelf if need be. */
   async function readHere(): Promise<void> {
     if (!made) return;
     opening = true;
     try {
-      const file = new File([made.blob], made.fileName, { type: 'application/epub+zip' });
-      const { book } = await importBook(file);
+      const bookId = 'bookId' in made ? made.bookId : (await importBook(await made.epub())).book.id;
       await refreshShelf();
-      go({ room: 'lectorium', bookId: book.id });
+      go({ room: 'lectorium', bookId });
     } catch (e) {
       message = { tone: 'error', text: errorMessage(e) };
     } finally {
