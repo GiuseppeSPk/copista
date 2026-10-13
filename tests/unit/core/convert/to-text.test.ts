@@ -48,4 +48,28 @@ describe('toText', () => {
       'T\n\none\ntwo three four\n\n- a\n\n- b\n\n[Image]\n\n\n  keep\n    this\n\n<tag> &\n',
     );
   });
+
+  it('leaves out the title and authors when the opening pages already print them', () => {
+    const titled = (...chapters: string[]): Book => {
+      const book = bookOf(...chapters);
+      return { ...book, meta: { ...book.meta, title: 'Pinocchio', authors: ['Carlo Collodi'] } };
+    };
+    expect(toText(titled('<h1>PINOCCHIO</h1><p>Carlo  Collodi</p>', '<p>One.</p>'))).toBe(
+      'PINOCCHIO\n\nCarlo Collodi\n\n\nOne.\n',
+    );
+    expect(toText(titled('<h1>Pinocchio</h1><p>One.</p>'))).toBe(
+      'Carlo Collodi\n\nPinocchio\n\nOne.\n',
+    );
+    expect(toText(titled('<p>One.</p>'))).toBe('Pinocchio\nCarlo Collodi\n\nOne.\n');
+  });
+
+  it('gives no label to a picture drawn the size of an icon', () => {
+    const txt = toText(
+      bookOf(
+        '<p><img src="q.png" width="20" alt="100%"> Complete text</p>',
+        '<p><img style="height: 16px" alt="x"><img width="200" height="300" alt="Geppetto"></p>',
+      ),
+    );
+    expect(txt).toBe('T\n\nComplete text\n\n\n[Image: Geppetto]\n');
+  });
 });
