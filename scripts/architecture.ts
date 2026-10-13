@@ -3,14 +3,15 @@ import { join, posix } from 'node:path';
 
 /**
  * Layer rules for src/. Layers depend downward only:
- * core <- reader, storage <- rooms/<room>. Rooms never import each other,
+ * core <- reader, storage, voice <- rooms/<room>. Rooms never import each other,
  * and only src/ui/ may import svelte.
  */
 const LAYERS: Record<string, string[]> = {
   core: ['core'],
   reader: ['core', 'reader'],
   storage: ['core', 'storage'],
-  rooms: ['core', 'reader', 'storage'],
+  voice: ['core', 'voice'],
+  rooms: ['core', 'reader', 'storage', 'voice'],
 };
 
 const IMPORT_PATTERNS = [

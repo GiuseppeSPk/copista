@@ -25,6 +25,15 @@ describe('layer rules', () => {
     ).toEqual([]);
   });
 
+  it('keeps the voice on core only, and lets a room use it', () => {
+    expect(findViolations({ 'src/voice/a.ts': "import '../reader/location';" })).toHaveLength(1);
+    expect(findViolations({ 'src/voice/a.ts': "import '../storage/db';" })).toHaveLength(1);
+    expect(findViolations({ 'src/voice/a.ts': "import '../core/errors';" })).toEqual([]);
+    expect(
+      findViolations({ 'src/rooms/lectorium/index.ts': "import '../../voice/text';" }),
+    ).toEqual([]);
+  });
+
   it('flags a dynamic import that crosses layers', () => {
     expect(
       findViolations({ 'src/reader/a.ts': "const m = await import('../storage/db');" }),

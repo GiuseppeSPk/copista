@@ -12,12 +12,17 @@ export default defineConfig({
         'src/reader/**/*.ts',
         'src/storage/**/*.ts',
         'src/rooms/**/*.ts',
+        'src/voice/**/*.ts',
       ],
       // Browser-only: layout needs a real engine, so Playwright covers these.
       exclude: [
         'src/reader/paginator.ts',
         'src/reader/scroller.ts',
         'src/rooms/lectorium/controller.ts',
+        // The model runs in a worker, and the audio sink needs a media element.
+        'src/voice/worker.ts',
+        'src/voice/supertonic.ts',
+        'src/voice/audio.ts',
       ],
       thresholds: { lines: 90, branches: 80 },
     },
