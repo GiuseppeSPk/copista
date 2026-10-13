@@ -3997,15 +3997,16 @@ button:active:not(:disabled),
     gap: 2px;
   }
 
-  /* Six tools share a 328px row on a small phone, so each takes an even share. */
+  /* Six tools share a 328px row on a small phone, so each takes an even share, but never less
+     than its name: a phone's own font may set "Bookmark" wider than ours does. */
   .reading-bar .toolbar > button,
   .look-toggle {
     flex: 1 1 0;
     flex-direction: column;
     gap: 2px;
-    min-width: 0;
+    min-width: min-content;
     min-height: 48px;
-    padding: 4px 2px;
+    padding: 4px 1px;
     font-size: 10px;
     font-weight: 600;
     line-height: 13px;
@@ -4014,7 +4015,7 @@ button:active:not(:disabled),
   .reading-bar .look {
     display: flex;
     flex: 1 1 0;
-    min-width: 0;
+    min-width: min-content;
   }
 
   .look-toggle {
