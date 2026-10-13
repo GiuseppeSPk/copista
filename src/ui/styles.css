@@ -1492,10 +1492,15 @@ button.link:hover:not(:disabled) {
   gap: 6px;
 }
 
+/* A square of each page colour, named only to screen readers and on hover. */
 .reading-bar .swatch {
-  flex: 1;
-  min-width: 64px;
-  padding-inline: 8px;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  min-width: 0;
+  padding: 0;
+  border: 1px solid var(--line-strong);
 }
 
 .reading-bar .swatch.light {

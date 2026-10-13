@@ -381,7 +381,7 @@ test('turns the page with a tap on its sides or a swipe', async ({ page }) => {
 
 test('changes the text size and keeps it', async ({ page }) => {
   await openReader(page);
-  const toggle = page.getByRole('button', { name: 'Text', exact: true });
+  const toggle = page.getByRole('button', { name: 'Look', exact: true });
   await toggle.click();
   await page.getByRole('button', { name: 'Larger text' }).click();
   await expect(page.locator('.size')).toHaveText('110%');
@@ -394,6 +394,27 @@ test('changes the text size and keeps it', async ({ page }) => {
   // The reader's own "Text size" group is still on screen until the room changes.
   await openRoom(page, 'Archivum');
   await expect(page.getByLabel('Text size')).toHaveValue('110');
+});
+
+test('shows the page colours as squares and colours the page with the one chosen', async ({
+  page,
+}) => {
+  await openReader(page);
+  await page.getByRole('button', { name: 'Look', exact: true }).click();
+  const sepia = page.getByRole('button', { name: 'Sepia' });
+  await expect(sepia).toHaveText('');
+  const box = (await sepia.boundingBox())!;
+  expect(Math.abs(box.width - box.height)).toBeLessThan(1);
+  await sepia.click();
+  await expect(sepia).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByRole('button', { name: 'Light' })).toHaveAttribute(
+    'aria-pressed',
+    'false',
+  );
+  await expect(page.frameLocator('.pages iframe').locator('html')).toHaveCSS(
+    'background-color',
+    'rgb(244, 236, 216)',
+  );
 });
 
 test('removes a book', async ({ page }) => {
@@ -827,7 +848,7 @@ test.describe('scroll mode', () => {
   /** Opens the long book and switches the reader to one scrolling column. */
   async function openScrolling(page: Page): Promise<void> {
     await openReader(page);
-    await page.getByRole('button', { name: 'Text', exact: true }).click();
+    await page.getByRole('button', { name: 'Look', exact: true }).click();
     await page.getByRole('button', { name: 'Scroll', exact: true }).click();
     await expect(page.getByRole('button', { name: 'Scroll', exact: true })).toHaveAttribute(
       'aria-pressed',
@@ -906,7 +927,7 @@ test.describe('scroll mode', () => {
   test('keeps the pace and the mode when the text grows', async ({ page }) => {
     await openScrolling(page);
     await page.getByRole('button', { name: 'Faster' }).click();
-    await page.getByRole('button', { name: 'Text', exact: true }).click();
+    await page.getByRole('button', { name: 'Look', exact: true }).click();
     await page.getByRole('button', { name: 'Larger text' }).click();
     await expect(page.locator('.size')).toHaveText('110%');
     await page.keyboard.press('Escape');
@@ -921,7 +942,7 @@ test.describe('scroll mode', () => {
     await page.getByRole('button', { name: 'Play' }).click();
     await expect(page.getByRole('button', { name: 'Pause' })).toBeVisible();
     // Opening the text panel stops the text before the mode changes.
-    await page.getByRole('button', { name: 'Text', exact: true }).click();
+    await page.getByRole('button', { name: 'Look', exact: true }).click();
     await expect(page.getByRole('button', { name: 'Play' })).toBeVisible();
     await page.getByRole('button', { name: 'Pages', exact: true }).click();
     await expect(page.locator('.where')).toContainText(/Page \d+ of \d+ · chapter 2 of 3/);
@@ -930,7 +951,7 @@ test.describe('scroll mode', () => {
 
   test('shows the guide line only in scroll mode with its switch on', async ({ page }) => {
     await openReader(page);
-    await page.getByRole('button', { name: 'Text', exact: true }).click();
+    await page.getByRole('button', { name: 'Look', exact: true }).click();
     await expect(page.getByRole('switch', { name: 'Guide line' })).toBeHidden();
     await page.getByRole('button', { name: 'Scroll', exact: true }).click();
     const line = page.getByRole('switch', { name: 'Guide line' });

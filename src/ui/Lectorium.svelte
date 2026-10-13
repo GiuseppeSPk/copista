@@ -562,7 +562,7 @@
             onclick={() => (lookOpen = !lookOpen)}
           >
             <Icon name="text" size={18} />
-            <span class="tool-label">Text</span>
+            <span class="tool-label">Look</span>
           </button>
           <div id="reader-look" class="look-panel" hidden={!lookOpen}>
             <div class="group" role="group" aria-label="Text size">
@@ -587,9 +587,13 @@
                 <button
                   type="button"
                   class="swatch {value}"
+                  aria-label={label}
+                  title={label}
                   aria-pressed={app.settings.theme === value}
-                  onclick={() => restyle({ theme: value })}>{label}</button
+                  onclick={() => restyle({ theme: value })}
                 >
+                  {#if app.settings.theme === value}<Icon name="check" size={18} />{/if}
+                </button>
               {/each}
             </div>
             <div class="group modes" role="group" aria-label="Reading">
