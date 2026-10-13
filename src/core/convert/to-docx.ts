@@ -21,6 +21,8 @@ const DOCX_IMAGES: Record<string, string> = {
   'image/webp': 'webp',
 };
 
+const EXTERNAL = /^[a-z][a-z0-9+.-]*:/i;
+
 const BULLET_NUM = 1;
 const LEVELS = 9;
 const INDENT = 720; // half an inch, in twentieths of a point
@@ -33,6 +35,8 @@ interface Format {
   vertAlign?: 'superscript' | 'subscript';
   code?: boolean;
   pre?: boolean;
+  /** Bookmark a link inside the book jumps to. */
+  link?: string;
 }
 
 type Run = { text: string; format: Format } | { br: true } | { drawing: string };
@@ -92,8 +96,81 @@ const PARAGRAPHS = new Set([
 
 const SKIPPED = new Set(['script', 'style', 'template', 'svg', 'head', 'title', 'noscript']);
 
+/** Tags that open a paragraph of their own, so a bookmark on one starts the next. */
+const BLOCKS = new Set([
+  ...PARAGRAPHS,
+  'h1',
+  'h2',
+  'h3',
+  'h4',
+  'h5',
+  'h6',
+  'blockquote',
+  'dd',
+  'pre',
+  'ul',
+  'ol',
+  'li',
+  'table',
+  'hr',
+]);
+
+function splitKey(ref: string): { path: string; fragment: string } {
+  const hashAt = ref.indexOf('#');
+  return hashAt < 0
+    ? { path: ref, fragment: '' }
+    : { path: ref.slice(0, hashAt), fragment: ref.slice(hashAt + 1) };
+}
+
+/**
+ * Where the links inside the book lead: the chapter, or the element with an id
+ * in it, keyed as "chapter" or "chapter#id", each with the bookmark Word jumps
+ * to. A link to an id the chapter lacks leads to the chapter's start.
+ */
+class LinkTargets {
+  readonly bookmarks = new Map<string, string>();
+  private readonly chapterIndex: Map<string, number>;
+
+  constructor(
+    book: Book,
+    private readonly pages: DocumentFragment[],
+  ) {
+    this.chapterIndex = new Map(book.chapters.map((chapter, i) => [chapter.href, i]));
+    pages.forEach((page, i) => {
+      for (const link of page.querySelectorAll('a[href]')) {
+        const key = this.key(link.getAttribute('href')!, i);
+        if (key !== undefined && !this.bookmarks.has(key)) {
+          const [chapter, id] = key.split('#');
+          this.bookmarks.set(
+            key,
+            id === undefined ? `_c${chapter}` : `_c${chapter}_${this.bookmarks.size}`,
+          );
+        }
+      }
+    });
+  }
+
+  /** The bookmark a link from chapter `from` jumps to, if it leads inside the book. */
+  resolve(href: string, from: number): string | undefined {
+    const key = this.key(href, from);
+    return key === undefined ? undefined : this.bookmarks.get(key);
+  }
+
+  private key(href: string, from: number): string | undefined {
+    if (EXTERNAL.test(href.trim())) return undefined;
+    const { path, fragment } = splitKey(href.trim());
+    const chapter = path === '' ? from : this.chapterIndex.get(path);
+    if (chapter === undefined) return undefined;
+    const page = this.pages[chapter]!;
+    const found =
+      fragment !== '' &&
+      [...page.querySelectorAll('[id]')].some((el) => el.getAttribute('id') === fragment);
+    return found ? `${chapter}#${fragment}` : `${chapter}`;
+  }
+}
+
 function runProperties(format: Format): string {
-  let props = '';
+  let props = format.link === undefined ? '' : '<w:rStyle w:val="Hyperlink"/>';
   if (format.code)
     props += '<w:rFonts w:ascii="Courier New" w:hAnsi="Courier New" w:cs="Courier New"/>';
   if (format.bold) props += '<w:b/>';
@@ -107,7 +184,10 @@ function runProperties(format: Format): string {
 function runXml(run: Run): string {
   if ('br' in run) return '<w:r><w:br/></w:r>';
   if ('drawing' in run) return run.drawing;
-  return `<w:r>${runProperties(run.format)}<w:t xml:space="preserve">${escapeXml(run.text)}</w:t></w:r>`;
+  const xml = `<w:r>${runProperties(run.format)}<w:t xml:space="preserve">${escapeXml(run.text)}</w:t></w:r>`;
+  return run.format.link === undefined
+    ? xml
+    : `<w:hyperlink w:anchor="${run.format.link}" w:history="1">${xml}</w:hyperlink>`;
 }
 
 /** Collapses white space the way a browser lays out the same runs. */
@@ -160,14 +240,55 @@ class DocumentWriter {
   private listDepth = 0;
   private orderedNum: number | undefined;
   private drawings = 0;
+  /** Bookmarks waiting for the next paragraph written. */
+  private marks: string[] = [];
+  private bookmarkCount = 0;
+  private current = 0;
 
-  constructor(private readonly book: Book) {}
+  constructor(
+    private readonly book: Book,
+    private readonly links: LinkTargets,
+  ) {}
 
-  chapter(html: string): void {
-    const template = document.createElement('template');
-    template.innerHTML = html;
-    this.children(template.content, {});
+  /** Writes a chapter, under `heading` when its text has none of its own. */
+  chapter(page: DocumentFragment, i: number, heading?: string): void {
+    this.current = i;
+    this.mark(`${i}`);
+    if (heading !== undefined) {
+      this.inBlock({ indent: 0, style: 'Heading1' }, () => this.text(heading, {}));
+    }
+    this.children(page, {});
     this.flush();
+  }
+
+  /** Bookmarks left over after the last paragraph get one of their own. */
+  finish(): void {
+    if (this.marks.length > 0) this.paragraphs.push(`<w:p>${this.takeMarks()}</w:p>`);
+  }
+
+  private mark(key: string): void {
+    const name = this.links.bookmarks.get(key);
+    if (name !== undefined) this.marks.push(name);
+  }
+
+  /** Bookmarks the element's id, if a link leads there; a block's starts its first paragraph. */
+  private markId(element: Element): void {
+    const id = element.getAttribute('id');
+    const key = `${this.current}#${id}`;
+    if (id === null || !this.links.bookmarks.has(key)) return;
+    if (BLOCKS.has(element.localName)) this.flush();
+    this.mark(key);
+  }
+
+  private takeMarks(): string {
+    const xml = this.marks
+      .map((name) => {
+        const id = this.bookmarkCount++;
+        return `<w:bookmarkStart w:id="${id}" w:name="${name}"/><w:bookmarkEnd w:id="${id}"/>`;
+      })
+      .join('');
+    this.marks = [];
+    return xml;
   }
 
   private children(node: Node, format: Format): void {
@@ -182,6 +303,7 @@ class DocumentWriter {
     if (!(node instanceof Element)) return;
     const tag = node.localName;
     if (SKIPPED.has(tag)) return;
+    this.markId(node);
     const heading = /^h([1-6])$/.exec(tag);
     if (heading) {
       const level = Math.min(Number(heading[1]), 3);
@@ -204,6 +326,9 @@ class DocumentWriter {
       this.runs.push({ br: true });
     } else if (tag === 'img') {
       this.image(node);
+    } else if (tag === 'a' && node.hasAttribute('href')) {
+      const link = this.links.resolve(node.getAttribute('href')!, this.current);
+      this.children(node, link === undefined ? format : { ...format, link });
     } else {
       this.children(node, { ...format, ...FORMATS[tag] });
     }
@@ -247,6 +372,7 @@ class DocumentWriter {
     this.listDepth++;
     for (const child of list.childNodes) {
       if (child instanceof Element && child.localName === 'li') {
+        this.markId(child);
         const item: Block = {
           style: 'ListParagraph',
           list: { numId, level, used: false },
@@ -264,6 +390,8 @@ class DocumentWriter {
   /** Tables become one paragraph per row (a documented limit), under their caption. */
   private table(table: Element): void {
     this.flush();
+    // The rows are flattened to text, so a place inside a table leads to the table.
+    for (const element of table.querySelectorAll('[id]')) this.markId(element);
     const caption = table.querySelector(':scope > caption');
     if (caption) this.inBlock(this.block, () => this.children(caption, {}));
     const rows = table.querySelectorAll(
@@ -333,6 +461,7 @@ class DocumentWriter {
       body += '<w:r><w:br w:type="page"/></w:r>';
       this.pageBreak = false;
     }
+    body += this.takeMarks();
     this.paragraphs.push(`<w:p>${body}${runs.map(runXml).join('')}</w:p>`);
   }
 }
@@ -358,6 +487,8 @@ function stylesXml(language: string): string {
     headingStyle(3, 26) +
     '<w:style w:type="paragraph" w:styleId="ListParagraph"><w:name w:val="List Paragraph"/>' +
     '<w:basedOn w:val="Normal"/><w:qFormat/><w:pPr><w:ind w:left="720"/><w:contextualSpacing/></w:pPr></w:style>' +
+    '<w:style w:type="character" w:styleId="Hyperlink"><w:name w:val="Hyperlink"/>' +
+    '<w:rPr><w:color w:val="0563C1"/><w:u w:val="single"/></w:rPr></w:style>' +
     '</w:styles>'
   );
 }
@@ -435,18 +566,42 @@ function relationshipsXml(rels: { id: string; type: string; target: string }[]):
   return `${XML_DECLARATION}<Relationships xmlns="${PKG_RELS}">${items}</Relationships>`;
 }
 
+const sameText = (text: string): string => text.replace(/\s+/g, ' ').trim().toLowerCase();
+
+/**
+ * The name a chapter is listed under in the contents, as a heading for a
+ * chapter whose text has none, unless its opening already prints it or it is
+ * only the book's title.
+ */
+function chapterHeading(book: Book, i: number, page: DocumentFragment): string | undefined {
+  const title = book.chapters[i]!.title;
+  if (title === undefined || book.warnings.includes('toc-generated')) return undefined;
+  if (page.querySelector('h1, h2, h3, h4, h5, h6')) return undefined;
+  const label = sameText(title);
+  if (label === '' || label === sameText(book.meta.title)) return undefined;
+  return sameText(page.textContent ?? '').startsWith(label) ? undefined : title;
+}
+
 /**
  * Writes a book as a Word document: headings 1–3, paragraphs, bold, italic,
- * lists, images and a page break before every chapter but the first. Tables
- * are flattened to one text row per paragraph, links to their text, and
- * images Word cannot show (SVG) to their alternative text.
+ * lists, images and a page break before every chapter but the first. A
+ * chapter with no heading of its own is headed by its name in the contents.
+ * Links inside the book jump to where they lead; tables are flattened to one
+ * text row per paragraph, and images Word cannot show (SVG) to their
+ * alternative text.
  */
 export function toDocx(book: Book): Uint8Array {
-  const writer = new DocumentWriter(book);
-  book.chapters.forEach((chapter, i) => {
-    writer.pageBreak = i > 0;
-    writer.chapter(chapter.html);
+  const pages = book.chapters.map((chapter) => {
+    const template = document.createElement('template');
+    template.innerHTML = chapter.html;
+    return template.content;
   });
+  const writer = new DocumentWriter(book, new LinkTargets(book, pages));
+  pages.forEach((page, i) => {
+    writer.pageBreak = i > 0;
+    writer.chapter(page, i, chapterHeading(book, i, page));
+  });
+  writer.finish();
 
   const body = writer.paragraphs.length === 0 ? '<w:p/>' : writer.paragraphs.join('');
   const documentXml =

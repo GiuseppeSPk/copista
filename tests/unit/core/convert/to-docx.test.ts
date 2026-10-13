@@ -95,6 +95,74 @@ describe('toDocx', () => {
     );
   });
 
+  it('heads a chapter with no heading of its own by its name in the contents', () => {
+    const book = bookFromSections(
+      [
+        { title: 'Capitolo 1', html: '<p>I.</p><p>C’era una volta...</p>' },
+        { title: 'Capitolo 2', html: '<h2>Capitolo 2</h2><p>Two.</p>' },
+        { title: 'Capitolo 3', html: '<p>Capitolo 3</p><p>Three.</p>' },
+        { html: '<p>Untitled.</p>' },
+      ],
+      { title: 'Pinocchio', author: 'Carlo Collodi' },
+    );
+    const xml = documentXml(toDocx(book));
+    expect(
+      xml
+        .match(/<w:pStyle w:val="Heading\d"\/>.*?<\/w:p>/g)
+        ?.map((p) => /[^>]+(?=<\/w:t>)/.exec(p)?.[0]),
+    ).toEqual(['Capitolo 1', 'Capitolo 2']);
+    expect(xml).not.toContain('>Pinocchio<');
+  });
+
+  it('makes links inside the book jump to the chapter or the place they name', () => {
+    const book = bookFromSections(
+      [
+        {
+          html:
+            '<p><a href="text/c002.xhtml">Two</a>, <a href="text/c002.xhtml#n1">note</a>, ' +
+            '<a href="text/c002.xhtml#gone">lost</a> and <a href="https://example.org/">out</a>.</p>',
+        },
+        { html: '<h1>Two</h1><p>Body.</p><p id="n1">The <span id="x">note</span>.</p>' },
+      ],
+      { title: 'Links', author: 'Ada Example' },
+    );
+    const bytes = toDocx(book);
+    const xml = documentXml(bytes);
+    expect(parseXml(xml)).not.toBeNull();
+    const anchors = [...xml.matchAll(/<w:hyperlink w:anchor="([^"]+)"/g)].map((m) => m[1]);
+    expect(anchors).toEqual(['_c1', '_c1_1', '_c1']);
+    const bookmarks = [...xml.matchAll(/<w:bookmarkStart w:id="\d+" w:name="([^"]+)"\/>/g)];
+    expect(bookmarks.map((m) => m[1])).toEqual(['_c1', '_c1_1']);
+    // Each bookmark sits in the paragraph it names.
+    expect(xml).toMatch(/w:name="_c1"\/><w:bookmarkEnd w:id="0"\/><w:r>(?:(?!<\/w:p>).)*>Two</);
+    expect(xml).toMatch(/w:name="_c1_1"\/><w:bookmarkEnd w:id="1"\/><w:r>(?:(?!<\/w:p>).)*>The </);
+    expect(xml).toContain('<w:t xml:space="preserve">out</w:t>');
+    expect(xml).not.toContain('example.org');
+    expect(strFromU8(unzipSync(bytes)['word/styles.xml']!)).toContain('w:styleId="Hyperlink"');
+  });
+
+  it('bookmarks notes kept in a list or a table', () => {
+    const book = bookFromSections(
+      [
+        {
+          html:
+            '<p>Text<sup id="r1"><a href="#n1">1</a></sup> and <a href="#n2">2</a>.</p>' +
+            '<ol><li id="n1"><a href="#r1">^</a> First.</li></ol>' +
+            '<table><tr><td id="n2">Second.</td></tr></table>',
+        },
+      ],
+      { title: 'Notes', author: 'Ada Example' },
+    );
+    const xml = documentXml(toDocx(book));
+    const anchors = new Set([...xml.matchAll(/w:anchor="([^"]+)"/g)].map((m) => m[1]));
+    const bookmarks = [...xml.matchAll(/w:bookmarkStart w:id="\d+" w:name="([^"]+)"/g)];
+    expect([...anchors].sort()).toEqual(bookmarks.map((m) => m[1]).sort());
+    expect(anchors.size).toBe(3);
+    expect(xml).toMatch(
+      /w:name="_c0_\d"\/><w:bookmarkEnd w:id="\d"\/><w:r>(?:(?!<\/w:p>).)*>Second\.</,
+    );
+  });
+
   it('scales wide images down to six inches', () => {
     const resources = new Map<string, Resource>([
       [
