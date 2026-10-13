@@ -30,6 +30,21 @@ describe('fromTxt', () => {
     ]);
   });
 
+  it('splits an Italian book at its CAPITOLO headings', async () => {
+    const b = await fromTxt(
+      enc(
+        'Pinocchio\n\nCAPITOLO I\n\nC’era una volta.\n\nCapitolo II\n\nUn pezzo di legno.\n\nPARTE TERZA\n\nFine.',
+      ),
+      { title: 'Pinocchio', author: 'Carlo Collodi', language: 'it' },
+    );
+    expect(b.chapters.map((c) => c.title)).toEqual([
+      'Pinocchio',
+      'CAPITOLO I',
+      'Capitolo II',
+      'PARTE TERZA',
+    ]);
+  });
+
   it('gives a book without headings one chapter named after the book', async () => {
     const b = await fromTxt(enc('Just one paragraph.'), { title: 'T', author: 'A' });
     expect(b.chapters.map((c) => c.title)).toEqual(['T']);

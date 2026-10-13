@@ -2,7 +2,16 @@ import type { Book } from '../model/book';
 import { bookFromSections, splitByHeading, type NewBookMeta } from './build';
 import { decodeText } from './decode';
 
-const HEADING_WORD = /^(chapter|part|book|prologue|epilogue|introduction|preface)\b/i;
+const HEADING_WORD = new RegExp(
+  '^(' +
+    [
+      'chapter|part|book|prologue|epilogue|introduction|preface',
+      'capitolo|parte|libro|prologo|epilogo|introduzione|prefazione',
+      'chapitre|capítulo|kapitel',
+    ].join('|') +
+    ')\\b',
+  'i',
+);
 const ROMAN_NUMERAL = /^[IVXLC]+\.?$/;
 
 function escapeHtml(text: string): string {
