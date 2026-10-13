@@ -5,10 +5,11 @@ import {
   DEFAULT_SETTINGS,
   deleteAllData,
   getSettings,
+  type ReadingMode,
   storageUsage,
   updateSettings,
 } from '../../../src/rooms/archivum/index';
-import { deleteAllStorage, listBooks, putBook } from '../../../src/storage/db';
+import { deleteAllStorage, listBooks, putBook, putSetting } from '../../../src/storage/db';
 
 beforeEach(async () => {
   await deleteAllStorage();
@@ -20,8 +21,15 @@ afterEach(() => {
 
 describe('archivum', () => {
   it('starts from the default settings', async () => {
-    expect(await getSettings()).toEqual({ fontSizePercent: 100, theme: 'light' });
-    expect(DEFAULT_SETTINGS).toEqual({ fontSizePercent: 100, theme: 'light' });
+    const defaults = {
+      fontSizePercent: 100,
+      theme: 'light',
+      mode: 'pages',
+      pace: 200,
+      guideLine: false,
+    };
+    expect(await getSettings()).toEqual(defaults);
+    expect(DEFAULT_SETTINGS).toEqual(defaults);
   });
 
   it('keeps font size in steps of 10 between 80 and 200, and only known themes', async () => {
@@ -30,7 +38,28 @@ describe('archivum', () => {
     expect((await updateSettings({ fontSizePercent: 117 })).fontSizePercent).toBe(120);
     await updateSettings({ theme: 'dark' });
     expect((await updateSettings({ theme: 'neon' as Theme })).theme).toBe('dark');
-    expect(await getSettings()).toEqual({ fontSizePercent: 120, theme: 'dark' });
+    expect(await getSettings()).toMatchObject({ fontSizePercent: 120, theme: 'dark' });
+  });
+
+  it('keeps the reading mode, a pace from the levels and the guide line switch', async () => {
+    expect((await updateSettings({ mode: 'scroll' })).mode).toBe('scroll');
+    expect((await updateSettings({ mode: 'columns' as ReadingMode })).mode).toBe('scroll');
+    expect((await updateSettings({ pace: 210 })).pace).toBe(200);
+    expect((await updateSettings({ pace: 1000 })).pace).toBe(400);
+    expect((await updateSettings({ pace: 'x' as unknown as number })).pace).toBe(400);
+    expect((await updateSettings({ guideLine: true })).guideLine).toBe(true);
+    expect((await updateSettings({ guideLine: 'yes' as unknown as boolean })).guideLine).toBe(true);
+  });
+
+  it('loads settings saved before the reading mode existed', async () => {
+    await putSetting('reader', { fontSizePercent: 120, theme: 'sepia' });
+    expect(await getSettings()).toEqual({
+      fontSizePercent: 120,
+      theme: 'sepia',
+      mode: 'pages',
+      pace: 200,
+      guideLine: false,
+    });
   });
 
   it('reports storage use when the browser can tell', async () => {

@@ -1,15 +1,30 @@
+import { DEFAULT_PACE, snapPace } from '../../reader/autoscroll';
 import type { Theme } from '../../reader/render';
 import { deleteAllStorage, getSetting, putSetting } from '../../storage/db';
+
+/** Turning one screen at a time, or one long column per chapter. */
+export type ReadingMode = 'pages' | 'scroll';
 
 export interface Settings {
   fontSizePercent: number;
   theme: Theme;
+  mode: ReadingMode;
+  /** Autoscroll pace in words per minute. */
+  pace: number;
+  guideLine: boolean;
 }
 
-export const DEFAULT_SETTINGS: Settings = { fontSizePercent: 100, theme: 'light' };
+export const DEFAULT_SETTINGS: Settings = {
+  fontSizePercent: 100,
+  theme: 'light',
+  mode: 'pages',
+  pace: DEFAULT_PACE,
+  guideLine: false,
+};
 
 const SETTINGS_KEY = 'reader';
 const THEMES: readonly Theme[] = ['light', 'dark', 'sepia'];
+const MODES: readonly ReadingMode[] = ['pages', 'scroll'];
 const MIN_FONT = 80;
 const MAX_FONT = 200;
 
@@ -28,6 +43,12 @@ function merge(base: Settings, patch: Partial<Settings>): Settings {
   return {
     fontSizePercent: fontSize(patch.fontSizePercent, base.fontSizePercent),
     theme: isTheme(patch.theme) ? patch.theme : base.theme,
+    mode: MODES.includes(patch.mode as ReadingMode) ? (patch.mode as ReadingMode) : base.mode,
+    pace:
+      typeof patch.pace === 'number' && Number.isFinite(patch.pace)
+        ? snapPace(patch.pace)
+        : base.pace,
+    guideLine: typeof patch.guideLine === 'boolean' ? patch.guideLine : base.guideLine,
   };
 }
 
