@@ -282,6 +282,52 @@
     else ctrl.play();
   }
 
+  /** The toolbar's Autoscroll: from pages it switches to one scrolling column and starts at once. */
+  async function autoscroll(): Promise<void> {
+    lookOpen = false;
+    if (!scrolling) await restyle({ mode: 'scroll' });
+    togglePlay();
+  }
+
+  // A turn of the wheel or a swipe of two fingers on a touchpad turns one page.
+  // A touchpad sends a stream of small moves for one swipe, and goes on while
+  // it glides, so the page turns once and the gesture ends after a short quiet.
+  const WHEEL_STEP = 40;
+  const WHEEL_QUIET_MS = 200;
+  let wheelSum = 0;
+  let wheelTurned = false;
+  let wheelTimer: ReturnType<typeof setTimeout> | undefined;
+
+  function onWheel(event: WheelEvent): void {
+    // Ctrl with the wheel, or a pinch on a touchpad, zooms the browser.
+    if (scrolling || event.ctrlKey) return;
+    event.preventDefault();
+    const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? (host?.clientWidth ?? 1) : 1;
+    const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
+    clearTimeout(wheelTimer);
+    wheelTimer = setTimeout(() => {
+      wheelSum = 0;
+      wheelTurned = false;
+    }, WHEEL_QUIET_MS);
+    if (wheelTurned) return;
+    wheelSum += delta * unit;
+    if (Math.abs(wheelSum) >= WHEEL_STEP) {
+      wheelTurned = true;
+      turn(wheelSum > 0);
+    }
+  }
+
+  // Svelte adds wheel handlers as passive; this one has to keep the window still.
+  $effect(() => {
+    const el = host;
+    if (!el) return;
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => {
+      el.removeEventListener('wheel', onWheel);
+      clearTimeout(wheelTimer);
+    };
+  });
+
   /** One step slower or faster; a moving text changes speed at once. */
   function changePace(step: 1 | -1): void {
     const pace = stepPace(app.settings.pace, step);
@@ -494,6 +540,17 @@
         >
           <Icon name="expand" size={18} />
           <span class="tool-label">Full page</span>
+        </button>
+        <button
+          type="button"
+          class="autoscroll-toggle"
+          onclick={autoscroll}
+          disabled={!session}
+          aria-pressed={playing}
+          title="Let the text scroll by itself at a reading pace"
+        >
+          <Icon name={playing ? 'pause' : 'play'} size={18} />
+          <span class="tool-label">Auto<wbr />scroll</span>
         </button>
         <div class="look" bind:this={lookBox}>
           <button

@@ -93,6 +93,23 @@ test('turns a page and resumes there after a reload', async ({ page }) => {
   await expect(page.locator('.where')).toContainText(/Page 2 of \d+/);
 });
 
+test('turns one page for each turn of the wheel or swipe of two fingers', async ({ page }) => {
+  await openReader(page);
+  const box = (await page.locator('.pages').boundingBox())!;
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  // A touchpad sends many small moves for one swipe, and more while it glides.
+  for (let i = 0; i < 20; i++) await page.mouse.wheel(0, 15);
+  await expect(page.locator('.where')).toContainText(/Page 2 of \d+/);
+  await page.waitForTimeout(400);
+  expect(await page.locator('.where').textContent()).toMatch(/Page 2 of \d+/);
+  await page.mouse.wheel(60, 0);
+  await expect(page.locator('.where')).toContainText(/Page 3 of \d+/);
+  await page.waitForTimeout(400);
+  await page.mouse.wheel(0, -100);
+  await expect(page.locator('.where')).toContainText(/Page 2 of \d+/);
+  expect(await page.evaluate(() => window.scrollY)).toBe(0);
+});
+
 test('gives the page most of the window and names the chapter', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
   await openReader(page);
@@ -810,6 +827,20 @@ test.describe('scroll mode', () => {
     await expect(page.locator('.pages')).toHaveAttribute('aria-label', /Scroll to read/);
   });
 
+  test('starts scrolling by itself from the toolbar, from pages too', async ({ page }) => {
+    await openReader(page);
+    const button = page.getByRole('button', { name: 'Autoscroll' });
+    await expect(button).toBeVisible();
+    await button.click();
+    await expect(page.locator('.where')).toContainText('Chapter 1 of 3');
+    await expect(button).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.getByRole('button', { name: 'Pause' })).toBeVisible();
+    await expect.poll(() => scrollTop(page)).toBeGreaterThan(5);
+    await button.click();
+    await expect(button).toHaveAttribute('aria-pressed', 'false');
+    await expect(page.getByRole('button', { name: 'Play' })).toBeVisible();
+  });
+
   test('plays and pauses with the bar, a tap and Space', async ({ page }) => {
     await openScrolling(page);
     const before = await scrollTop(page);
@@ -908,6 +939,19 @@ test.describe('scroll mode', () => {
       const exit = await page.getByRole('button', { name: 'Exit full page' }).boundingBox();
       expect(bar!.y + bar!.height).toBeLessThanOrEqual(exit!.y);
       expect(await overflow()).toBeLessThanOrEqual(0);
+    });
+
+    test('fits all six reading tools on the screen, each with its whole name', async ({ page }) => {
+      await openReader(page);
+      const tools = page.locator('.reading-bar .toolbar > button, .reading-bar .look-toggle');
+      await expect(tools).toHaveCount(6);
+      for (const tool of await tools.all()) {
+        const box = (await tool.boundingBox())!;
+        expect(box.x).toBeGreaterThanOrEqual(0);
+        expect(box.x + box.width).toBeLessThanOrEqual(360);
+        const clipped = await tool.evaluate((b) => b.scrollWidth - b.clientWidth);
+        expect(clipped).toBeLessThanOrEqual(0);
+      }
     });
 
     test('stops moving when the contents open', async ({ page }) => {
