@@ -1,28 +1,7 @@
-<script lang="ts">
-  import {
-    BATCH_LIMIT,
-    LIBRARY_TARGETS,
-    commonTargets,
-    convert,
-    convertLibraryBook,
-    inspect,
-    isPicture,
-    type OutputFormat,
-    type PrintCopy,
-    zipCopies,
-  } from '../rooms/scriptorium';
-  import { importBook } from '../rooms/bibliotheca';
-  import type { Collation, Part } from '../core/convert/census';
-  import { app, go, refreshShelf } from './state.svelte';
-  import { CONVERTIBLE_FILES, download } from './files';
-  import BatchList, { type BatchRow } from './BatchList.svelte';
-  import Icon from './Icon.svelte';
-  import Inking from './Inking.svelte';
-  import PrintPreview from './PrintPreview.svelte';
-  import RoomHero from './RoomHero.svelte';
-  import Stamp from './Stamp.svelte';
-  import { FORMAT_LABELS, errorMessage } from './text';
-  import { collationNote, collationRows, type CollationRow } from './collation';
+<script lang="ts" module>
+  import type { OutputFormat, PrintCopy } from '../rooms/scriptorium';
+  import type { BatchRow } from './BatchList.svelte';
+  import type { CollationRow } from './collation';
 
   interface Picked {
     key: number;
@@ -35,14 +14,66 @@
     pictures: string[];
   }
 
+  // The room is built anew each time it is opened, so what the reader chose
+  // and the last job are kept here, to be found again on coming back.
+
   /** The files chosen, or the one book from the library. More than one makes a batch. */
   let list = $state.raw<Picked[]>([]);
   let keys = 0;
+  /** Pictures chosen for the Markdown files, which find them by name. */
+  let pictures = $state.raw<{ key: number; file: File }[]>([]);
+  /** The files of the last batch, each with its copy once it is made. */
+  let batch = $state<{ job: number; target: OutputFormat; rows: BatchRow[] }>();
+  let title = $state('');
+  let author = $state('');
+  let shelfChoice = $state('');
+  /** A job runs on while the reader is in another room. */
+  let busy = $state(false);
+  let message = $state<{ tone: 'ok' | 'error'; text: string }>();
+  /** The stamp of the last finished job; `job` counts jobs so each one presses its own. */
+  let stamp = $state<{ job: number; label: string; note: string }>();
+  let jobs = 0;
+  /** What the copy, read back, holds of the original; `pending` while it is being read. */
+  let collation = $state<
+    | { job: number; pending: true }
+    | { job: number; pending: false; rows: CollationRow[]; note?: string }
+    | { job: number; pending: false; failed: true }
+  >();
+  /** The pages of the last PDF, kept so the preview can be opened again. */
+  let pages = $state.raw<{ title: string; full: PrintCopy; withoutPictures: () => PrintCopy }>();
+  /** The last EPUB made, which the reader can open here instead of in another app. */
+  let made = $state.raw<{ blob: Blob; fileName: string }>();
+</script>
+
+<script lang="ts">
+  import { tick } from 'svelte';
+  import {
+    BATCH_LIMIT,
+    LIBRARY_TARGETS,
+    commonTargets,
+    convert,
+    convertLibraryBook,
+    inspect,
+    isPicture,
+    zipCopies,
+  } from '../rooms/scriptorium';
+  import { importBook } from '../rooms/bibliotheca';
+  import type { Collation, Part } from '../core/convert/census';
+  import { app, go, refreshShelf } from './state.svelte';
+  import { stillMotion } from './theme.svelte';
+  import { CONVERTIBLE_FILES, download } from './files';
+  import BatchList from './BatchList.svelte';
+  import Icon from './Icon.svelte';
+  import Inking from './Inking.svelte';
+  import PrintPreview from './PrintPreview.svelte';
+  import RoomHero from './RoomHero.svelte';
+  import Stamp from './Stamp.svelte';
+  import { FORMAT_LABELS, errorMessage } from './text';
+  import { collationNote, collationRows } from './collation';
+
   const picked = $derived(list.length === 1 ? list[0] : undefined);
   const several = $derived(list.length > 1);
   const targets = $derived(commonTargets(list.map((p) => p.targets)));
-  /** Pictures chosen for the Markdown files, which find them by name. */
-  let pictures = $state.raw<{ key: number; file: File }[]>([]);
   const pictureFiles = $derived(pictures.map((p) => p.file));
   /** Pictures the chosen Markdown files show that were not chosen with them. */
   const missing = $derived.by(() => {
@@ -67,32 +98,24 @@
       `Choose ${them} too, or the book leaves ${them} out.`
     );
   });
-  /** The files of the last batch, each with its copy once it is made. */
-  let batch = $state<{ job: number; target: OutputFormat; rows: BatchRow[] }>();
   const copies = $derived(
     batch?.rows.flatMap((row) => (row.copy ? [$state.snapshot(row.copy)] : [])) ?? [],
   );
   const working = $derived(batch?.rows.findIndex((row) => row.state === 'working') ?? -1);
-  let title = $state('');
-  let author = $state('');
-  let shelfChoice = $state('');
-  let busy = $state(false);
-  let message = $state<{ tone: 'ok' | 'error'; text: string }>();
-  /** The stamp of the last finished job; `job` counts jobs so each one presses its own. */
-  let stamp = $state<{ job: number; label: string; note: string }>();
-  let jobs = 0;
-  /** What the copy, read back, holds of the original; `pending` while it is being read. */
-  let collation = $state<
-    | { job: number; pending: true }
-    | { job: number; pending: false; rows: CollationRow[]; note?: string }
-    | { job: number; pending: false; failed: true }
-  >();
-  /** The pages of the last PDF, kept so the preview can be opened again. */
-  let pages = $state.raw<{ title: string; full: PrintCopy; withoutPictures: () => PrintCopy }>();
   let previewOpen = $state(false);
-  /** The last EPUB made, which the reader can open here instead of in another app. */
-  let made = $state.raw<{ blob: Blob; fileName: string }>();
   let opening = $state(false);
+  let doneLeg = $state<HTMLElement>();
+
+  /**
+   * On a phone the columns stack and the Done column, where the outcome
+   * shows, is below the fold: bring it up when it has something to show.
+   */
+  async function showDone(): Promise<void> {
+    await tick();
+    const top = doneLeg?.getBoundingClientRect().top;
+    if (top === undefined || (top >= 0 && top < innerHeight * 0.75)) return;
+    doneLeg!.scrollIntoView({ behavior: stillMotion() ? 'auto' : 'smooth', block: 'start' });
+  }
 
   async function check(
     job: number,
@@ -175,7 +198,9 @@
     }
     list = kept;
     if (over > 0) problems.push(`Up to ${BATCH_LIMIT} files at a time: ${over} left out.`);
-    if (problems.length > 0) message = { tone: 'error', text: problems.join(' ') };
+    if (problems.length === 0) return;
+    message = { tone: 'error', text: problems.join(' ') };
+    void showDone();
   }
 
   function chooseBook(id: string): void {
@@ -269,6 +294,7 @@
     } finally {
       busy = false;
     }
+    if (!previewOpen) void showDone();
   }
 
   /** The print window is opening: stamp the job and check the pages it prints. */
@@ -297,6 +323,7 @@
       rows: list.map((p) => ({ key: p.key, name: p.name, state: 'waiting' })),
     };
     const rows = batch.rows;
+    void showDone();
     const checks: [BatchRow, () => Promise<Collation>][] = [];
     for (const [i, file] of files.entries()) {
       const row = rows[i]!;
@@ -509,7 +536,7 @@
       {/if}
     </section>
 
-    <section class="leg done" aria-labelledby="leg-done">
+    <section class="leg done" aria-labelledby="leg-done" bind:this={doneLeg}>
       <h2 id="leg-done">Done</h2>
       <div role="status" class="notices">
         {#if busy}

@@ -607,7 +607,8 @@ test.describe('Scriptorium', () => {
     const zip = await all;
     expect(zip.suggestedFilename()).toBe('Copista copies (Word).zip');
     const entries = unzipSync(new Uint8Array(readFileSync((await zip.path())!)));
-    expect(Object.keys(entries).sort()).toEqual(['a.docx', 'b.docx', 'c.docx']);
+    // The Markdown file takes its title from its only top heading.
+    expect(Object.keys(entries).sort()).toEqual(['One.docx', 'b.docx', 'c.docx']);
   });
 
   test('goes on with the other files when one fails', async ({ page }) => {
@@ -646,6 +647,37 @@ test.describe('Scriptorium', () => {
     await page.getByRole('button', { name: /^Remove a\.txt/ }).click();
     await expect(page.locator('.picked')).toHaveCount(1);
     await expect(page.getByLabel('Title')).toBeVisible();
+  });
+
+  test('keeps the files chosen and the last job on coming back from another room', async ({
+    page,
+  }) => {
+    await page.getByLabel('Choose files').setInputFiles(text('diary.txt', 'First day.\n'));
+    await page.getByLabel('Title').fill('Days');
+    const download = page.waitForEvent('download');
+    await page.getByRole('button', { name: 'Web page', exact: true }).click();
+    await download;
+    await openRoom(page, 'Bibliotheca');
+    await openRoom(page, 'Scriptorium');
+    await expect(page.locator('.picked')).toHaveText(/diary\.txt/);
+    await expect(page.getByLabel('Title')).toHaveValue('Days');
+    await expect(page.locator('.done [role="status"]')).toContainText('Saved “Days.html”.');
+    await expect(page.getByRole('region', { name: 'Checked against the original' })).toBeVisible();
+  });
+
+  test.describe('on a phone', () => {
+    test.use({ viewport: { width: 375, height: 700 } });
+
+    test('brings the outcome into view once the copy is made', async ({ page }) => {
+      await page.getByLabel('Choose files').setInputFiles(text('diary.txt', 'First day.\n'));
+      const done = page.getByRole('heading', { name: 'Done' });
+      await expect(done).not.toBeInViewport();
+      const download = page.waitForEvent('download');
+      await page.getByRole('button', { name: 'EPUB', exact: true }).click();
+      await download;
+      await expect(done).toBeInViewport();
+      await expect(page.getByRole('button', { name: 'Read it here' })).toBeInViewport();
+    });
   });
 
   test('converts a book from the library', async ({ page }) => {

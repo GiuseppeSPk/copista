@@ -1157,6 +1157,11 @@ button.link:hover:not(:disabled) {
   font-size: 16px;
 }
 
+/* Brought into view after a job, clear of the top bar. */
+.leg.done {
+  scroll-margin-top: 72px;
+}
+
 .done .notices {
   width: 100%;
 }
