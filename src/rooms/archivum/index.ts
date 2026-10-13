@@ -1,9 +1,8 @@
 import { DEFAULT_PACE, snapPace } from '../../reader/autoscroll';
-import type { Theme } from '../../reader/render';
+import type { ReadingMode, Theme } from '../../reader/render';
 import { deleteAllStorage, getSetting, putSetting } from '../../storage/db';
 
-/** Turning one screen at a time, or one long column per chapter. */
-export type ReadingMode = 'pages' | 'scroll';
+export type { ReadingMode };
 
 export interface Settings {
   fontSizePercent: number;

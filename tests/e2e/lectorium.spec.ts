@@ -119,3 +119,122 @@ test('removes its frame when closed', async ({ page }) => {
   });
   expect(frames).toEqual({ open: 1, closed: 0 });
 });
+
+test.describe('scroll mode', () => {
+  test('switches between pages and scrolling at the same place', async ({ page }) => {
+    const result = await page.evaluate(async () => {
+      await window.lectorium.start();
+      const pages = await window.lectorium.goTo({ spineIndex: 1, fraction: 0.5 });
+      const scroll = await window.lectorium.setMode('scroll');
+      const back = await window.lectorium.setMode('pages');
+      return { pages, scroll, back, frames: window.lectorium.frameCount() };
+    });
+    expect(result.scroll).toMatchObject({ mode: 'scroll', spineIndex: 1 });
+    expect(Math.abs(result.scroll.fraction - result.pages.fraction)).toBeLessThan(0.1);
+    expect(result.back).toMatchObject({ mode: 'pages', spineIndex: 1 });
+    expect(Math.abs(result.back.fraction - result.pages.fraction)).toBeLessThanOrEqual(
+      1 / result.back.pageCount,
+    );
+    expect(result.frames).toBe(1);
+  });
+
+  test('saves the place after the reader scrolls by hand', async ({ page }) => {
+    await page.evaluate(() => window.lectorium.start(false, 'scroll'));
+    await page.mouse.move(180, 130);
+    await page.mouse.wheel(0, 600);
+    await expect
+      .poll(() => page.evaluate(() => window.lectorium.stored().then((p) => p.fraction)), {
+        timeout: 3000,
+      })
+      .toBeGreaterThan(0);
+    const stored = await page.evaluate(() => window.lectorium.stored());
+    await page.reload();
+    await page.waitForFunction(() => 'lectorium' in window);
+    const after = await page.evaluate(() => window.lectorium.start(true, 'scroll'));
+    expect(after.spineIndex).toBe(0);
+    expect(after.fraction).toBe(stored.fraction);
+  });
+
+  test('moves the text by itself until paused', async ({ page }) => {
+    const start = await page.evaluate(() => window.lectorium.start(false, 'scroll', 400));
+    await page.evaluate(() => window.lectorium.play());
+    await expect
+      .poll(() => page.evaluate(() => window.lectorium.info().scrollTop))
+      .toBeGreaterThan(start.scrollTop + 20);
+    const paused = await page.evaluate(async () => {
+      window.lectorium.pause();
+      const at = window.lectorium.info().scrollTop;
+      await window.lectorium.wait(500);
+      return { at, later: window.lectorium.info() };
+    });
+    expect(paused.later.scrollTop).toBe(paused.at);
+    expect(paused.later.playing).toBe(false);
+    expect(await page.evaluate(() => window.lectorium.playStates)).toEqual([true, false]);
+  });
+
+  test('carries on into the next chapter and keeps moving', async ({ page }) => {
+    await page.evaluate(async () => {
+      await window.lectorium.start(false, 'scroll', 400);
+      await window.lectorium.goTo({ spineIndex: 0, fraction: 1 });
+      window.lectorium.play();
+    });
+    await expect
+      .poll(() => page.evaluate(() => window.lectorium.info().spineIndex), { timeout: 5000 })
+      .toBe(1);
+    const entered = await page.evaluate(() => window.lectorium.info());
+    expect(entered.playing).toBe(true);
+    await expect
+      .poll(() => page.evaluate(() => window.lectorium.info().fraction))
+      .toBeGreaterThan(entered.fraction);
+    expect(await page.evaluate(() => window.lectorium.stored())).toMatchObject({ spineIndex: 1 });
+  });
+
+  test('stops at the end of the book', async ({ page }) => {
+    await page.evaluate(async () => {
+      await window.lectorium.start(false, 'scroll', 400);
+      await window.lectorium.goTo({ spineIndex: 2, fraction: 1 });
+      window.lectorium.play();
+    });
+    await expect
+      .poll(() => page.evaluate(() => window.lectorium.info().playing), { timeout: 5000 })
+      .toBe(false);
+    expect(await page.evaluate(() => window.lectorium.info().spineIndex)).toBe(2);
+    await expect(page.getByRole('button', { name: 'End of the book' })).toBeDisabled();
+  });
+
+  test('holds still for a moment while the reader scrolls, then moves on', async ({ page }) => {
+    await page.evaluate(async () => {
+      await window.lectorium.start(false, 'scroll', 400);
+      await window.lectorium.goTo({ spineIndex: 1, fraction: 0.2 });
+      window.lectorium.play();
+    });
+    await page.mouse.move(180, 130);
+    await page.mouse.wheel(0, 100);
+    const held = await page.evaluate(async () => {
+      await window.lectorium.wait(300);
+      const at = window.lectorium.info().scrollTop;
+      await window.lectorium.wait(700);
+      return { at, later: window.lectorium.info() };
+    });
+    expect(held.later.scrollTop).toBe(held.at);
+    expect(held.later.playing).toBe(true);
+    await expect
+      .poll(() => page.evaluate(() => window.lectorium.info().scrollTop), { timeout: 4000 })
+      .toBeGreaterThan(held.at);
+  });
+
+  test('stops moving and gives the host back when closed', async ({ page }) => {
+    const result = await page.evaluate(async () => {
+      await window.lectorium.start(false, 'scroll', 400);
+      window.lectorium.play();
+      await window.lectorium.wait(200);
+      window.lectorium.destroy();
+      return {
+        frames: window.lectorium.frameCount(),
+        states: window.lectorium.playStates,
+        top: window.lectorium.host().scrollTop,
+      };
+    });
+    expect(result).toEqual({ frames: 0, states: [true, false], top: 0 });
+  });
+});

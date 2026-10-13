@@ -1,5 +1,5 @@
 /** Exposes a ReadingController over a stored fixture to browser tests as `window.lectorium`. */
-import type { ReaderLook } from '../../src/reader/render';
+import type { ReaderLook, ReadingMode } from '../../src/reader/render';
 import { ReadingController } from '../../src/rooms/lectorium/controller';
 import { openSession } from '../../src/rooms/lectorium/index';
 import { deleteAllStorage, getBook, putBook } from '../../src/storage/db';
@@ -9,21 +9,33 @@ interface Info {
   fraction: number;
   page: number;
   pageCount: number;
+  mode: ReadingMode;
+  playing: boolean;
+  scrollTop: number;
 }
 
 const BOOK_ID = 'long';
 const LOOK: ReaderLook = { fontSizePercent: 100, theme: 'light' };
+const host = document.getElementById('host')!;
 
 let controller: ReadingController | null = null;
 
 function info(): Info {
   const { spineIndex, fraction } = controller!.position();
-  return { spineIndex, fraction, page: controller!.page, pageCount: controller!.pageCount };
+  return {
+    spineIndex,
+    fraction,
+    page: controller!.page,
+    pageCount: controller!.pageCount,
+    mode: controller!.mode,
+    playing: controller!.playing,
+    scrollTop: host.scrollTop,
+  };
 }
 
 const lectorium = {
   /** Stores longBook (unless `keep` and it is already there) and opens it where the reader left off. */
-  async start(keep = false): Promise<Info> {
+  async start(keep = false, mode: ReadingMode = 'pages', pace?: number): Promise<Info> {
     if (!keep) await deleteAllStorage();
     if (!(await getBook(BOOK_ID))) {
       const response = await fetch('/tests/fixtures/generated/long-book.epub');
@@ -37,10 +49,11 @@ const lectorium = {
     }
     controller?.destroy();
     controller = new ReadingController(
-      document.getElementById('host')!,
+      host,
       await openSession(BOOK_ID),
-      LOOK,
+      { ...LOOK, mode, pace },
       (pos, percent) => lectorium.changes.push({ ...pos, percent }),
+      (playing) => lectorium.playStates.push(playing),
     );
     await controller.open();
     return info();
@@ -61,6 +74,13 @@ const lectorium = {
     await controller!.setLook(look);
     return info();
   },
+  async setMode(mode: ReadingMode): Promise<Info> {
+    await controller!.setMode(mode);
+    return info();
+  },
+  setPace: (pace: number) => controller!.setPace(pace),
+  play: () => controller!.play(),
+  pause: () => controller!.pause(),
   async stored(): Promise<{ spineIndex: number; fraction: number }> {
     return (await openSession(BOOK_ID)).position;
   },
@@ -71,10 +91,13 @@ const lectorium = {
     return rect.right > 0 && rect.left < frame.clientWidth;
   },
   frameCount: () => document.querySelectorAll('iframe').length,
+  wait: (ms: number) => new Promise((resolve) => setTimeout(resolve, ms)),
   destroy(): void {
     controller?.destroy();
   },
   info,
+  host: () => host,
+  playStates: [] as boolean[],
   changes: [] as { spineIndex: number; fraction: number; percent: number }[],
 };
 

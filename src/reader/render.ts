@@ -5,6 +5,9 @@ import { splitKey, type ResourceUrls } from './resources';
 
 export type Theme = 'light' | 'dark' | 'sepia';
 
+/** Turning one screen at a time, or one long column per chapter. */
+export type ReadingMode = 'pages' | 'scroll';
+
 export interface ReaderLook {
   fontSizePercent: number;
   theme: Theme;
