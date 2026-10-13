@@ -1082,11 +1082,23 @@ test.describe('home', () => {
     await openRoom(page, 'Bibliotheca');
   });
 
-  test('links to the project without sending anything', async ({ page }) => {
+  test('links to the project without sending anything', async ({ page, baseURL }) => {
+    const elsewhere: string[] = [];
+    page.on('request', (request) => {
+      const { origin, protocol } = new URL(request.url());
+      if (protocol.startsWith('http') && origin !== new URL(baseURL!).origin)
+        elsewhere.push(request.url());
+    });
     await page.goto('/');
     const star = page.getByRole('link', { name: 'Star on GitHub' });
     await expect(star).toHaveAttribute('href', 'https://github.com/GiuseppeSPk/copista');
     await expect(star).toHaveAttribute('rel', 'noopener noreferrer');
+    // An offer is a plain link out: nothing of the giving page loads until it is followed.
+    const coffee = page.getByRole('link', { name: 'Buy me a coffee' });
+    await expect(coffee).toHaveAttribute('href', /^https:\/\/ko-fi\.com\/\w+$/);
+    await expect(coffee).toHaveAttribute('target', '_blank');
+    await expect(coffee).toHaveAttribute('rel', 'noopener noreferrer');
+    expect(elsewhere).toEqual([]);
   });
 });
 

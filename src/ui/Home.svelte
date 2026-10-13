@@ -6,7 +6,7 @@
   import Icon from './Icon.svelte';
   import Incipit from './Incipit.svelte';
   import { hashOf } from './route';
-  import { GITHUB_URL, roomInfo, type RoomName } from './rooms';
+  import { COFFEE_URL, GITHUB_URL, roomInfo, type RoomName } from './rooms';
   import Sortes from './Sortes.svelte';
   import { addFiles, app, go } from './state.svelte';
   import { stillMotion } from './theme.svelte';
@@ -208,11 +208,18 @@
   <aside class="star-strip" aria-label="Support Copista">
     <p>
       <strong>Copista is free and open source.</strong>
-      No account, no tracking. If it helps you, a star on GitHub helps others find it.
+      No account, no tracking. If it helps you, a star on GitHub helps others find it, and a coffee helps
+      me keep it going.
     </p>
-    <a class="button star-link" href={GITHUB_URL} target="_blank" rel="noopener noreferrer">
-      <Icon name="star" size={18} />
-      Star on GitHub
-    </a>
+    <div class="support-links">
+      <a class="button star-link" href={GITHUB_URL} target="_blank" rel="noopener noreferrer">
+        <Icon name="star" size={18} />
+        Star on GitHub
+      </a>
+      <a class="button coffee-link" href={COFFEE_URL} target="_blank" rel="noopener noreferrer">
+        <Icon name="coffee" size={18} />
+        Buy me a coffee
+      </a>
+    </div>
   </aside>
 </section>

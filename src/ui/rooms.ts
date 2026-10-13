@@ -78,3 +78,4 @@ export function roomInfo(room: RoomName): RoomInfo {
 }
 
 export const GITHUB_URL = 'https://github.com/GiuseppeSPk/copista';
+export const COFFEE_URL = 'https://ko-fi.com/giuseppespk';

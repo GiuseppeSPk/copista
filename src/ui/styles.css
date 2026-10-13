@@ -2600,6 +2600,22 @@ button.link:hover:not(:disabled) {
   color: var(--ink);
 }
 
+.support-links {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px 12px;
+}
+
+.coffee-link .icon {
+  color: var(--accent);
+  transition: transform 400ms var(--ease);
+}
+
+.coffee-link:hover .icon {
+  transform: rotate(-12deg) translateY(-1px);
+}
+
 /* The day's first line: a page held open under the lamp, and the way to the rest of the book. */
 .incipit {
   display: grid;
