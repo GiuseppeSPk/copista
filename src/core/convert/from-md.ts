@@ -1,6 +1,6 @@
 import { Marked, type Tokens } from 'marked';
-import type { Book } from '../model/book';
-import { bookFromSections, splitByHeading, type NewBookMeta } from './build';
+import type { Book, Resource } from '../model/book';
+import { bookFromSections, IMAGE_EXTENSIONS, splitByHeading, type NewBookMeta } from './build';
 import { decodeText } from './decode';
 
 const NOTE_LABELS = /^\[\^([^\]\s]+)\]:/gm;
@@ -109,17 +109,111 @@ export function parseFrontMatter(md: string): { fields: Record<string, string>; 
   return { fields, body: md.slice(match[0].length) };
 }
 
+/** A picture chosen with a Markdown file, which shows it by its file name. */
+export interface Picture {
+  name: string;
+  data: Uint8Array;
+}
+
+const PICTURE_TYPES: Record<string, string> = {
+  gif: 'image/gif',
+  jpeg: 'image/jpeg',
+  jpg: 'image/jpeg',
+  png: 'image/png',
+  svg: 'image/svg+xml',
+  webp: 'image/webp',
+};
+
+function imagesOf(html: string): { root: DocumentFragment; images: HTMLImageElement[] } {
+  const template = document.createElement('template');
+  template.innerHTML = html;
+  return { root: template.content, images: [...template.content.querySelectorAll('img')] };
+}
+
+/**
+ * The file name a relative image source ends in; null for sources with a
+ * scheme or a host, which carry or fetch their own data.
+ */
+function pictureName(src: string): string | null {
+  const path = src.trim().replace(/[?#].*$/s, '');
+  if (/^[a-z][a-z0-9+.-]+:|^\/\//i.test(path)) return null;
+  let name = path.slice(Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\')) + 1);
+  try {
+    name = decodeURIComponent(name);
+  } catch {
+    // Kept as written.
+  }
+  return name === '' ? null : name;
+}
+
+/** The file names of the pictures a Markdown file shows by a relative path, each once. */
+export function picturesNamed(data: Uint8Array): string[] {
+  const { body } = parseFrontMatter(decodeText(data));
+  const names = new Map<string, string>();
+  for (const img of imagesOf(reader(body).parse(body)).images) {
+    const name = pictureName(img.getAttribute('src') ?? '');
+    if (name !== null && !names.has(name.toLowerCase())) names.set(name.toLowerCase(), name);
+  }
+  return [...names.values()];
+}
+
+/**
+ * Points each relative image at the chosen picture with the same file name,
+ * ignoring case and folders, and adds that picture to the book's resources.
+ * Images without a picture are left for the book builder to drop.
+ */
+function attachPictures(
+  html: string,
+  pictures: Picture[],
+  resources: Map<string, Resource>,
+): string {
+  const byName = new Map<string, { picture: Picture; mediaType: string }>();
+  for (const picture of pictures) {
+    const mediaType = PICTURE_TYPES[picture.name.split('.').pop()!.toLowerCase()];
+    if (mediaType !== undefined) byName.set(picture.name.toLowerCase(), { picture, mediaType });
+  }
+  if (byName.size === 0) return html;
+  const keys = new Map<Picture, string>();
+  const { root, images } = imagesOf(html);
+  for (const img of images) {
+    const name = pictureName(img.getAttribute('src') ?? '');
+    const found = name === null ? undefined : byName.get(name.toLowerCase());
+    if (found === undefined) continue;
+    let key = keys.get(found.picture);
+    if (key === undefined) {
+      const extension = IMAGE_EXTENSIONS[found.mediaType]!;
+      key = `images/pic${String(keys.size + 1).padStart(3, '0')}.${extension}`;
+      resources.set(key, { href: key, mediaType: found.mediaType, data: found.picture.data });
+      keys.set(found.picture, key);
+    }
+    img.setAttribute('src', key);
+  }
+  const container = document.createElement('div');
+  container.append(root);
+  return container.innerHTML;
+}
+
 /**
  * Converts a Markdown file to a book, split at its level-one headings (or
  * level-two when it has none). Metadata the caller leaves empty comes from
- * the front matter, then defaults to "Untitled" by "Unknown".
+ * the front matter, then defaults to "Untitled" by "Unknown". Relative images
+ * show the pictures chosen with the file; the others are left out.
  */
-export async function fromMarkdown(data: Uint8Array, meta: Partial<NewBookMeta>): Promise<Book> {
+export async function fromMarkdown(
+  data: Uint8Array,
+  meta: Partial<NewBookMeta>,
+  pictures: Picture[] = [],
+): Promise<Book> {
   const { fields, body } = parseFrontMatter(decodeText(data));
-  const html = reader(body).parse(body);
-  return bookFromSections(splitByHeading(html), {
-    title: meta.title || fields['title'] || 'Untitled',
-    author: meta.author || fields['author'] || 'Unknown',
-    language: meta.language || fields['language'] || fields['lang'],
-  });
+  const resources = new Map<string, Resource>();
+  const html = attachPictures(reader(body).parse(body), pictures, resources);
+  return bookFromSections(
+    splitByHeading(html),
+    {
+      title: meta.title || fields['title'] || 'Untitled',
+      author: meta.author || fields['author'] || 'Unknown',
+      language: meta.language || fields['language'] || fields['lang'],
+    },
+    resources,
+  );
 }

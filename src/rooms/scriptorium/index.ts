@@ -3,7 +3,12 @@ import type { NewBookMeta } from '../../core/convert/build';
 import type { Collation } from '../../core/convert/census';
 import { decodeText } from '../../core/convert/decode';
 import { detectFormat, type InputFormat } from '../../core/convert/detect';
-import { fromMarkdown, parseFrontMatter } from '../../core/convert/from-md';
+import {
+  fromMarkdown,
+  parseFrontMatter,
+  picturesNamed,
+  type Picture,
+} from '../../core/convert/from-md';
 import { fromTxt } from '../../core/convert/from-txt';
 import { toDocx } from '../../core/convert/to-docx';
 import { toHtml } from '../../core/convert/to-html';
@@ -69,22 +74,39 @@ function baseName(fileName: string): string {
   return fileName.replace(/\.[^.]*$/, '').trim() || 'Untitled';
 }
 
+/** A picture a Markdown file can show, told by its name before anything is read. */
+export function isPicture(file: File): boolean {
+  return /\.(gif|jpe?g|png|svg|webp)$/i.test(file.name);
+}
+
 /**
- * Tells what a file is, which formats it can become, and whether the user
- * should be asked for a title and author (plain text, and Markdown without a
- * front-matter title). Throws UnsupportedFormatError for anything else.
+ * Tells what a file is, which formats it can become, whether the user should
+ * be asked for a title and author (plain text, and Markdown without a
+ * front-matter title), and which pictures a Markdown file shows by name.
+ * Throws UnsupportedFormatError for anything else.
  */
-export async function inspect(
-  file: File,
-): Promise<{ format: InputFormat; needsMeta: boolean; targets: OutputFormat[] }> {
+export async function inspect(file: File): Promise<{
+  format: InputFormat;
+  needsMeta: boolean;
+  targets: OutputFormat[];
+  pictures: string[];
+}> {
   const data = await bytesOf(file);
   const format = detectFormat(data, file.name);
   const needsMeta = format === 'txt' || (format === 'md' && !hasFrontMatterTitle(data));
-  return { format, needsMeta, targets: OUTPUT_FORMATS.filter((target) => target !== format) };
+  return {
+    format,
+    needsMeta,
+    targets: OUTPUT_FORMATS.filter((target) => target !== format),
+    pictures: format === 'md' ? picturesNamed(data) : [],
+  };
 }
 
-/** Reads any supported file as a book. Metadata only applies to text and Markdown. */
-async function toBook(file: File, meta: Partial<NewBookMeta>): Promise<Book> {
+/**
+ * Reads any supported file as a book. Metadata only applies to text and
+ * Markdown, pictures only to Markdown.
+ */
+async function toBook(file: File, meta: Partial<NewBookMeta>, pictures: File[]): Promise<Book> {
   const data = await bytesOf(file);
   switch (detectFormat(data, file.name)) {
     case 'epub':
@@ -95,10 +117,16 @@ async function toBook(file: File, meta: Partial<NewBookMeta>): Promise<Book> {
       return fromDocx(data, { fileName: file.name });
     }
     case 'md':
-      return fromMarkdown(data, {
-        ...meta,
-        title: meta.title || (hasFrontMatterTitle(data) ? undefined : baseName(file.name)),
-      });
+      return fromMarkdown(
+        data,
+        {
+          ...meta,
+          title: meta.title || (hasFrontMatterTitle(data) ? undefined : baseName(file.name)),
+        },
+        await Promise.all(
+          pictures.map(async (p): Promise<Picture> => ({ name: p.name, data: await bytesOf(p) })),
+        ),
+      );
     case 'txt':
       return fromTxt(data, {
         ...meta,
@@ -108,13 +136,17 @@ async function toBook(file: File, meta: Partial<NewBookMeta>): Promise<Book> {
   }
 }
 
-/** Converts a file to another format. Missing metadata never stops a conversion. */
+/**
+ * Converts a file to another format. Missing metadata never stops a
+ * conversion; a Markdown file shows the pictures it names among those given.
+ */
 export async function convert(
   file: File,
   target: OutputFormat,
   meta: Partial<NewBookMeta> = {},
+  pictures: File[] = [],
 ): Promise<ConvertOutput> {
-  return convertBook(await toBook(file, meta), target);
+  return convertBook(await toBook(file, meta, pictures), target);
 }
 
 /** Converts a book from the library, read from its stored EPUB. */

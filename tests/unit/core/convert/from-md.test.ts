@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { fromMarkdown, parseFrontMatter } from '../../../../src/core/convert/from-md';
+import {
+  fromMarkdown,
+  parseFrontMatter,
+  picturesNamed,
+} from '../../../../src/core/convert/from-md';
 
 const enc = (s: string) => new TextEncoder().encode(s);
 
@@ -56,6 +60,28 @@ describe('fromMarkdown', () => {
     });
   });
 
+  it('takes the pictures it names from the files chosen with it', async () => {
+    const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+    const m = await fromMarkdown(
+      enc(
+        '![a](illustrazione.png) ![b](img/Illustrazione.PNG) ' +
+          '<img src="./my%20pic.jpg" alt="c"> ![d](missing.png)',
+      ),
+      { title: 'T' },
+      [
+        { name: 'illustrazione.png', data: png },
+        { name: 'my pic.jpg', data: png },
+        { name: 'unused.gif', data: png },
+      ],
+    );
+    const html = m.chapters[0]!.html;
+    expect(html.match(/src="images\/pic001\.png"/g)).toHaveLength(2);
+    expect(html).toContain('src="images/pic002.jpg"');
+    expect(html).not.toContain('missing.png');
+    expect([...m.resources.keys()]).toEqual(['images/pic001.png', 'images/pic002.jpg']);
+    expect(m.resources.get('images/pic002.jpg')).toMatchObject({ mediaType: 'image/jpeg' });
+  });
+
   it('points fragment links at the chapter that holds the target', async () => {
     const m = await fromMarkdown(
       enc('# One\n\nSee <a href="#n1">note</a>.\n\n# Two\n\n<p id="n1">The note.</p>\n'),
@@ -97,6 +123,19 @@ describe('fromMarkdown', () => {
     const m = await fromMarkdown(enc('- [ ] To buy\n- [x] Bought\n'), { title: 'T' });
     expect(m.chapters[0]!.html).toContain('<li>☐ To buy</li>');
     expect(m.chapters[0]!.html).toContain('<li>☑ Bought</li>');
+  });
+});
+
+describe('picturesNamed', () => {
+  it('lists the pictures a Markdown file names by a relative path', () => {
+    expect(
+      picturesNamed(
+        enc(
+          '![a](img/x.png) ![b](https://e.invalid/y.png) ![c](data:image/png;base64,AA==) ' +
+            '![again](x.png) <img src="my%20pic.jpg">',
+        ),
+      ),
+    ).toEqual(['x.png', 'my pic.jpg']);
   });
 });
 

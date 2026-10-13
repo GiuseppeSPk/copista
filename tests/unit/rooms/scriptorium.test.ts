@@ -10,6 +10,7 @@ import {
   convertBook,
   convertLibraryBook,
   inspect,
+  isPicture,
   LIBRARY_TARGETS,
   outputFileName,
   zipCopies,
@@ -31,23 +32,38 @@ describe('scriptorium', () => {
       format: 'md',
       needsMeta: true,
       targets: ['epub', 'docx', 'txt', 'html', 'pdf'],
+      pictures: [],
     });
     expect((await inspect(f(enc('---\ntitle: X\n---\n# T'), 'a.md'))).needsMeta).toBe(false);
     expect(await inspect(f(EPUB.epub3Nav(), 'b.epub'))).toEqual({
       format: 'epub',
       needsMeta: false,
       targets: ['docx', 'md', 'txt', 'html', 'pdf'],
+      pictures: [],
     });
     expect(await inspect(f(DOCX.basic(), 'c.docx'))).toEqual({
       format: 'docx',
       needsMeta: false,
       targets: ['epub', 'md', 'txt', 'html', 'pdf'],
+      pictures: [],
     });
     expect(await inspect(f(enc('Hi.'), 'd.txt'))).toEqual({
       format: 'txt',
       needsMeta: true,
       targets: ['epub', 'docx', 'md', 'html', 'pdf'],
+      pictures: [],
     });
+  });
+
+  it('lists the pictures a Markdown file shows and takes them when they are given', async () => {
+    const md = f(enc('# T\n\n![a](img/Cover.png) ![b](https://e.invalid/x.png)'), 'a.md');
+    expect((await inspect(md)).pictures).toEqual(['Cover.png']);
+    expect(isPicture(f(new Uint8Array(), 'cover.PNG'))).toBe(true);
+    expect(isPicture(f(new Uint8Array(), 'a.md'))).toBe(false);
+    const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+    const out = await convert(md, 'html', {}, [f(png, 'cover.png')]);
+    if (out.kind !== 'file') throw new Error('expected a file');
+    expect(await out.blob.text()).toContain('data:image/png;base64,');
   });
 
   it('converts an EPUB to a Word document named after the book', async () => {

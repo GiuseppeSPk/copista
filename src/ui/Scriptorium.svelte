@@ -6,6 +6,7 @@
     convert,
     convertLibraryBook,
     inspect,
+    isPicture,
     type OutputFormat,
     type PrintCopy,
     zipCopies,
@@ -30,6 +31,8 @@
     format: string;
     needsMeta: boolean;
     targets: OutputFormat[];
+    /** The pictures a Markdown file shows by name. */
+    pictures: string[];
   }
 
   /** The files chosen, or the one book from the library. More than one makes a batch. */
@@ -38,6 +41,32 @@
   const picked = $derived(list.length === 1 ? list[0] : undefined);
   const several = $derived(list.length > 1);
   const targets = $derived(commonTargets(list.map((p) => p.targets)));
+  /** Pictures chosen for the Markdown files, which find them by name. */
+  let pictures = $state.raw<{ key: number; file: File }[]>([]);
+  const pictureFiles = $derived(pictures.map((p) => p.file));
+  /** Pictures the chosen Markdown files show that were not chosen with them. */
+  const missing = $derived.by(() => {
+    const chosen = new Set(pictures.map((p) => p.file.name.toLowerCase()));
+    const names = new Map<string, string>();
+    for (const name of list.flatMap((p) => p.pictures)) {
+      if (!chosen.has(name.toLowerCase())) names.set(name.toLowerCase(), name);
+    }
+    return [...names.values()];
+  });
+  const MISSING_SHOWN = 5;
+  const missingNote = $derived.by(() => {
+    const names = missing.slice(0, MISSING_SHOWN).map((name) => `“${name}”`);
+    const more = missing.length - names.length;
+    if (more > 0) names.push(`${more} more`);
+    const listed =
+      names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names.at(-1)}` : names[0];
+    const them = missing.length > 1 ? 'them' : 'it';
+    return (
+      `${list.length > 1 ? 'Your Markdown files show' : 'Your Markdown file shows'} ` +
+      `${listed}. ` +
+      `Choose ${them} too, or the book leaves ${them} out.`
+    );
+  });
   /** The files of the last batch, each with its copy once it is made. */
   let batch = $state<{ job: number; target: OutputFormat; rows: BatchRow[] }>();
   const copies = $derived(
@@ -123,7 +152,15 @@
     }
     const problems: string[] = [];
     let over = 0;
-    for (const file of files) {
+    for (const file of files.filter(isPicture)) {
+      // A picture with the name of one already chosen replaces it.
+      const name = file.name.toLowerCase();
+      pictures = [
+        ...pictures.filter((p) => p.file.name.toLowerCase() !== name),
+        { key: ++keys, file },
+      ];
+    }
+    for (const file of files.filter((f) => !isPicture(f))) {
       if (kept.some((p) => 'file' in p.source && sameFile(p.source.file, file))) continue;
       if (kept.length >= BATCH_LIMIT) {
         over += 1;
@@ -144,6 +181,7 @@
   function chooseBook(id: string): void {
     const book = app.shelf.find((b) => b.id === id);
     clearDone();
+    pictures = [];
     list = book
       ? [
           {
@@ -153,6 +191,7 @@
             format: 'epub',
             needsMeta: false,
             targets: LIBRARY_TARGETS,
+            pictures: [],
           },
         ]
       : [];
@@ -169,6 +208,11 @@
     author = '';
     shelfChoice = '';
     fileInput?.focus();
+  }
+
+  function unpickPicture(key: number): void {
+    clearDone();
+    pictures = pictures.filter((p) => p.key !== key);
   }
 
   // Files dropped in another room land here.
@@ -202,7 +246,7 @@
         : {};
       const out =
         'file' in picked.source
-          ? await convert(picked.source.file, target, meta)
+          ? await convert(picked.source.file, target, meta, pictureFiles)
           : await convertLibraryBook(picked.source.bookId, target);
       if (out.kind === 'print') {
         pages = {
@@ -258,7 +302,7 @@
       const row = rows[i]!;
       row.state = 'working';
       try {
-        const out = await convert(file, target);
+        const out = await convert(file, target, {}, pictureFiles);
         if (out.kind !== 'file') throw new Error('PDF is made one book at a time.');
         row.copy = { blob: out.blob, fileName: out.fileName };
         row.state = 'done';
@@ -349,8 +393,8 @@
         />
       </label>
       <p class="hint">
-        EPUB, Word (.docx), Markdown or plain text. Choose several to convert them together, or drop
-        them here.
+        EPUB, Word (.docx), Markdown or plain text, with the pictures a Markdown file shows. Choose
+        several to convert them together, or drop them here.
       </p>
 
       {#if app.shelf.length > 0}
@@ -393,6 +437,34 @@
             </li>
           {/each}
         </ul>
+      {/if}
+
+      {#if pictures.length > 0}
+        <ul class="picked-list" aria-label="Pictures">
+          {#each pictures as p (p.key)}
+            <li class="picked">
+              <span class="picked-name">
+                <strong>{p.file.name}</strong>
+                <span class="format">Picture</span>
+              </span>
+              <button
+                type="button"
+                class="icon-only unpick"
+                title="Remove"
+                disabled={busy}
+                onclick={() => unpickPicture(p.key)}
+              >
+                <Icon name="close" size={16} /><span class="sr-only">Remove {p.file.name}</span>
+              </button>
+            </li>
+          {/each}
+        </ul>
+      {/if}
+
+      {#if missing.length > 0}
+        <p class="hint">{missingNote}</p>
+      {:else if pictures.length > 0 && !list.some((p) => p.format === 'md')}
+        <p class="hint">Pictures go into a Markdown file that shows them: choose the file too.</p>
       {/if}
     </section>
 

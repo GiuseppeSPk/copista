@@ -542,11 +542,35 @@ test.describe('Scriptorium', () => {
 
   test('refuses a file it cannot read', async ({ page }) => {
     await page.getByLabel('Choose files').setInputFiles({
-      name: 'photo.png',
-      mimeType: 'image/png',
-      buffer: Buffer.from([0x89, 0x50, 0x4e, 0x47, 0, 0, 0, 0]),
+      name: 'scan.pdf',
+      mimeType: 'application/pdf',
+      buffer: Buffer.from('%PDF-1.4\n'),
     });
-    await expect(page.locator('.notices .error')).toContainText('photo.png:');
+    await expect(page.locator('.notices .error')).toContainText('scan.pdf:');
+  });
+
+  test('takes the pictures a Markdown file shows when they are chosen with it', async ({
+    page,
+  }) => {
+    const choose = page.getByLabel('Choose files');
+    await choose.setInputFiles(text('notes.md', '# Notes\n\n![A drawing](img/drawing.png)\n'));
+    const note = page.getByText('Your Markdown file shows “drawing.png”.');
+    await expect(note).toBeVisible();
+    await choose.setInputFiles({
+      name: 'drawing.png',
+      mimeType: 'image/png',
+      buffer: Buffer.from(
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+        'base64',
+      ),
+    });
+    await expect(page.getByRole('list', { name: 'Pictures' }).getByRole('listitem')).toHaveCount(1);
+    await expect(note).toHaveCount(0);
+    await expect(page.locator('.picked')).toHaveCount(2);
+    const download = page.waitForEvent('download');
+    await page.getByRole('button', { name: 'Web page', exact: true }).click();
+    const html = readFileSync((await (await download).path())!, 'utf8');
+    expect(html).toMatch(/<img [^>]*src="data:image\/png;base64,/);
   });
 
   const text = (name: string, body: string) => ({
