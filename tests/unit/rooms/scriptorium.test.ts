@@ -112,8 +112,11 @@ describe('scriptorium', () => {
     const book = await readEpub(await bytesOf(untitled.blob));
     expect(book.meta).toMatchObject({ title: 'notes', authors: ['Unknown'] });
 
-    const md = await convert(f(enc('# One\n\nText.'), 'draft.v2.md'), 'epub');
+    const md = await convert(f(enc('# One\n\nText.\n\n# Two\n\nMore.'), 'draft.v2.md'), 'epub');
     expect(md.kind === 'file' && md.fileName).toBe('draft.v2.epub');
+    // A level-one heading that is the only one names the book.
+    const named = await convert(f(enc('# Reading notes\n\n## One\n\nText.'), 'x.md'), 'epub');
+    expect(named.kind === 'file' && named.fileName).toBe('Reading notes.epub');
     const fromFront = await convert(f(enc('---\ntitle: Front\n---\n# One'), 'x.md'), 'epub');
     expect(fromFront.kind === 'file' && fromFront.fileName).toBe('Front.epub');
   });

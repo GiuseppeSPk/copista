@@ -58,7 +58,6 @@ const MIME_TYPES: Record<Exclude<OutputFormat, 'pdf'>, string> = {
   html: 'text/html;charset=utf-8',
 };
 
-const UNKNOWN_AUTHOR = 'Unknown';
 const MAX_NAME_LENGTH = 100;
 
 async function bytesOf(file: File): Promise<Uint8Array> {
@@ -67,11 +66,6 @@ async function bytesOf(file: File): Promise<Uint8Array> {
 
 function hasFrontMatterTitle(data: Uint8Array): boolean {
   return Boolean(parseFrontMatter(decodeText(data)).fields['title']);
-}
-
-/** The file name without its last extension, for books that carry no title. */
-function baseName(fileName: string): string {
-  return fileName.replace(/\.[^.]*$/, '').trim() || 'Untitled';
 }
 
 /** A picture a Markdown file can show, told by its name before anything is read. */
@@ -119,20 +113,14 @@ async function toBook(file: File, meta: Partial<NewBookMeta>, pictures: File[]):
     case 'md':
       return fromMarkdown(
         data,
-        {
-          ...meta,
-          title: meta.title || (hasFrontMatterTitle(data) ? undefined : baseName(file.name)),
-        },
+        meta,
         await Promise.all(
           pictures.map(async (p): Promise<Picture> => ({ name: p.name, data: await bytesOf(p) })),
         ),
+        { fileName: file.name },
       );
     case 'txt':
-      return fromTxt(data, {
-        ...meta,
-        title: meta.title || baseName(file.name),
-        author: meta.author || UNKNOWN_AUTHOR,
-      });
+      return fromTxt(data, meta, { fileName: file.name });
   }
 }
 

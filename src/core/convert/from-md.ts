@@ -1,6 +1,12 @@
 import { Marked, type Tokens } from 'marked';
 import type { Book, Resource } from '../model/book';
-import { bookFromSections, IMAGE_EXTENSIONS, splitByHeading, type NewBookMeta } from './build';
+import {
+  bookFromSections,
+  IMAGE_EXTENSIONS,
+  splitByHeading,
+  titleFromFileName,
+  type NewBookMeta,
+} from './build';
 import { decodeText } from './decode';
 
 const NOTE_LABELS = /^\[\^([^\]\s]+)\]:/gm;
@@ -193,16 +199,25 @@ function attachPictures(
   return container.innerHTML;
 }
 
+/** The text of the document's level-one heading when it has exactly one, which names it. */
+function soleTitle(html: string): string {
+  const headings = new DOMParser().parseFromString(html, 'text/html').querySelectorAll('h1');
+  return headings.length === 1 ? (headings[0]!.textContent ?? '').replace(/\s+/g, ' ').trim() : '';
+}
+
 /**
  * Converts a Markdown file to a book, split at its level-one headings (or
  * level-two when it has none). Metadata the caller leaves empty comes from
- * the front matter, then defaults to "Untitled" by "Unknown". Relative images
- * show the pictures chosen with the file; the others are left out.
+ * the front matter; the title then from a level-one heading that is the only
+ * one, then the file name, then "Untitled"; the author defaults to
+ * "Unknown". Relative images show the pictures chosen with the file; the
+ * others are left out.
  */
 export async function fromMarkdown(
   data: Uint8Array,
   meta: Partial<NewBookMeta>,
   pictures: Picture[] = [],
+  opts: { fileName?: string } = {},
 ): Promise<Book> {
   const { fields, body } = parseFrontMatter(decodeText(data));
   const resources = new Map<string, Resource>();
@@ -210,7 +225,12 @@ export async function fromMarkdown(
   return bookFromSections(
     splitByHeading(html),
     {
-      title: meta.title || fields['title'] || 'Untitled',
+      title:
+        meta.title ||
+        fields['title'] ||
+        soleTitle(html) ||
+        titleFromFileName(opts.fileName) ||
+        'Untitled',
       author: meta.author || fields['author'] || 'Unknown',
       language: meta.language || fields['language'] || fields['lang'],
     },

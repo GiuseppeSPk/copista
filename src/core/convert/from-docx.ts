@@ -2,7 +2,7 @@ import mammoth from 'mammoth';
 import { openZip, readText, type Zip } from '../epub/zip';
 import { CopistaError, MalformedBookError } from '../errors';
 import type { Book, Resource } from '../model/book';
-import { bookFromSections, IMAGE_EXTENSIONS, splitByHeading } from './build';
+import { bookFromSections, IMAGE_EXTENSIONS, splitByHeading, titleFromFileName } from './build';
 
 const DC = 'http://purl.org/dc/elements/1.1/';
 const NOT_WORD = 'This file is not a Word document (.docx).';
@@ -36,13 +36,6 @@ function coreProperties(zip: Zip): { title: string; author: string; language: st
 function titleParagraph(html: string): string {
   const doc = new DOMParser().parseFromString(html, 'text/html');
   return (doc.querySelector('p.title')?.textContent ?? '').replace(/\s+/g, ' ').trim();
-}
-
-function titleFromFileName(fileName: string | undefined): string {
-  return (fileName ?? '')
-    .replace(/^.*[\\/]/, '')
-    .replace(/\.[^.]*$/, '')
-    .trim();
 }
 
 /**

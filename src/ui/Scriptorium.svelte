@@ -475,11 +475,15 @@
           <div class="fields">
             <label>
               Title
-              <input type="text" bind:value={title} placeholder="From the file name if empty" />
+              <input
+                type="text"
+                bind:value={title}
+                placeholder="From the text or file name if empty"
+              />
             </label>
             <label>
               Author
-              <input type="text" bind:value={author} placeholder="Unknown if empty" />
+              <input type="text" bind:value={author} placeholder="From the text if empty" />
             </label>
           </div>
         {/if}
@@ -489,7 +493,7 @@
               ? `All ${list.length} files go to the format you choose.`
               : 'These files have no format in common. Remove the ones that differ.'}
             {#if targets.length > 0 && list.some((p) => p.needsMeta)}
-              Titles come from the file names.
+              Titles come from each text, or else its file name.
             {/if}
           </p>
         {/if}

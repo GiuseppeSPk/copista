@@ -35,6 +35,7 @@ blockquote { margin: 1em 1.5em; padding-left: 0.8em; border-left: 3px solid rgba
 img { max-width: 100%; height: auto; }
 p.title { font-size: 1.8em; font-weight: bold; text-align: center; margin: 1.5em 0 0.5em; }
 p.subtitle { font-size: 1.2em; font-style: italic; text-align: center; margin: 0 0 1.5em; }
+p.author { font-size: 1.2em; text-align: center; margin: 0 0 2em; }
 h2.notes { margin-top: 2em; }
 ol.notes, ol.footnotes { font-size: 0.9em; }
 `;
@@ -47,6 +48,14 @@ const NOTES_HEADING: Record<string, string> = {
   es: 'Notas',
   de: 'Anmerkungen',
 };
+
+/** A file name without its folder and last extension, to name a book that carries no title. */
+export function titleFromFileName(fileName: string | undefined): string {
+  return (fileName ?? '')
+    .replace(/^.*[\\/]/, '')
+    .replace(/\.[^.]*$/, '')
+    .trim();
+}
 
 function fragmentOf(html: string): DocumentFragment {
   const template = document.createElement('template');
