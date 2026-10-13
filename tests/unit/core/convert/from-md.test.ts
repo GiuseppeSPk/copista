@@ -63,6 +63,41 @@ describe('fromMarkdown', () => {
     );
     expect(m.chapters[0]!.html).toContain('<a href="text/c002.xhtml#n1">note</a>');
   });
+
+  it('turns footnotes into numbered notes at the end, linked both ways', async () => {
+    const m = await fromMarkdown(
+      enc(
+        '# One\n\nFirst[^a] and second.[^b] Again[^a].\n\n`code [^a]`\n\n' +
+          '[^b]: The *second* note,\n    on two lines.\n\n# Two\n\nEnd.\n\n[^a]: The first note.\n',
+      ),
+      {},
+    );
+    const [one, two] = m.chapters.map((c) => c.html);
+    expect(one).toContain(
+      'First<sup><a href="text/c002.xhtml#footnote-1" id="footnote-ref-1">[1]</a></sup> and second.' +
+        '<sup><a href="text/c002.xhtml#footnote-2" id="footnote-ref-2">[2]</a></sup>' +
+        ' Again<sup><a href="text/c002.xhtml#footnote-1">[1]</a></sup>.',
+    );
+    expect(one).toContain('<code>code [^a]</code>');
+    expect(one).not.toContain('second</em> note');
+    expect(two).toContain(
+      '<ol class="footnotes"><li id="footnote-1"><p>The first note. ' +
+        '<a href="text/c001.xhtml#footnote-ref-1">↑</a></p></li>' +
+        '<li id="footnote-2"><p>The <em>second</em> note,\non two lines. ' +
+        '<a href="text/c001.xhtml#footnote-ref-2">↑</a></p></li></ol>',
+    );
+  });
+
+  it('leaves a footnote mark with no note as it is', async () => {
+    const m = await fromMarkdown(enc('Text[^x].'), { title: 'T' });
+    expect(m.chapters[0]!.html).toContain('Text[^x].');
+  });
+
+  it('shows task list boxes as ticked or empty marks', async () => {
+    const m = await fromMarkdown(enc('- [ ] To buy\n- [x] Bought\n'), { title: 'T' });
+    expect(m.chapters[0]!.html).toContain('<li>☐ To buy</li>');
+    expect(m.chapters[0]!.html).toContain('<li>☑ Bought</li>');
+  });
 });
 
 describe('parseFrontMatter', () => {
