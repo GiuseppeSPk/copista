@@ -1,6 +1,6 @@
 # Read aloud: the Lector and the Auditorium
 
-Status: draft for review, 2026-10-13. Not part of the 2026-10-14 launch.
+Status: approved 2026-10-13; phase 0 done the same day. Not part of the 2026-10-14 launch.
 
 ## 1. Goal
 
@@ -29,7 +29,7 @@ In:
 
 - one engine with two voices;
 - the book's language, with a quick switch between Italian and English;
-- reading from the current page onwards, with the current sentence highlighted and the pages
+- reading from the current page onwards, with the passage being read highlighted and the pages
   following along;
 - lock-screen play and pause controls;
 - the download, removal and licence notice;
@@ -92,14 +92,45 @@ A CPU slowed fourfold is only a rough stand-in for a phone, but the conclusions 
    - The page is isolated only once the service worker controls it. Setting up the voice
      therefore ends with one reload.
    - If isolation fails, the narrator runs on one thread. It still works, but it is slow.
-2. **A phone may not keep up at 8 steps.** Phase 0 (section 10) measures this on Giuseppe's
-   own phone before any app code is written. It tries wasm against WebGPU, and 8 against 6
-   and 4 steps. By ear, 8 steps are very good, 6 are acceptable, and 4 are rejected for both
-   quality and intonation. Two rules follow:
-   - The narrator uses 8 steps where the device keeps up, and drops to 6 where it does not.
-     It never goes below 6.
-   - If no setting keeps up on a mid-range phone, the voice ships for computers and fast
-     phones only, and the Auditorium says so plainly.
+2. **A phone may not keep up at 8 steps.** Phase 0 (section 10) measured this on two real
+   phones. By ear, 8 steps are very good, 6 are acceptable, and 4 are rejected for both
+   quality and intonation, so the narrator never goes below 6.
+
+### Phase 0 on two phones
+
+Same Manzoni sentence, fp16 weights, Chrome on Android, served over HTTPS on the home Wi-Fi.
+
+| Phone | Backend | 8 steps | 6 steps | 4 steps |
+| --- | --- | --- | --- | --- |
+| Reno 15 (Chrome 154, 8 cores) | wasm, threaded | 1.25–1.86 | 1.09–1.55 | 0.76–1.02 |
+| Reno 15 | WebGPU | 0.35 | 0.27 | 0.20 |
+| An older phone (Chrome 155) | wasm, threaded | 3.85–4.16 | 2.94–3.22 | 2.07–2.34 |
+| An older phone | WebGPU | failed ("Device is lost") | | |
+
+- Loading took 26–31 s on the Reno 15, download included.
+- On the Reno 15, continuous reading on WebGPU at 8 steps went on with the screen off:
+  generation slowed to about RTF 0.66 and playback never stopped. Lock-screen controls worked.
+- On the older phone, WebGPU was lost during the first run, and afterwards the browser gave no
+  WebGPU adapter at all.
+
+### Rules that follow
+
+- **WebGPU first.** On phones only WebGPU keeps up. The narrator asks for WebGPU and uses the
+  threaded wasm backend where WebGPU is missing.
+- **Fall back on loss.** If WebGPU is lost while speaking, the worker reloads the model on wasm
+  and repeats the sentence. That device stays on wasm for the rest of the session.
+- **Steps by self-test.** When the model first loads, the worker times one short sentence at 8
+  steps. If its RTF is below 0.8, it keeps 8 steps; otherwise it uses 6. The result is stored
+  with the voice and measured again when the backend changes.
+- **The voice is offered on every device.** Giuseppe chose this over hiding it on slow phones.
+  The Auditorium says "Works best on recent phones and computers." before the download. On a
+  device that cannot keep up, reading pauses while the Lector catches up (section 6).
+- **Longer pieces, fewer calls.** Each call to the model has a fixed cost, and a short
+  sentence spoken alone gets a flat intonation. The narrator therefore joins consecutive
+  sentences of one block into pieces of up to 300 characters, the helper's own limit, and
+  highlights the whole piece.
+- **Lean helper.** The helper is rewritten with typed arrays throughout, instead of nested JS
+  arrays, so less time goes into copying between calls.
 
 ## 5. Hosting and download
 
@@ -113,9 +144,11 @@ The files therefore go in a **Hugging Face model repository** under Giuseppe's a
 model card carries the OpenRAIL-M licence, Attachment A, and a note that the weights were
 converted to fp16 by us. The app fetches from a URL pinned to one commit of that repository.
 
-**Content Security Policy.** `connect-src` gains `https://huggingface.co` and the CDN hosts it
-redirects downloads to. Phase 0 records those hosts from a real download; I am not guessing
-them here. This is the first time Copista fetches anything from another site. The download
+**Content Security Policy.** `connect-src` gains `https://huggingface.co https://*.hf.co`.
+Phase 0 recorded these from a real download: a file URL on `huggingface.co` redirects to
+`huggingface.co/api/resolve-cache/...` and then to `us.aws.cdn.hf.co`. The repository is
+`GiuseppeSPk/copista-voice`, pinned to commit `cddb9ee79954ec63e65ebc147464b0610b648c2c`. This
+is the first time Copista fetches anything from another site. The download
 dialog names the site, and the app sends nothing but the request.
 
 **Download.** Each file is fetched with visible progress and checked against a SHA-256 written
@@ -131,18 +164,19 @@ the voice deletes that cache and frees the space shown on screen.
 - Skip: note lists (`ol.notes` and `ol.footnotes`), note reference marks (`sup > a`), `pre`,
   and pictures.
 - Each block is split into sentences with `Intl.Segmenter(lang, { granularity: 'sentence' })`.
-  Over-long sentences are split again with the helper's own chunking.
+  Consecutive sentences of one block are joined into pieces of up to 300 characters (section
+  4). A single sentence over 300 characters is split at commas, then at spaces.
 
 **Start and follow.** Reading starts at the first block visible on the current page, or at the
 top of the screen in scroll mode.
 
-- The sentence being spoken is highlighted with the CSS Custom Highlight API where it exists,
+- The piece being spoken is highlighted with the CSS Custom Highlight API where it exists,
   and simply not highlighted where it does not.
-- The view turns the page, or scrolls, so that sentence stays on screen.
+- The view turns the page, or scrolls, so that piece stays on screen.
 - Turning the page by hand while listening restarts the reading at the new page.
 - At the end of a chapter, the reading goes on into the next one.
 
-**Generation ahead.** The worker synthesises sentences ahead of the one being played, up to
+**Generation ahead.** The worker synthesises pieces ahead of the one being played, up to
 about two minutes of audio. Played audio is dropped, so memory stays bounded: two minutes at
 44.1 kHz in fp32 is about 21 MB.
 
@@ -156,11 +190,11 @@ about two minutes of audio. Played audio is dropped, so memory stays bounded: tw
 - A seventh reader tool, **Listen**, appears only once a voice is installed. It must fit a
   320 px wide phone, as the other six do.
 - Listening and auto-scroll are exclusive: starting one stops the other.
-- The Listen bar holds play/pause, previous and next sentence, the voice (Lector or Lectrix),
+- The Listen bar holds play/pause, previous and next piece, the voice (Lector or Lectrix),
   and the language. The language shows the book's language and switches between IT and EN.
 - The Media Session API puts play and pause on the lock screen.
-- Whether audio and generation carry on with the screen off is tested in phase 0; Android
-  throttles background pages.
+- Audio and generation carry on with the screen off (phase 0, on WebGPU). Generation slows
+  down there, which the buffer absorbs.
 
 ## 7. The Lector and the Auditorium
 
@@ -216,7 +250,7 @@ layering test is extended to cover it.
 
 ## 10. Phases
 
-0. **Measure on the phone** (throwaway, no app code). Serve the spike over local HTTPS on the
+0. **Measure on the phone** (done 2026-10-13; results in section 4). Serve the spike over local HTTPS on the
    Wi-Fi and have Giuseppe open it on his phone. It records:
    - load time and RTF for wasm (with threads) and WebGPU, at 8, 6 and 4 steps;
    - whether playback survives the screen turning off.
@@ -226,7 +260,8 @@ layering test is extended to cover it.
    - the Hugging Face repository is created (with his OK) and a real download records the CDN
      hosts.
 
-   **Gate:** the numbers decide between section 4's rules 1 and 2.
+   **Gate:** passed. WebGPU keeps up on a recent phone, and the voice is offered on every
+   device with a note that it works best on recent ones.
 1. **Engine and store.** The worker, the narrator, the download with checks, isolation through
    the service worker, and the CSP.
 2. **Auditorium.** The room, the samples, the licence step, download and removal.
@@ -241,6 +276,9 @@ layering test is extended to cover it.
 - Pre-recorded samples shipped with the app.
 - A buffer of about two minutes; no exporting or storing of generated audio.
 - The language switch limited to the book's language, IT and EN.
+- The self-test threshold: 8 steps when RTF is below 0.8, which leaves room for the screen
+  being off and for other work in the page.
+- Pieces of up to 300 characters, highlighted as a whole, rather than one sentence at a time.
 
 ## 12. Testing
 
