@@ -7,6 +7,13 @@ import { bookFromSections, IMAGE_EXTENSIONS, splitByHeading } from './build';
 const DC = 'http://purl.org/dc/elements/1.1/';
 const NOT_WORD = 'This file is not a Word document (.docx).';
 
+/** Added to mammoth's own map, which drops quotation styles and underlining. */
+const STYLE_MAP = [
+  "p[style-name='Quote'] => blockquote > p:fresh",
+  "p[style-name='Intense Quote'] => blockquote > p:fresh",
+  'u => u',
+];
+
 /** Title, author and language from docProps/core.xml; empty when absent. */
 function coreProperties(zip: Zip): { title: string; author: string; language: string } {
   const xml = readText(zip, 'docProps/core.xml');
@@ -59,8 +66,11 @@ export async function fromDocx(data: Uint8Array, opts: { fileName?: string } = {
   try {
     ({ value: html } = await mammoth.convertToHtml(input, {
       convertImage,
+      styleMap: STYLE_MAP,
       externalFileAccess: false,
     }));
+    // Word raises a note mark and mammoth raises it again.
+    html = html.replace(/<sup><sup>(<a [^>]*>[^<]*<\/a>)<\/sup><\/sup>/g, '<sup>$1</sup>');
   } catch (error) {
     if (error instanceof CopistaError) throw error;
     throw new MalformedBookError('This Word document is damaged and cannot be read.');

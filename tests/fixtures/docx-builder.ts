@@ -24,9 +24,20 @@ export function paragraph(runs: string, style?: string, numbering?: { numId: num
   return `<w:p>${props.length ? `<w:pPr>${props.join('')}</w:pPr>` : ''}${runs}</w:p>`;
 }
 
-export function run(text: string, format: { bold?: boolean; italic?: boolean } = {}): string {
-  const props = (format.bold ? '<w:b/>' : '') + (format.italic ? '<w:i/>' : '');
+export function run(
+  text: string,
+  format: { bold?: boolean; italic?: boolean; underline?: boolean } = {},
+): string {
+  const props =
+    (format.bold ? '<w:b/>' : '') +
+    (format.italic ? '<w:i/>' : '') +
+    (format.underline ? '<w:u w:val="single"/>' : '');
   return `<w:r>${props ? `<w:rPr>${props}</w:rPr>` : ''}<w:t xml:space="preserve">${text}</w:t></w:r>`;
+}
+
+/** A footnote mark, raised as Word raises it; the note goes in DocxOptions.footnotes. */
+export function footnoteRef(id: number): string {
+  return `<w:r><w:rPr><w:vertAlign w:val="superscript"/></w:rPr><w:footnoteReference w:id="${id}"/></w:r>`;
 }
 
 /** An inline picture run; sizes in EMU (914400 per inch). */
@@ -63,6 +74,10 @@ const STYLES =
   '<w:basedOn w:val="Normal"/><w:pPr><w:outlineLvl w:val="0"/></w:pPr></w:style>' +
   '<w:style w:type="paragraph" w:styleId="ListParagraph"><w:name w:val="List Paragraph"/>' +
   '<w:basedOn w:val="Normal"/></w:style>' +
+  '<w:style w:type="paragraph" w:styleId="Quote"><w:name w:val="Quote"/>' +
+  '<w:basedOn w:val="Normal"/></w:style>' +
+  '<w:style w:type="paragraph" w:styleId="IntenseQuote"><w:name w:val="Intense Quote"/>' +
+  '<w:basedOn w:val="Normal"/></w:style>' +
   '</w:styles>\n';
 
 /** numId 1 is a bullet list, numId 2 a decimal list. */
@@ -84,10 +99,13 @@ export interface DocxOptions {
   creator?: string;
   /** PNG images by relationship id; each is stored as word/media/<id>.png. */
   images?: Record<string, Uint8Array>;
+  /** Footnote paragraphs by id, stored in word/footnotes.xml. */
+  footnotes?: Record<number, string>;
 }
 
 export function docxZip(options: DocxOptions): Uint8Array {
   const images = Object.entries(options.images ?? {});
+  const footnotes = Object.entries(options.footnotes ?? {});
   const core =
     XML +
     '<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" ' +
@@ -105,6 +123,9 @@ export function docxZip(options: DocxOptions): Uint8Array {
     '<Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>' +
     '<Override PartName="/word/numbering.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml"/>' +
     '<Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>' +
+    (footnotes.length
+      ? '<Override PartName="/word/footnotes.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footnotes+xml"/>'
+      : '') +
     '</Types>\n';
   const rootRels =
     XML +
@@ -123,7 +144,15 @@ export function docxZip(options: DocxOptions): Uint8Array {
           `<Relationship Id="${id}" Type="${NS.officeRel}/image" Target="media/${id}.png"/>`,
       )
       .join('') +
+    (footnotes.length
+      ? `<Relationship Id="rIdFootnotes" Type="${NS.officeRel}/footnotes" Target="footnotes.xml"/>`
+      : '') +
     '</Relationships>\n';
+  const footnotesXml =
+    XML +
+    `<w:footnotes xmlns:w="${NS.w}">` +
+    footnotes.map(([id, body]) => `<w:footnote w:id="${id}">${body}</w:footnote>`).join('') +
+    '</w:footnotes>\n';
   const document =
     XML +
     `<w:document xmlns:w="${NS.w}" xmlns:r="${NS.r}" xmlns:wp="${NS.wp}">` +
@@ -138,6 +167,7 @@ export function docxZip(options: DocxOptions): Uint8Array {
     { name: 'word/styles.xml', data: STYLES },
     { name: 'word/numbering.xml', data: NUMBERING },
     ...images.map(([id, data]) => ({ name: `word/media/${id}.png`, data })),
+    ...(footnotes.length ? [{ name: 'word/footnotes.xml', data: footnotesXml }] : []),
   ];
   return buildZip(files);
 }
