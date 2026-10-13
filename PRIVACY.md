@@ -10,11 +10,23 @@ device:
 
 - the books you add to the library;
 - your reading position in each book;
-- your bookmarks;
-- your reading settings (text size and page colours).
+- your bookmarks and notes;
+- the month's draw on the home page;
+- your reading settings (text size, page colours, pages or scrolling, reading
+  pace).
+
+Your choice of light or dark interface is kept in the browser's local storage.
 
 None of this is uploaded. Copista does not send requests to any site other
 than the one it is served from, and an automated test checks this.
+
+## Links to other sites
+
+Some pages link to other sites: the free book catalogues in the library
+(Standard Ebooks, Project Gutenberg, Wikisource, Liber Liber), the project on
+GitHub, and the Ko-fi page for donations. These are plain links. Nothing is
+loaded from those sites until you follow one, and once you do, that site's own
+privacy policy applies.
 
 Files you open in the Scriptorium are read in memory to convert them and are
 not stored. The converted file is handed to your browser as a download.
@@ -37,7 +49,7 @@ https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-s
 ## Deleting your data
 
 The Archivum has a "Delete all my data" button. It removes the library,
-positions, bookmarks and settings from this browser. Clearing the site's data
+positions, bookmarks, notes and settings from this browser. Clearing the site's data
 in your browser settings does the same.
 
 ## Contact

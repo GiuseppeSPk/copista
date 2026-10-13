@@ -1,7 +1,5 @@
 # Copista engine: implementation plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
-
 **Goal:** Build and fully test Copista's headless engine (EPUB reading and writing, every conversion, pagination logic, storage) and one service module per room, before any user interface exists.
 
 **Architecture:** Every input becomes a `Book` (`src/core/model`), every output starts from a `Book`. Layers depend downward only: `core` ← `reader`, `storage` ← `rooms/<room>`. Each room (Bibliotheca, Lectorium, Scriptorium, Archivum) is a self-contained service module that the Svelte UI (a later plan) will call; rooms never import each other. An architecture test enforces this.

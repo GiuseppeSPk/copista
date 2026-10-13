@@ -2,11 +2,16 @@
 
 Convert documents and read books in the browser. Nothing leaves your device.
 
+**Open it at <https://giuseppespk.github.io/copista/>.**
+
 Copista is a web app that you can install and use offline. It has four rooms:
 
-- **Bibliotheca**, the library: add EPUB books and keep them in this browser.
-- **Lectorium**, the reading room: paged reading with contents, bookmarks,
-  text size and page colours. It remembers where you stopped.
+- **Bibliotheca**, the library: add EPUB books and keep them in this browser,
+  or find free classics in Standard Ebooks, Project Gutenberg, Wikisource and
+  Liber Liber.
+- **Lectorium**, the reading room: pages that turn like a book, or one long
+  column that scrolls by itself at a reading pace you set. Contents, bookmarks,
+  notes, text size and page colours. It remembers where you stopped.
 - **Scriptorium**, the conversion room:
   - any of EPUB, Word (.docx), Markdown and plain text to any other, or to a
     single web page;
@@ -14,12 +19,12 @@ Copista is a web app that you can install and use offline. It has four rooms:
 - **Archivum**, data and privacy: reading settings, space used, and a button
   that deletes everything Copista has stored.
 
-Copista is a beta. The interface is plain on purpose and will change.
+Copista is young (version 0.1). Bug reports and ideas are welcome as issues.
 
 ## Privacy
 
 There is no account, no server-side processing, no analytics and no cookies.
-Books, reading positions, bookmarks and settings are stored in the browser's
+Books, reading positions, bookmarks, notes and settings are stored in the browser's
 IndexedDB on your device. Files you convert are read in memory and not kept.
 See [PRIVACY.md](PRIVACY.md).
 
@@ -61,6 +66,11 @@ decisions and measurements.
 Copista is written from public specifications and library documentation, without
 looking at the code of other e-book software. [CLEANROOM.md](CLEANROOM.md)
 lists the rules and every source consulted.
+
+## Support
+
+Copista is free. If it is useful to you, a star on GitHub helps others find it,
+and you can [buy me a coffee on Ko-fi](https://ko-fi.com/giuseppespk).
 
 ## License
 

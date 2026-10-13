@@ -12,5 +12,4 @@ tests/fixtures/generated/
 .env.*
 .cache/
 tests/fixtures/output/
-.impeccable/questions/
-.impeccable/review/
+.impeccable/
