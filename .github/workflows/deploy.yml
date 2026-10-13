@@ -27,10 +27,8 @@ jobs:
       - run: npm run lint
       - run: npm run typecheck
       - run: npm test -- --coverage
-      # GitHub Pages serves a project site under /<repository>/.
+      # The site lives at the root of its own domain, copista.org.
       - run: npm run build
-        env:
-          BASE_PATH: /${{ github.event.repository.name }}/
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

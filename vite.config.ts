@@ -3,7 +3,7 @@ import { defineConfig } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig({
-  // GitHub Pages serves the app under /<repo>/; the deploy workflow sets BASE_PATH.
+  // The app sits at the root of copista.org; BASE_PATH serves it under a folder instead.
   base: process.env['BASE_PATH'] ?? '/',
   // The dev server also hosts the browser test harness (playwright.config.ts).
   server: { port: 5175, strictPort: true },

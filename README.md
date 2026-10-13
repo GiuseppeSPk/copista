@@ -2,7 +2,7 @@
 
 Convert documents and read books in the browser. Nothing leaves your device.
 
-**Open it at <https://giuseppespk.github.io/copista/>.**
+**Open it at <https://copista.org/>.**
 
 Copista is a web app that you can install and use offline. It has four rooms:
 
