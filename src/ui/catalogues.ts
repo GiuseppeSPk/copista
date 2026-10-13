@@ -54,28 +54,6 @@ export const CATALOGUES: Catalogue[] = [
     ],
   },
   {
-    name: 'Project Gutenberg',
-    home: 'https://www.gutenberg.org/',
-    search: 'https://www.gutenberg.org/ebooks/search/?query=',
-    languages: 'Many languages',
-    about:
-      'The oldest digital library, with tens of thousands of books. Choose “EPUB3”. Some Italian internet providers block it.',
-    classics: [
-      {
-        title: 'Alice’s Adventures in Wonderland',
-        author: 'Lewis Carroll',
-        href: 'https://www.gutenberg.org/ebooks/11',
-      },
-      {
-        title: 'Don Quixote',
-        author: 'Miguel de Cervantes',
-        href: 'https://www.gutenberg.org/ebooks/996',
-      },
-      { title: 'The Odyssey', author: 'Homer', href: 'https://www.gutenberg.org/ebooks/1727' },
-      { title: 'Dracula', author: 'Bram Stoker', href: 'https://www.gutenberg.org/ebooks/345' },
-    ],
-  },
-  {
     name: 'Liber Liber',
     home: 'https://liberliber.it/',
     search: 'https://liberliber.it/?s=',
@@ -131,6 +109,28 @@ export const CATALOGUES: Catalogue[] = [
         author: 'Sun Tzu',
         href: 'https://en.wikisource.org/wiki/The_Art_of_War_(Giles)',
       },
+    ],
+  },
+  {
+    name: 'Project Gutenberg',
+    home: 'https://www.gutenberg.org/',
+    search: 'https://www.gutenberg.org/ebooks/search/?query=',
+    languages: 'Many languages',
+    about:
+      'The oldest digital library, with tens of thousands of books. Choose “EPUB3”. Many internet providers in Italy block it; from there, use the libraries above.',
+    classics: [
+      {
+        title: 'Alice’s Adventures in Wonderland',
+        author: 'Lewis Carroll',
+        href: 'https://www.gutenberg.org/ebooks/11',
+      },
+      {
+        title: 'Don Quixote',
+        author: 'Miguel de Cervantes',
+        href: 'https://www.gutenberg.org/ebooks/996',
+      },
+      { title: 'The Odyssey', author: 'Homer', href: 'https://www.gutenberg.org/ebooks/1727' },
+      { title: 'Dracula', author: 'Bram Stoker', href: 'https://www.gutenberg.org/ebooks/345' },
     ],
   },
 ];
