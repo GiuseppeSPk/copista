@@ -634,6 +634,29 @@ test.describe('Scriptorium', () => {
     expect(html).toMatch(/<img [^>]*src="data:image\/png;base64,/);
   });
 
+  test('asks for a Markdown file’s pictures with a chooser of their own', async ({ page }) => {
+    // On Android a chooser that names a picture type opens the photo gallery and nothing else.
+    expect(await page.getByLabel('Choose files').getAttribute('accept')).not.toMatch(
+      /image\/|\.png|\.jpe?g/,
+    );
+    await expect(page.getByLabel('Choose pictures')).toHaveCount(0);
+    await page
+      .getByLabel('Choose files')
+      .setInputFiles(text('notes.md', '# Notes\n\n![A drawing](img/drawing.png)\n'));
+    const pictures = page.getByLabel('Choose pictures');
+    expect(await pictures.getAttribute('accept')).toMatch(/image\/png/);
+    await pictures.setInputFiles({
+      name: 'drawing.png',
+      mimeType: 'image/png',
+      buffer: Buffer.from(
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+        'base64',
+      ),
+    });
+    await expect(page.getByRole('list', { name: 'Pictures' }).getByRole('listitem')).toHaveCount(1);
+    await expect(pictures).toHaveCount(0);
+  });
+
   const text = (name: string, body: string) => ({
     name,
     mimeType: name.endsWith('.md') ? 'text/markdown' : 'text/plain',
@@ -1068,6 +1091,19 @@ test.describe('home', () => {
     await page.getByRole('main').getByLabel('Add EPUB books').setInputFiles(LONG_BOOK);
     await expect(page.getByRole('heading', { level: 1, name: 'Bibliotheca' })).toBeVisible();
     await expect(page.getByRole('status')).toContainText('Added “Long Book”.');
+  });
+
+  test('names no picture type on its convert button, so Android opens its files', async ({
+    page,
+  }) => {
+    // On Android a chooser that names a picture type opens the photo gallery and nothing else.
+    await page.goto('/');
+    const accept = await page
+      .getByRole('main')
+      .getByLabel('Choose files to convert')
+      .getAttribute('accept');
+    expect(accept).toMatch(/\.docx/);
+    expect(accept).not.toMatch(/image\/|\.png|\.jpe?g/);
   });
 
   test('reaches the hall from any room with one click or the 0 key', async ({ page }) => {

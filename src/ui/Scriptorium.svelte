@@ -64,7 +64,7 @@
   import type { Collation, Part } from '../core/convert/census';
   import { app, go, refreshShelf } from './state.svelte';
   import { stillMotion } from './theme.svelte';
-  import { CONVERTIBLE_FILES, download } from './files';
+  import { CONVERTIBLE_FILES, download, PICTURE_FILES } from './files';
   import BatchList from './BatchList.svelte';
   import Icon from './Icon.svelte';
   import Inking from './Inking.svelte';
@@ -98,7 +98,7 @@
     return (
       `${list.length > 1 ? 'Your Markdown files show' : 'Your Markdown file shows'} ` +
       `${listed}. ` +
-      `Choose ${them} too, or the book leaves ${them} out.`
+      `Choose ${them} below or drop ${them} here, or the book leaves ${them} out.`
     );
   });
   const copies = $derived(
@@ -452,8 +452,8 @@
         />
       </label>
       <p class="hint">
-        EPUB, Word (.docx), Markdown or plain text, with the pictures a Markdown file shows. Choose
-        several to convert them together, or drop them here.
+        EPUB, Word (.docx), Markdown or plain text. Choose several to convert them together, or drop
+        them here. A Markdown file's pictures are asked for once it is chosen.
       </p>
 
       {#if app.shelf.length > 0}
@@ -522,6 +522,22 @@
 
       {#if missing.length > 0}
         <p class="hint">{missingNote}</p>
+        <label class="button">
+          <Icon name="plus" size={18} />
+          Choose pictures
+          <input
+            type="file"
+            accept={PICTURE_FILES}
+            multiple
+            disabled={busy}
+            onchange={(e) => {
+              const input = e.currentTarget;
+              const files = [...(input.files ?? [])];
+              input.value = '';
+              if (files.length > 0) void choose(files);
+            }}
+          />
+        </label>
       {:else if pictures.length > 0 && !list.some((p) => p.format === 'md')}
         <p class="hint">Pictures go into a Markdown file that shows them: choose the file too.</p>
       {/if}
