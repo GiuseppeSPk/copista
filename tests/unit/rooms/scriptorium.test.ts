@@ -3,13 +3,16 @@ import { describe, expect, it } from 'vitest';
 import { fromDocx } from '../../../src/core/convert/from-docx';
 import { readEpub } from '../../../src/core/epub/read';
 import { DrmProtectedError, UnsupportedFormatError } from '../../../src/core/errors';
+import { unzipSync } from 'fflate';
 import {
+  commonTargets,
   convert,
   convertBook,
   convertLibraryBook,
   inspect,
   LIBRARY_TARGETS,
   outputFileName,
+  zipCopies,
 } from '../../../src/rooms/scriptorium/index';
 import { BookNotFoundError, deleteAllStorage, putBook } from '../../../src/storage/db';
 import { DOCX, EPUB, OTHER } from '../../fixtures/catalog';
@@ -132,6 +135,54 @@ describe('scriptorium', () => {
     await expect(inspect(f(OTHER.legacyDoc(), 'old.doc'))).rejects.toBeInstanceOf(
       UnsupportedFormatError,
     );
+  });
+});
+
+describe('scriptorium with several files', () => {
+  it('offers only the formats every file can become, and never PDF', () => {
+    expect(commonTargets([['epub', 'docx', 'txt', 'html', 'pdf']])).toEqual([
+      'epub',
+      'docx',
+      'txt',
+      'html',
+      'pdf',
+    ]);
+    expect(
+      commonTargets([
+        ['docx', 'md', 'txt', 'html', 'pdf'],
+        ['epub', 'md', 'txt', 'html', 'pdf'],
+      ]),
+    ).toEqual(['md', 'txt', 'html']);
+    expect(
+      commonTargets([
+        ['epub', 'pdf'],
+        ['docx', 'pdf'],
+      ]),
+    ).toEqual([]);
+    expect(commonTargets([])).toEqual([]);
+  });
+
+  it('puts every copy in one zip and numbers the names that repeat', async () => {
+    const zip = await zipCopies([
+      { blob: new Blob(['one']), fileName: 'Book.txt' },
+      { blob: new Blob(['two']), fileName: 'Book.txt' },
+      { blob: new Blob(['three']), fileName: 'Other.txt' },
+      { blob: new Blob(['four']), fileName: 'Book.txt' },
+    ]);
+    expect(zip.type).toBe('application/zip');
+    const files = unzipSync(await bytesOf(zip));
+    const text = (name: string): string => new TextDecoder().decode(files[name]);
+    expect(Object.keys(files).sort()).toEqual([
+      'Book (2).txt',
+      'Book (3).txt',
+      'Book.txt',
+      'Other.txt',
+    ]);
+    expect([text('Book.txt'), text('Book (2).txt'), text('Book (3).txt')]).toEqual([
+      'one',
+      'two',
+      'four',
+    ]);
   });
 });
 

@@ -1,3 +1,4 @@
+import { zipSync } from 'fflate';
 import type { NewBookMeta } from '../../core/convert/build';
 import type { Collation } from '../../core/convert/census';
 import { decodeText } from '../../core/convert/decode';
@@ -40,6 +41,9 @@ const OUTPUT_FORMATS: OutputFormat[] = ['epub', 'docx', 'md', 'txt', 'html', 'pd
 
 /** What a library book can become: it is already an EPUB. */
 export const LIBRARY_TARGETS: OutputFormat[] = OUTPUT_FORMATS.filter((target) => target !== 'epub');
+
+/** How many files can be converted together. */
+export const BATCH_LIMIT = 20;
 
 const MIME_TYPES: Record<Exclude<OutputFormat, 'pdf'>, string> = {
   epub: 'application/epub+zip',
@@ -168,4 +172,28 @@ export function outputFileName(title: string, target: Exclude<OutputFormat, 'pdf
     .slice(0, MAX_NAME_LENGTH)
     .trim();
   return `${name || 'book'}.${target}`;
+}
+
+/**
+ * The formats every chosen file can become. Several files never go to PDF,
+ * which is printed one book at a time from its preview.
+ */
+export function commonTargets(lists: OutputFormat[][]): OutputFormat[] {
+  if (lists.length === 1) return lists[0]!;
+  return OUTPUT_FORMATS.filter(
+    (target) => target !== 'pdf' && lists.length > 0 && lists.every((l) => l.includes(target)),
+  );
+}
+
+/** One zip holding every copy; a name already taken gets a number, as in "Book (2).txt". */
+export async function zipCopies(copies: { blob: Blob; fileName: string }[]): Promise<Blob> {
+  const files: Record<string, Uint8Array> = {};
+  for (const { blob, fileName } of copies) {
+    const dot = fileName.lastIndexOf('.');
+    const [stem, ext] = dot > 0 ? [fileName.slice(0, dot), fileName.slice(dot)] : [fileName, ''];
+    let name = fileName;
+    for (let n = 2; name in files; n++) name = `${stem} (${n})${ext}`;
+    files[name] = new Uint8Array(await blob.arrayBuffer());
+  }
+  return new Blob([zipSync(files) as BlobPart], { type: 'application/zip' });
 }

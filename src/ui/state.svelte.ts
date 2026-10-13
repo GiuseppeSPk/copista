@@ -25,7 +25,7 @@ export const app = $state({
   /** Books just added, newest first, still to land on the Lectorium's shelf. */
   landing: [] as string[],
   /** A file dropped outside the Bibliotheca, waiting for the Scriptorium. */
-  pendingConversion: undefined as File | undefined,
+  pendingConversion: undefined as File[] | undefined,
   /** A library book sent from its shelf card to the Scriptorium. */
   pendingBookId: undefined as string | undefined,
 });

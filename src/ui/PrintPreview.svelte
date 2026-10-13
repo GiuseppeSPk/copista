@@ -9,6 +9,7 @@
   } from '../core/convert/to-html';
   import type { PrintCopy } from '../rooms/scriptorium';
   import Icon from './Icon.svelte';
+  import Inking from './Inking.svelte';
 
   let {
     title,
@@ -101,7 +102,7 @@
       }}
     ></iframe>
     {#if loading}
-      <p class="print-loading" role="status">Laying out the pages…</p>
+      <p class="print-loading working" role="status"><Inking />Laying out the pages…</p>
     {/if}
   </div>
 

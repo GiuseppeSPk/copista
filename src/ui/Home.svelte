@@ -34,10 +34,10 @@
 
   function convert(event: Event): void {
     const input = event.currentTarget as HTMLInputElement;
-    const file = input.files?.[0];
+    const files = [...(input.files ?? [])];
     input.value = '';
-    if (!file) return;
-    app.pendingConversion = file;
+    if (files.length === 0) return;
+    app.pendingConversion = files;
     go({ room: 'scriptorium' });
   }
 
@@ -77,8 +77,8 @@
     <div class="home-actions">
       <label class="button primary">
         <Icon name="convert" size={18} />
-        Choose a file to convert
-        <input type="file" accept={CONVERTIBLE_FILES} onchange={convert} />
+        Choose files to convert
+        <input type="file" accept={CONVERTIBLE_FILES} multiple onchange={convert} />
       </label>
       <label class="button">
         <Icon name="plus" size={18} />

@@ -3850,6 +3850,127 @@ button:active:not(:disabled),
   }
 }
 
+/* The nib that writes while Copista works, set in the line of text it waits beside. */
+.inking {
+  width: 2.2em;
+  height: 1.1em;
+  flex: none;
+  vertical-align: -0.2em;
+  color: var(--ink);
+}
+
+.inking-line {
+  stroke: var(--accent);
+}
+
+.working {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.print-loading.working {
+  justify-content: center;
+}
+
+/* Several files chosen at once, each with its own way back out. */
+.picked-list {
+  display: grid;
+  gap: 6px;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* A batch: one row per file, as it waits, converts, and is checked. */
+.batch-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  width: 100%;
+}
+
+.batch {
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border-top: 3px double var(--frame-strong);
+  list-style: none;
+}
+
+.batch li {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.batch-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 32px;
+}
+
+.batch-name {
+  min-width: 0;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.batch-head > .hint,
+.batch-head > .working {
+  flex: none;
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.batch li > p {
+  margin: 4px 0 0;
+  font-size: 14px;
+}
+
+.batch li.failed .batch-name {
+  color: var(--muted);
+  text-decoration: line-through;
+}
+
+.batch details {
+  margin-top: 4px;
+  font-size: 14px;
+}
+
+.batch summary {
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.batch .facts {
+  grid-template-columns: max-content minmax(0, 1fr);
+  margin-top: 8px;
+}
+
+.batch .facts dt,
+.batch .facts dd {
+  padding: 6px 0;
+}
+
+.batch .facts dt {
+  padding-right: 16px;
+}
+
+.batch .facts dd.lost {
+  color: var(--accent);
+}
+
+.batch .why {
+  display: block;
+  margin-top: 2px;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
 /* Reduced motion: things still change, but nothing travels. */
 @media (prefers-reduced-motion: reduce) {
   *,

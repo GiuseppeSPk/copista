@@ -47,7 +47,7 @@
       void addFiles(files);
       if (room === 'home') go({ room: 'bibliotheca' });
     } else {
-      app.pendingConversion = files[0];
+      app.pendingConversion = files;
       go({ room: 'scriptorium' });
     }
   }

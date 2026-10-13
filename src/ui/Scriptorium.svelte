@@ -1,17 +1,22 @@
 <script lang="ts">
   import {
+    BATCH_LIMIT,
     LIBRARY_TARGETS,
+    commonTargets,
     convert,
     convertLibraryBook,
     inspect,
     type OutputFormat,
     type PrintCopy,
+    zipCopies,
   } from '../rooms/scriptorium';
   import { importBook } from '../rooms/bibliotheca';
   import type { Collation, Part } from '../core/convert/census';
   import { app, go, refreshShelf } from './state.svelte';
   import { CONVERTIBLE_FILES, download } from './files';
+  import BatchList, { type BatchRow } from './BatchList.svelte';
   import Icon from './Icon.svelte';
+  import Inking from './Inking.svelte';
   import PrintPreview from './PrintPreview.svelte';
   import RoomHero from './RoomHero.svelte';
   import Stamp from './Stamp.svelte';
@@ -19,6 +24,7 @@
   import { collationNote, collationRows, type CollationRow } from './collation';
 
   interface Picked {
+    key: number;
     source: { file: File } | { bookId: string };
     name: string;
     format: string;
@@ -26,7 +32,18 @@
     targets: OutputFormat[];
   }
 
-  let picked = $state.raw<Picked>();
+  /** The files chosen, or the one book from the library. More than one makes a batch. */
+  let list = $state.raw<Picked[]>([]);
+  let keys = 0;
+  const picked = $derived(list.length === 1 ? list[0] : undefined);
+  const several = $derived(list.length > 1);
+  const targets = $derived(commonTargets(list.map((p) => p.targets)));
+  /** The files of the last batch, each with its copy once it is made. */
+  let batch = $state<{ job: number; target: OutputFormat; rows: BatchRow[] }>();
+  const copies = $derived(
+    batch?.rows.flatMap((row) => (row.copy ? [$state.snapshot(row.copy)] : [])) ?? [],
+  );
+  const working = $derived(batch?.rows.findIndex((row) => row.state === 'working') ?? -1);
   let title = $state('');
   let author = $state('');
   let shelfChoice = $state('');
@@ -83,59 +100,83 @@
     made = undefined;
   }
 
-  async function choose(file: File): Promise<void> {
+  /** Forgets everything the last job left in the Done column. */
+  function clearDone(): void {
     clearCopies();
-    picked = undefined;
     message = undefined;
     stamp = undefined;
     collation = undefined;
-    title = '';
-    author = '';
-    shelfChoice = '';
-    try {
-      const info = await inspect(file);
-      picked = { source: { file }, name: file.name, ...info };
-    } catch (e) {
-      message = { tone: 'error', text: `${file.name}: ${errorMessage(e)}` };
+    batch = undefined;
+  }
+
+  const sameFile = (a: File, b: File): boolean =>
+    a.name === b.name && a.size === b.size && a.lastModified === b.lastModified;
+
+  /** Adds files to those already chosen. A library book is converted alone, so they replace it. */
+  async function choose(files: File[]): Promise<void> {
+    clearDone();
+    let kept = list.filter((p) => 'file' in p.source);
+    if (kept.length < list.length) shelfChoice = '';
+    if (kept.length === 0) {
+      title = '';
+      author = '';
     }
+    const problems: string[] = [];
+    let over = 0;
+    for (const file of files) {
+      if (kept.some((p) => 'file' in p.source && sameFile(p.source.file, file))) continue;
+      if (kept.length >= BATCH_LIMIT) {
+        over += 1;
+        continue;
+      }
+      try {
+        const info = await inspect(file);
+        kept = [...kept, { key: ++keys, source: { file }, name: file.name, ...info }];
+      } catch (e) {
+        problems.push(`${file.name}: ${errorMessage(e)}`);
+      }
+    }
+    list = kept;
+    if (over > 0) problems.push(`Up to ${BATCH_LIMIT} files at a time: ${over} left out.`);
+    if (problems.length > 0) message = { tone: 'error', text: problems.join(' ') };
   }
 
   function chooseBook(id: string): void {
     const book = app.shelf.find((b) => b.id === id);
-    clearCopies();
-    message = undefined;
-    stamp = undefined;
-    collation = undefined;
-    picked = book && {
-      source: { bookId: book.id },
-      name: book.title,
-      format: 'epub',
-      needsMeta: false,
-      targets: LIBRARY_TARGETS,
-    };
+    clearDone();
+    list = book
+      ? [
+          {
+            key: ++keys,
+            source: { bookId: book.id },
+            name: book.title,
+            format: 'epub',
+            needsMeta: false,
+            targets: LIBRARY_TARGETS,
+          },
+        ]
+      : [];
   }
 
   let fileInput = $state<HTMLInputElement>();
 
-  /** Puts the file back, so a wrong pick can be dropped without choosing another. */
-  function unpick(): void {
-    clearCopies();
-    picked = undefined;
-    message = undefined;
-    stamp = undefined;
-    collation = undefined;
+  /** Puts a file back, so a wrong pick can be dropped without choosing another. */
+  function unpick(key: number): void {
+    clearDone();
+    list = list.filter((p) => p.key !== key);
+    if (list.length > 0) return;
     title = '';
     author = '';
     shelfChoice = '';
     fileInput?.focus();
   }
 
-  // A file dropped in another room lands here.
+  // Files dropped in another room land here.
   $effect(() => {
-    const file = app.pendingConversion;
-    if (!file) return;
+    const files = app.pendingConversion;
+    if (!files) return;
     app.pendingConversion = undefined;
-    void choose(file);
+    void choose(files);
   });
 
   // So does a book sent from its card in the Bibliotheca.
@@ -148,12 +189,10 @@
   });
 
   async function run(target: OutputFormat): Promise<void> {
+    if (several) return runBatch(target);
     if (!picked) return;
     busy = true;
-    clearCopies();
-    message = undefined;
-    stamp = undefined;
-    collation = undefined;
+    clearDone();
     try {
       const meta = picked.needsMeta
         ? {
@@ -199,6 +238,76 @@
     void check(job, 'pdf', copy.check, pictures ? {} : { images: 'Left out, as you chose.' });
   }
 
+  /**
+   * Converts every chosen file in turn. A file that fails is marked and the
+   * others go on; the copies are checked once they are all made.
+   */
+  async function runBatch(target: OutputFormat): Promise<void> {
+    busy = true;
+    clearDone();
+    const job = ++jobs;
+    const files = list.flatMap((p) => ('file' in p.source ? [p.source.file] : []));
+    batch = {
+      job,
+      target,
+      rows: list.map((p) => ({ key: p.key, name: p.name, state: 'waiting' })),
+    };
+    const rows = batch.rows;
+    const checks: [BatchRow, () => Promise<Collation>][] = [];
+    for (const [i, file] of files.entries()) {
+      const row = rows[i]!;
+      row.state = 'working';
+      try {
+        const out = await convert(file, target);
+        if (out.kind !== 'file') throw new Error('PDF is made one book at a time.');
+        row.copy = { blob: out.blob, fileName: out.fileName };
+        row.state = 'done';
+        checks.push([row, out.check]);
+      } catch (e) {
+        row.error = errorMessage(e);
+        row.state = 'failed';
+      }
+    }
+    busy = false;
+    const done = checks.length;
+    message =
+      done === rows.length
+        ? { tone: 'ok', text: `All ${done} files copied. Download them below.` }
+        : { tone: done > 0 ? 'ok' : 'error', text: `${done} of ${rows.length} files copied.` };
+    if (done > 0) stamp = { job, label: 'Copied', note: today() };
+    for (const [row, read] of checks) {
+      if (batch?.job !== job) return;
+      row.check = { pending: true };
+      try {
+        row.check = { pending: false, rows: collationRows(await read(), target) };
+      } catch {
+        row.check = { failed: true };
+      }
+    }
+  }
+
+  async function downloadAll(): Promise<void> {
+    if (!batch) return;
+    download(await zipCopies(copies), `Copista copies (${FORMAT_LABELS[batch.target]}).zip`);
+  }
+
+  /** Puts every new EPUB on the shelf and shows them there. */
+  async function shelveAll(): Promise<void> {
+    opening = true;
+    const problems: string[] = [];
+    for (const { blob, fileName } of copies) {
+      try {
+        await importBook(new File([blob], fileName, { type: 'application/epub+zip' }));
+      } catch (e) {
+        problems.push(`${fileName}: ${errorMessage(e)}`);
+      }
+    }
+    await refreshShelf();
+    opening = false;
+    if (problems.length > 0) message = { tone: 'error', text: problems.join(' ') };
+    else go({ room: 'lectorium' });
+  }
+
   /** Puts the new EPUB on the shelf and opens it in the Lectorium. */
   async function readHere(): Promise<void> {
     if (!made) return;
@@ -224,21 +333,25 @@
       <h2 id="leg-from">From</h2>
       <label class="button primary">
         <Icon name="file" />
-        Choose a file
+        Choose files
         <input
           bind:this={fileInput}
           type="file"
           accept={CONVERTIBLE_FILES}
+          multiple
           disabled={busy}
           onchange={(e) => {
             const input = e.currentTarget;
-            const file = input.files?.[0];
+            const files = [...(input.files ?? [])];
             input.value = '';
-            if (file) void choose(file);
+            if (files.length > 0) void choose(files);
           }}
         />
       </label>
-      <p class="hint">EPUB, Word (.docx), Markdown or plain text. You can also drop it here.</p>
+      <p class="hint">
+        EPUB, Word (.docx), Markdown or plain text. Choose several to convert them together, or drop
+        them here.
+      </p>
 
       {#if app.shelf.length > 0}
         <label class="library-pick">
@@ -260,31 +373,33 @@
         </label>
       {/if}
 
-      {#if picked}
-        <p class="picked">
-          <span class="picked-name">
-            <strong>{picked.name}</strong>
-            <span class="format"
-              >{FORMAT_LABELS[picked.format as OutputFormat] ?? picked.format}</span
-            >
-          </span>
-          <button
-            type="button"
-            class="icon-only unpick"
-            title="Remove"
-            disabled={busy}
-            onclick={unpick}
-          >
-            <Icon name="close" size={16} /><span class="sr-only">Remove {picked.name}</span>
-          </button>
-        </p>
+      {#if list.length > 0}
+        <ul class="picked-list" aria-label="Chosen">
+          {#each list as p (p.key)}
+            <li class="picked">
+              <span class="picked-name">
+                <strong>{p.name}</strong>
+                <span class="format">{FORMAT_LABELS[p.format as OutputFormat] ?? p.format}</span>
+              </span>
+              <button
+                type="button"
+                class="icon-only unpick"
+                title="Remove"
+                disabled={busy}
+                onclick={() => unpick(p.key)}
+              >
+                <Icon name="close" size={16} /><span class="sr-only">Remove {p.name}</span>
+              </button>
+            </li>
+          {/each}
+        </ul>
       {/if}
     </section>
 
     <section class="leg" aria-labelledby="leg-to">
       <h2 id="leg-to">To</h2>
-      {#if picked}
-        {#if picked.needsMeta}
+      {#if list.length > 0}
+        {#if picked?.needsMeta}
           <div class="fields">
             <label>
               Title
@@ -296,8 +411,18 @@
             </label>
           </div>
         {/if}
+        {#if several}
+          <p class="hint">
+            {targets.length > 0
+              ? `All ${list.length} files go to the format you choose.`
+              : 'These files have no format in common. Remove the ones that differ.'}
+            {#if targets.length > 0 && list.some((p) => p.needsMeta)}
+              Titles come from the file names.
+            {/if}
+          </p>
+        {/if}
         <div class="targets">
-          {#each picked.targets as target (target)}
+          {#each targets as target (target)}
             <button type="button" disabled={busy} onclick={() => run(target)}>
               {FORMAT_LABELS[target]}
             </button>
@@ -311,7 +436,13 @@
     <section class="leg done" aria-labelledby="leg-done">
       <h2 id="leg-done">Done</h2>
       <div role="status" class="notices">
-        {#if busy}<p>Converting…</p>{/if}
+        {#if busy}
+          <p class="working">
+            <Inking />{batch && working >= 0
+              ? `Converting ${working + 1} of ${batch.rows.length}…`
+              : 'Converting…'}
+          </p>
+        {/if}
         {#if message}<p class={message.tone}>{message.text}</p>{/if}
         {#if !busy && !message}<p class="hint">
             Your file is saved where your browser keeps downloads.
@@ -322,6 +453,28 @@
           <Icon name="read" size={18} />
           Read it here
         </button>
+      {/if}
+      {#if batch && !busy && copies.length > 0}
+        <div class="batch-actions">
+          <button
+            type="button"
+            class:primary={batch.target !== 'epub'}
+            disabled={opening}
+            onclick={downloadAll}
+          >
+            <Icon name="archive" size={18} />
+            Download all (.zip)
+          </button>
+          {#if batch.target === 'epub'}
+            <button type="button" class="primary" disabled={opening} onclick={shelveAll}>
+              <Icon name="library" size={18} />
+              Put them all on the shelf
+            </button>
+          {/if}
+        </div>
+      {/if}
+      {#if batch}
+        <BatchList rows={batch.rows} />
       {/if}
       {#if pages && !previewOpen}
         <button type="button" onclick={() => (previewOpen = true)}>Open the preview again</button>
@@ -335,7 +488,7 @@
         <section class="collation" aria-labelledby="collation-title" aria-live="polite">
           <h3 id="collation-title">Checked against the original</h3>
           {#if collation.pending}
-            <p class="hint">Reading the copy back…</p>
+            <p class="hint working"><Inking />Reading the copy back…</p>
           {:else if 'failed' in collation}
             <p class="hint">The copy could not be read back, so it was not checked.</p>
           {:else}

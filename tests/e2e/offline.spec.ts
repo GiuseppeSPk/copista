@@ -22,13 +22,14 @@ test('works without a network after the first visit', async ({ page, context }) 
   await expect(page.locator('.where')).toContainText(/Page 2 of \d+/);
 
   await page.getByRole('link', { name: 'Convert a file' }).click();
-  await page.getByLabel('Choose a file').setInputFiles('tests/fixtures/generated/long-book.epub');
+  await page.getByLabel('Choose files').setInputFiles('tests/fixtures/generated/long-book.epub');
   const download = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Word', exact: true }).click();
   expect((await download).suggestedFilename()).toBe('Long Book.docx');
 
   // The .docx reader is a separate chunk, so this checks it was cached too.
-  await page.getByLabel('Choose a file').setInputFiles('tests/fixtures/generated/basic.docx');
+  await page.getByRole('button', { name: /^Remove long-book\.epub/ }).click();
+  await page.getByLabel('Choose files').setInputFiles('tests/fixtures/generated/basic.docx');
   const epub = page.waitForEvent('download');
   await page.getByRole('button', { name: 'EPUB', exact: true }).click();
   expect((await epub).suggestedFilename()).toMatch(/\.epub$/);

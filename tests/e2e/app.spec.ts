@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
+import { unzipSync } from 'fflate';
 import { readFileSync } from 'node:fs';
 import { epubZip, nav, opf, xhtml } from '../fixtures/epub-builder';
 
@@ -222,7 +223,7 @@ test('opens the file picker from every button and from the empty shelves', async
   const main = page.getByRole('main');
 
   await page.goto('/');
-  await picks(main.locator('label', { hasText: 'Choose a file to convert' }), false);
+  await picks(main.locator('label', { hasText: 'Choose files to convert' }), true);
   await picks(main.locator('label', { hasText: 'Add EPUB books' }), true);
 
   await page.goto('/#/bibliotheca');
@@ -234,7 +235,7 @@ test('opens the file picker from every button and from the empty shelves', async
   await picks(main.locator('.pick-area'), true);
 
   await page.goto('/#/scriptorium');
-  await picks(main.locator('label', { hasText: 'Choose a file' }), false);
+  await picks(main.locator('label', { hasText: 'Choose files' }), true);
 });
 
 test('takes a click on a room while the screen is still changing', async ({ page }) => {
@@ -397,7 +398,7 @@ test.describe('Scriptorium', () => {
     ['Web page', '.html'],
   ] as const) {
     test(`converts an EPUB to ${label}`, async ({ page }) => {
-      await page.getByLabel('Choose a file').setInputFiles(LONG_BOOK);
+      await page.getByLabel('Choose files').setInputFiles(LONG_BOOK);
       const download = page.waitForEvent('download');
       await page.getByRole('button', { name: label, exact: true }).click();
       expect((await download).suggestedFilename()).toBe(`Long Book${extension}`);
@@ -408,7 +409,7 @@ test.describe('Scriptorium', () => {
   }
 
   test('opens the print preview for PDF and prints from it', async ({ page }) => {
-    await page.getByLabel('Choose a file').setInputFiles(LONG_BOOK);
+    await page.getByLabel('Choose files').setInputFiles(LONG_BOOK);
     await page.getByRole('button', { name: 'PDF (print)' }).click();
     const preview = page.getByRole('dialog', { name: 'Save as PDF' });
     await expect(preview).toBeVisible();
@@ -433,7 +434,7 @@ test.describe('Scriptorium', () => {
       'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
       'base64',
     );
-    await page.getByLabel('Choose a file').setInputFiles({
+    await page.getByLabel('Choose files').setInputFiles({
       name: 'plates.epub',
       mimeType: 'application/epub+zip',
       buffer: Buffer.from(
@@ -483,7 +484,7 @@ test.describe('Scriptorium', () => {
   });
 
   test('opens a new EPUB in the reader', async ({ page }) => {
-    await page.getByLabel('Choose a file').setInputFiles({
+    await page.getByLabel('Choose files').setInputFiles({
       name: 'notes.md',
       mimeType: 'text/markdown',
       buffer: Buffer.from('# One\n\nSome *text* to read here.\n'),
@@ -499,7 +500,7 @@ test.describe('Scriptorium', () => {
   });
 
   test('converts Markdown to EPUB with the title typed in', async ({ page }) => {
-    await page.getByLabel('Choose a file').setInputFiles({
+    await page.getByLabel('Choose files').setInputFiles({
       name: 'notes.md',
       mimeType: 'text/markdown',
       buffer: Buffer.from('# One\n\nSome *text*.\n\n# Two\n\nMore.\n'),
@@ -512,7 +513,7 @@ test.describe('Scriptorium', () => {
   });
 
   test('converts plain text to EPUB without a title', async ({ page }) => {
-    await page.getByLabel('Choose a file').setInputFiles({
+    await page.getByLabel('Choose files').setInputFiles({
       name: 'diary.txt',
       mimeType: 'text/plain',
       buffer: Buffer.from('First day.\n\nSecond day.\n'),
@@ -523,7 +524,7 @@ test.describe('Scriptorium', () => {
   });
 
   test('converts Word to EPUB', async ({ page }) => {
-    await page.getByLabel('Choose a file').setInputFiles(BASIC_DOCX);
+    await page.getByLabel('Choose files').setInputFiles(BASIC_DOCX);
     await expect(page.getByLabel('Title')).toHaveCount(0);
     const download = page.waitForEvent('download');
     await page.getByRole('button', { name: 'EPUB', exact: true }).click();
@@ -531,21 +532,96 @@ test.describe('Scriptorium', () => {
   });
 
   test('removes a chosen file with the cross next to its name', async ({ page }) => {
-    await page.getByLabel('Choose a file').setInputFiles(BASIC_DOCX);
+    await page.getByLabel('Choose files').setInputFiles(BASIC_DOCX);
     await expect(page.getByRole('button', { name: 'EPUB', exact: true })).toBeVisible();
     await page.getByRole('button', { name: /^Remove basic\.docx/ }).click();
     await expect(page.locator('.picked')).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'EPUB', exact: true })).toHaveCount(0);
-    await expect(page.getByLabel('Choose a file')).toBeFocused();
+    await expect(page.getByLabel('Choose files')).toBeFocused();
   });
 
   test('refuses a file it cannot read', async ({ page }) => {
-    await page.getByLabel('Choose a file').setInputFiles({
+    await page.getByLabel('Choose files').setInputFiles({
       name: 'photo.png',
       mimeType: 'image/png',
       buffer: Buffer.from([0x89, 0x50, 0x4e, 0x47, 0, 0, 0, 0]),
     });
     await expect(page.locator('.notices .error')).toContainText('photo.png:');
+  });
+
+  const text = (name: string, body: string) => ({
+    name,
+    mimeType: name.endsWith('.md') ? 'text/markdown' : 'text/plain',
+    buffer: Buffer.from(body),
+  });
+
+  test('converts several files together and zips the copies', async ({ page }) => {
+    await page
+      .getByLabel('Choose files')
+      .setInputFiles([
+        text('a.md', '# One\n\nFirst.\n'),
+        text('b.txt', 'Second.\n'),
+        text('c.txt', 'Third.\n'),
+      ]);
+    await expect(page.locator('.picked')).toHaveCount(3);
+    await expect(page.getByLabel('Title')).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'PDF (print)' })).toHaveCount(0);
+    await page.getByRole('button', { name: 'Word', exact: true }).click();
+
+    const rows = page.getByRole('list', { name: 'Files' }).getByRole('listitem');
+    await expect(rows).toHaveCount(3);
+    await expect(page.locator('.done [role="status"]')).toContainText('All 3 files copied.');
+    await expect(rows.getByRole('button', { name: /^Download/ })).toHaveCount(3);
+    await expect(rows.locator('details summary')).toHaveCount(3);
+
+    const one = page.waitForEvent('download');
+    await rows.getByRole('button', { name: 'Download b.docx' }).click();
+    expect((await one).suggestedFilename()).toBe('b.docx');
+
+    const all = page.waitForEvent('download');
+    await page.getByRole('button', { name: 'Download all (.zip)' }).click();
+    const zip = await all;
+    expect(zip.suggestedFilename()).toBe('Copista copies (Word).zip');
+    const entries = unzipSync(new Uint8Array(readFileSync((await zip.path())!)));
+    expect(Object.keys(entries).sort()).toEqual(['a.docx', 'b.docx', 'c.docx']);
+  });
+
+  test('goes on with the other files when one fails', async ({ page }) => {
+    await page.getByLabel('Choose files').setInputFiles([
+      {
+        name: 'broken.epub',
+        mimeType: 'application/epub+zip',
+        buffer: Buffer.from(epubZip({})),
+      },
+      text('fine.md', '# Fine\n\nStill here.\n'),
+    ]);
+    await page.getByRole('button', { name: 'Text', exact: true }).click();
+    const rows = page.getByRole('list', { name: 'Files' }).getByRole('listitem');
+    await expect(page.locator('.done [role="status"]')).toContainText('1 of 2 files copied.');
+    await expect(rows.first().locator('.error')).toBeVisible();
+    await expect(rows.last().getByRole('button', { name: 'Download fine.txt' })).toBeVisible();
+  });
+
+  test('puts several new EPUBs on the shelf at once', async ({ page }) => {
+    await page
+      .getByLabel('Choose files')
+      .setInputFiles([text('alpha.md', 'First.\n'), text('beta.md', 'Second.\n')]);
+    await page.getByRole('button', { name: 'EPUB', exact: true }).click();
+    await page.getByRole('button', { name: 'Put them all on the shelf' }).click();
+    await expect(page.getByRole('heading', { level: 1, name: 'Lectorium' })).toBeVisible();
+    await expect(page.getByRole('link', { name: /^alpha/ })).toBeVisible();
+    await expect(page.getByRole('link', { name: /^beta/ })).toBeVisible();
+  });
+
+  test('adds files chosen later to those already chosen', async ({ page }) => {
+    await page.getByLabel('Choose files').setInputFiles(text('a.txt', 'One.\n'));
+    await expect(page.getByLabel('Title')).toBeVisible();
+    await page.getByLabel('Choose files').setInputFiles(text('b.txt', 'Two.\n'));
+    await expect(page.locator('.picked')).toHaveCount(2);
+    await expect(page.getByLabel('Title')).toHaveCount(0);
+    await page.getByRole('button', { name: /^Remove a\.txt/ }).click();
+    await expect(page.locator('.picked')).toHaveCount(1);
+    await expect(page.getByLabel('Title')).toBeVisible();
   });
 
   test('converts a book from the library', async ({ page }) => {
@@ -697,7 +773,7 @@ test.describe('home', () => {
 
   test('converts a file or adds books from the buttons under the lead', async ({ page }) => {
     await page.goto('/');
-    await page.getByRole('main').getByLabel('Choose a file to convert').setInputFiles(BASIC_DOCX);
+    await page.getByRole('main').getByLabel('Choose files to convert').setInputFiles(BASIC_DOCX);
     await expect(page.getByRole('heading', { level: 1, name: 'Scriptorium' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'EPUB', exact: true })).toBeEnabled();
 
