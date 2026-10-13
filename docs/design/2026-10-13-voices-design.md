@@ -94,9 +94,10 @@ A CPU slowed fourfold is only a rough stand-in for a phone, but the conclusions 
    - If isolation fails, the narrator runs on one thread. It still works, but it is slow.
 2. **A phone may not keep up at 8 steps.** Phase 0 (section 10) measures this on Giuseppe's
    own phone before any app code is written. It tries wasm against WebGPU, and 8 against 6
-   and 4 steps; he also listens to samples at 6 and 4 steps. Two rules follow:
-   - The narrator uses 8 steps where the device keeps up, and drops to fewer steps where it
-     does not, if those steps passed the ear test.
+   and 4 steps. By ear, 8 steps are very good, 6 are acceptable, and 4 are rejected for both
+   quality and intonation. Two rules follow:
+   - The narrator uses 8 steps where the device keeps up, and drops to 6 where it does not.
+     It never goes below 6.
    - If no setting keeps up on a mid-range phone, the voice ships for computers and fast
      phones only, and the Auditorium says so plainly.
 
@@ -221,7 +222,7 @@ layering test is extended to cover it.
    - whether playback survives the screen turning off.
 
    In the same phase:
-   - Giuseppe hears samples at 6 and 4 steps;
+   - Giuseppe hears samples at 8, 6 and 4 steps (done: 6 is the floor);
    - the Hugging Face repository is created (with his OK) and a real download records the CDN
      hosts.
 
