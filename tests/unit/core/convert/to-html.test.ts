@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { toHtml } from '../../../../src/core/convert/to-html';
+import { DEFAULT_PRINT, printCss, toHtml } from '../../../../src/core/convert/to-html';
 import { readEpub } from '../../../../src/core/epub/read';
 import { EPUB } from '../../../fixtures/catalog';
 
@@ -47,5 +47,32 @@ describe('toHtml', () => {
     expect(print).toContain('break-before: page');
     expect(print).toContain('<meta name="color-scheme" content="light">');
     expect(toHtml(book)).not.toContain('@page');
+    const doc = new DOMParser().parseFromString(print, 'text/html');
+    expect(doc.getElementById('print-options')!.textContent).toContain(printCss(DEFAULT_PRINT));
+  });
+
+  it('writes the page rules the reader picks', () => {
+    const a5 = printCss({ ...DEFAULT_PRINT, page: 'a5', text: 'large', margins: 'wide' });
+    expect(a5).toContain('@page { size: A5; margin: 2.25cm }');
+    expect(a5).toContain('font-size: 13.5pt');
+    expect(a5).toContain('width: 148mm');
+    expect(a5).not.toContain('body > nav { display: none }');
+
+    const plain = printCss({ ...DEFAULT_PRINT, breaks: false, contents: false });
+    expect(plain).not.toContain('break-before');
+    expect(plain).toContain('body > nav { display: none }');
+  });
+
+  it('leaves the pictures out of a copy without them, and keeps every word', async () => {
+    const book = await readEpub(EPUB.epub3Nav());
+    const full = toHtml(book, { print: true });
+    const plain = toHtml(book, { print: true, pictures: false });
+    expect(full).toContain('data:image/');
+    expect(plain).not.toContain('data:image/');
+    expect(plain).not.toContain('<img');
+    expect(plain).toContain('data:font/');
+    const words = (html: string) =>
+      new DOMParser().parseFromString(html, 'text/html').body.textContent!.replace(/\s+/g, ' ');
+    expect(words(plain)).toBe(words(full));
   });
 });

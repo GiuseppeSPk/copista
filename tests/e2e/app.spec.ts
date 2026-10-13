@@ -407,13 +407,95 @@ test.describe('Scriptorium', () => {
     });
   }
 
-  test('opens the print view for PDF', async ({ page }) => {
+  test('opens the print preview for PDF and prints from it', async ({ page }) => {
     await page.getByLabel('Choose a file').setInputFiles(LONG_BOOK);
     await page.getByRole('button', { name: 'PDF (print)' }).click();
-    await expect(page.getByRole('status')).toContainText('Save as PDF');
+    const preview = page.getByRole('dialog', { name: 'Save as PDF' });
+    await expect(preview).toBeVisible();
+    await expect(preview.getByText('Laying out the pages…')).toHaveCount(0);
+    // Number keys open the rooms, but not while the preview is open.
+    await page.keyboard.press('1');
+    await expect(preview).toBeVisible();
+    await preview.getByRole('button', { name: 'Save as PDF' }).click();
     await expect
       .poll(() => page.evaluate(() => (window as Window & { printed?: number }).printed))
       .toBe(1);
+    await expect(preview).toBeVisible();
+    await preview.getByRole('button', { name: 'Close the preview' }).click();
+    await expect(preview).toHaveCount(0);
+    await expect(page.locator('.done [role="status"]')).toContainText('Save as PDF');
+    await page.getByRole('button', { name: 'Open the preview again' }).click();
+    await expect(page.getByRole('dialog', { name: 'Save as PDF' })).toBeVisible();
+  });
+
+  test('lays out the preview with the options chosen', async ({ page }) => {
+    const pixel = Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+      'base64',
+    );
+    await page.getByLabel('Choose a file').setInputFiles({
+      name: 'plates.epub',
+      mimeType: 'application/epub+zip',
+      buffer: Buffer.from(
+        epubZip({
+          'OEBPS/content.opf': opf({
+            title: 'Plates',
+            items: [
+              {
+                id: 'nav',
+                href: 'nav.xhtml',
+                mediaType: 'application/xhtml+xml',
+                properties: 'nav',
+              },
+              { id: 'c1', href: 'c1.xhtml', mediaType: 'application/xhtml+xml' },
+              { id: 'p1', href: 'p1.png', mediaType: 'image/png' },
+            ],
+            spine: ['c1'],
+          }),
+          'OEBPS/nav.xhtml': nav([{ label: 'One', href: 'c1.xhtml' }]),
+          'OEBPS/c1.xhtml': xhtml('One', '<p>A plate.</p><p><img src="p1.png" alt="Plate"/></p>'),
+          'OEBPS/p1.png': new Uint8Array(pixel),
+        }),
+      ),
+    });
+    await page.getByRole('button', { name: 'PDF (print)' }).click();
+    const preview = page.getByRole('dialog', { name: 'Save as PDF' });
+    const pages = page.frameLocator('iframe[title="Preview of the pages"]');
+    // The rules of a style element are not shown text: read them as they are written.
+    const pageRules = () => pages.locator('#print-options').evaluate((style) => style.textContent);
+    await expect(pages.getByRole('img', { name: 'Plate' })).toBeVisible();
+
+    await preview.getByRole('combobox', { name: /^Page/ }).selectOption('a5');
+    await expect.poll(pageRules).toContain('size: A5');
+    await preview.getByRole('checkbox', { name: 'Table of contents' }).uncheck();
+    await expect(pages.getByRole('navigation')).toBeHidden();
+
+    await preview.getByRole('checkbox', { name: 'Pictures' }).uncheck();
+    await expect(pages.getByText('A plate.')).toBeVisible();
+    await expect(pages.locator('img')).toHaveCount(0);
+    // A new copy keeps the options already chosen.
+    await expect.poll(pageRules).toContain('size: A5');
+
+    await preview.getByRole('button', { name: 'Save as PDF' }).click();
+    await preview.getByRole('button', { name: 'Close the preview' }).click();
+    const check = page.getByRole('region', { name: 'Checked against the original' });
+    await expect(check).toContainText('Left out, as you chose.');
+  });
+
+  test('opens a new EPUB in the reader', async ({ page }) => {
+    await page.getByLabel('Choose a file').setInputFiles({
+      name: 'notes.md',
+      mimeType: 'text/markdown',
+      buffer: Buffer.from('# One\n\nSome *text* to read here.\n'),
+    });
+    const download = page.waitForEvent('download');
+    await page.getByRole('button', { name: 'EPUB', exact: true }).click();
+    await download;
+    await page.getByRole('button', { name: 'Read it here' }).click();
+    await expect(page).toHaveURL(/#\/read\//);
+    await expect(
+      page.frameLocator('.pages iframe').getByText('Some text to read here.'),
+    ).toBeVisible();
   });
 
   test('converts Markdown to EPUB with the title typed in', async ({ page }) => {
@@ -446,6 +528,15 @@ test.describe('Scriptorium', () => {
     const download = page.waitForEvent('download');
     await page.getByRole('button', { name: 'EPUB', exact: true }).click();
     expect((await download).suggestedFilename()).toMatch(/\.epub$/);
+  });
+
+  test('removes a chosen file with the cross next to its name', async ({ page }) => {
+    await page.getByLabel('Choose a file').setInputFiles(BASIC_DOCX);
+    await expect(page.getByRole('button', { name: 'EPUB', exact: true })).toBeVisible();
+    await page.getByRole('button', { name: /^Remove basic\.docx/ }).click();
+    await expect(page.locator('.picked')).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'EPUB', exact: true })).toHaveCount(0);
+    await expect(page.getByLabel('Choose a file')).toBeFocused();
   });
 
   test('refuses a file it cannot read', async ({ page }) => {

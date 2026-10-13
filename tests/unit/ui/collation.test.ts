@@ -46,6 +46,19 @@ describe('collation rows', () => {
     });
   });
 
+  it("gives the reader's own reason for a part left out by choice", () => {
+    const collation: Collation = {
+      words: { total: 1, found: 1, missing: [] },
+      parts: [{ part: 'images', original: 3, copy: 0 }],
+    };
+    expect(collationRows(collation, 'pdf', { images: 'Left out, as you chose.' })[1]).toEqual({
+      label: 'Pictures',
+      value: '0 of 3',
+      lost: true,
+      reason: 'Left out, as you chose.',
+    });
+  });
+
   it('explains plain text once instead of listing its parts', () => {
     expect(collationRows({ words: { total: 2, found: 2, missing: [] } }, 'txt')).toHaveLength(1);
     expect(collationNote('txt')).toMatch(/words only/);

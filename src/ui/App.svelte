@@ -73,7 +73,8 @@
     const index = '01234'.indexOf(event.key);
     if (index < 0 || event.key.length !== 1) return;
     const target = event.target as HTMLElement | null;
-    if (target?.closest('input, select, textarea, [contenteditable]')) return;
+    // An open dialog (the print preview) keeps the keys to itself.
+    if (target?.closest('input, select, textarea, [contenteditable], dialog')) return;
     event.preventDefault();
     go(index === 0 ? { room: 'home' } : routeFor(ROOMS[index - 1]!.room));
   }

@@ -42,7 +42,12 @@ const number = (n: number): string => n.toLocaleString('en-GB');
  * The rows the Done leg shows after a copy is checked. A part the copy has more of than the
  * original (a heading added for an untitled chapter) counts as all there.
  */
-export function collationRows(collation: Collation, target: OutputFormat): CollationRow[] {
+export function collationRows(
+  collation: Collation,
+  target: OutputFormat,
+  /** Why parts are missing that the reader chose to leave out. */
+  chosen: Partial<Record<Part, string>> = {},
+): CollationRow[] {
   const { total, found, missing } = collation.words;
   const rows: CollationRow[] = [
     found === total
@@ -56,7 +61,7 @@ export function collationRows(collation: Collation, target: OutputFormat): Colla
   ];
   for (const { part, original, copy } of collation.parts ?? []) {
     const kept = Math.min(original, copy);
-    const reason = REASONS[target]?.[part];
+    const reason = chosen[part] ?? REASONS[target]?.[part];
     rows.push({
       label: PART_LABELS[part],
       value:

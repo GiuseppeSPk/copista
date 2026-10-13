@@ -15,8 +15,22 @@ import { BookNotFoundError, getBook } from '../../storage/db';
 import { collateCopy } from './collation';
 
 export type OutputFormat = 'epub' | 'docx' | 'md' | 'txt' | 'html' | 'pdf';
+/** A copy ready to save, and how to read it back against the book it came from. */
+export interface PrintCopy {
+  html: string;
+  /** Reads the copy back and compares it with the book; run it after the copy is saved. */
+  check: () => Promise<Collation>;
+}
+
 export type ConvertOutput = (
-  { kind: 'file'; blob: Blob; fileName: string } | { kind: 'print'; html: string }
+  | { kind: 'file'; blob: Blob; fileName: string }
+  | {
+      kind: 'print';
+      title: string;
+      html: string;
+      /** The same pages without pictures, made once when first asked for. */
+      withoutPictures: () => PrintCopy;
+    }
 ) & {
   /** Reads the copy back and compares it with the book; run it after the copy is saved. */
   check: () => Promise<Collation>;
@@ -109,11 +123,21 @@ export async function convertLibraryBook(
   return convertBook(await readEpub(new Uint8Array(await rec.fileBlob.arrayBuffer())), target);
 }
 
-/** Writes a book in the target format; PDF comes back as a page to print. */
+function printCopy(book: Book, pictures: boolean): PrintCopy {
+  const html = toHtml(book, { print: true, pictures });
+  return { html, check: () => collateCopy(book, html, 'html') };
+}
+
+/** Writes a book in the target format; PDF comes back as pages to preview and print. */
 export async function convertBook(book: Book, target: OutputFormat): Promise<ConvertOutput> {
   if (target === 'pdf') {
-    const html = toHtml(book, { print: true });
-    return { kind: 'print', html, check: () => collateCopy(book, html, 'html') };
+    let plain: PrintCopy | undefined;
+    return {
+      kind: 'print',
+      title: book.meta.title,
+      ...printCopy(book, true),
+      withoutPictures: () => (plain ??= printCopy(book, false)),
+    };
   }
   const body = {
     epub: () => writeEpub(book),

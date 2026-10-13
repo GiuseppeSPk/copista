@@ -107,7 +107,12 @@ describe('scriptorium', () => {
 
   it('prepares a print view for PDF', async () => {
     const pdf = await convert(f(EPUB.epub3Nav(), 'b.epub'), 'pdf');
-    expect(pdf.kind === 'print' && pdf.html.includes('@page')).toBe(true);
+    if (pdf.kind !== 'print') throw new Error('expected a print view');
+    expect(pdf.html.includes('@page')).toBe(true);
+    const plain = pdf.withoutPictures();
+    expect(plain.html).not.toContain('<img');
+    expect(pdf.withoutPictures()).toBe(plain);
+    expect((await plain.check()).words.found).toBe((await pdf.check()).words.found);
   });
 
   it('makes safe file names', () => {

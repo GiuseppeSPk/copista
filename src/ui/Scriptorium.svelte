@@ -5,11 +5,14 @@
     convertLibraryBook,
     inspect,
     type OutputFormat,
+    type PrintCopy,
   } from '../rooms/scriptorium';
-  import type { Collation } from '../core/convert/census';
-  import { app } from './state.svelte';
-  import { CONVERTIBLE_FILES, download, printHtml } from './files';
+  import { importBook } from '../rooms/bibliotheca';
+  import type { Collation, Part } from '../core/convert/census';
+  import { app, go, refreshShelf } from './state.svelte';
+  import { CONVERTIBLE_FILES, download } from './files';
   import Icon from './Icon.svelte';
+  import PrintPreview from './PrintPreview.svelte';
   import RoomHero from './RoomHero.svelte';
   import Stamp from './Stamp.svelte';
   import { FORMAT_LABELS, errorMessage } from './text';
@@ -38,8 +41,19 @@
     | { job: number; pending: false; rows: CollationRow[]; note?: string }
     | { job: number; pending: false; failed: true }
   >();
+  /** The pages of the last PDF, kept so the preview can be opened again. */
+  let pages = $state.raw<{ title: string; full: PrintCopy; withoutPictures: () => PrintCopy }>();
+  let previewOpen = $state(false);
+  /** The last EPUB made, which the reader can open here instead of in another app. */
+  let made = $state.raw<{ blob: Blob; fileName: string }>();
+  let opening = $state(false);
 
-  async function check(job: number, target: OutputFormat, run: () => Promise<Collation>) {
+  async function check(
+    job: number,
+    target: OutputFormat,
+    run: () => Promise<Collation>,
+    chosen: Partial<Record<Part, string>> = {},
+  ) {
     collation = { job, pending: true };
     try {
       const result = await run();
@@ -48,7 +62,7 @@
       collation = {
         job,
         pending: false,
-        rows: collationRows(result, target),
+        rows: collationRows(result, target, chosen),
         ...(note ? { note } : {}),
       };
     } catch {
@@ -62,7 +76,15 @@
       .toUpperCase();
   }
 
+  /** Forgets the copies of the previous file. */
+  function clearCopies(): void {
+    pages = undefined;
+    previewOpen = false;
+    made = undefined;
+  }
+
   async function choose(file: File): Promise<void> {
+    clearCopies();
     picked = undefined;
     message = undefined;
     stamp = undefined;
@@ -80,6 +102,7 @@
 
   function chooseBook(id: string): void {
     const book = app.shelf.find((b) => b.id === id);
+    clearCopies();
     message = undefined;
     stamp = undefined;
     collation = undefined;
@@ -90,6 +113,21 @@
       needsMeta: false,
       targets: LIBRARY_TARGETS,
     };
+  }
+
+  let fileInput = $state<HTMLInputElement>();
+
+  /** Puts the file back, so a wrong pick can be dropped without choosing another. */
+  function unpick(): void {
+    clearCopies();
+    picked = undefined;
+    message = undefined;
+    stamp = undefined;
+    collation = undefined;
+    title = '';
+    author = '';
+    shelfChoice = '';
+    fileInput?.focus();
   }
 
   // A file dropped in another room lands here.
@@ -112,6 +150,7 @@
   async function run(target: OutputFormat): Promise<void> {
     if (!picked) return;
     busy = true;
+    clearCopies();
     message = undefined;
     stamp = undefined;
     collation = undefined;
@@ -126,24 +165,53 @@
         'file' in picked.source
           ? await convert(picked.source.file, target, meta)
           : await convertLibraryBook(picked.source.bookId, target);
-      const job = ++jobs;
       if (out.kind === 'print') {
-        printHtml(out.html);
-        message = {
-          tone: 'ok',
-          text: 'Print view ready: choose “Save as PDF” in the print dialog.',
+        pages = {
+          title: out.title,
+          full: { html: out.html, check: out.check },
+          withoutPictures: out.withoutPictures,
         };
-        stamp = { job, label: 'Ready', note: today() };
+        previewOpen = true;
+        message = { tone: 'ok', text: 'Choose how the pages look, then save them as a PDF.' };
       } else {
+        const job = ++jobs;
         download(out.blob, out.fileName);
+        if (target === 'epub') made = { blob: out.blob, fileName: out.fileName };
         message = { tone: 'ok', text: `Saved “${out.fileName}”.` };
         stamp = { job, label: 'Copied', note: today() };
+        void check(job, target, out.check);
       }
-      void check(job, target, out.check);
     } catch (e) {
       message = { tone: 'error', text: errorMessage(e) };
     } finally {
       busy = false;
+    }
+  }
+
+  /** The print window is opening: stamp the job and check the pages it prints. */
+  function onPrint(copy: PrintCopy, pictures: boolean): void {
+    const job = ++jobs;
+    message = {
+      tone: 'ok',
+      text: 'Print window opened: set the destination to “Save as PDF” to keep the file.',
+    };
+    stamp = { job, label: 'Ready', note: today() };
+    void check(job, 'pdf', copy.check, pictures ? {} : { images: 'Left out, as you chose.' });
+  }
+
+  /** Puts the new EPUB on the shelf and opens it in the Lectorium. */
+  async function readHere(): Promise<void> {
+    if (!made) return;
+    opening = true;
+    try {
+      const file = new File([made.blob], made.fileName, { type: 'application/epub+zip' });
+      const { book } = await importBook(file);
+      await refreshShelf();
+      go({ room: 'lectorium', bookId: book.id });
+    } catch (e) {
+      message = { tone: 'error', text: errorMessage(e) };
+    } finally {
+      opening = false;
     }
   }
 </script>
@@ -158,6 +226,7 @@
         <Icon name="file" />
         Choose a file
         <input
+          bind:this={fileInput}
           type="file"
           accept={CONVERTIBLE_FILES}
           disabled={busy}
@@ -193,9 +262,21 @@
 
       {#if picked}
         <p class="picked">
-          <strong>{picked.name}</strong>
-          <span class="format">{FORMAT_LABELS[picked.format as OutputFormat] ?? picked.format}</span
+          <span class="picked-name">
+            <strong>{picked.name}</strong>
+            <span class="format"
+              >{FORMAT_LABELS[picked.format as OutputFormat] ?? picked.format}</span
+            >
+          </span>
+          <button
+            type="button"
+            class="icon-only unpick"
+            title="Remove"
+            disabled={busy}
+            onclick={unpick}
           >
+            <Icon name="close" size={16} /><span class="sr-only">Remove {picked.name}</span>
+          </button>
         </p>
       {/if}
     </section>
@@ -236,6 +317,15 @@
             Your file is saved where your browser keeps downloads.
           </p>{/if}
       </div>
+      {#if made}
+        <button type="button" class="primary" disabled={opening} onclick={readHere}>
+          <Icon name="read" size={18} />
+          Read it here
+        </button>
+      {/if}
+      {#if pages && !previewOpen}
+        <button type="button" onclick={() => (previewOpen = true)}>Open the preview again</button>
+      {/if}
       {#if stamp}
         {#key stamp.job}
           <Stamp label={stamp.label} note={stamp.note} />
@@ -268,3 +358,13 @@
     </section>
   </div>
 </section>
+
+{#if pages && previewOpen}
+  <PrintPreview
+    title={pages.title}
+    full={pages.full}
+    withoutPictures={pages.withoutPictures}
+    onsave={onPrint}
+    onclose={() => (previewOpen = false)}
+  />
+{/if}
