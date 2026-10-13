@@ -42,7 +42,12 @@ function reader(body: string): { parse: (md: string) => string } {
       {
         name: 'note',
         level: 'block',
-        start: (src) => /^\[\^/m.exec(src)?.index,
+        // Only the paragraph at hand can run into a note; a long book's notes come at its
+        // end, and seeking them from every paragraph took minutes.
+        start: (src) => {
+          const end = src.indexOf('\n\n');
+          return /^\[\^/m.exec(end === -1 ? src : src.slice(0, end))?.index;
+        },
         tokenizer(src) {
           const match = NOTE.exec(src);
           if (match === null) return undefined;

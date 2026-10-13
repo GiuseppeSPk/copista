@@ -63,10 +63,16 @@ function fragmentOf(html: string): DocumentFragment {
   return template.content;
 }
 
+/** The nodes' markup, read where they stand: moving a long book's nodes one by one is slow in jsdom. */
 function serialize(nodes: Node[]): string {
   const container = document.createElement('div');
-  for (const node of nodes) container.append(node);
-  return container.innerHTML;
+  return nodes
+    .map((node) => {
+      if (node instanceof Element) return node.outerHTML;
+      container.replaceChildren(node.cloneNode());
+      return container.innerHTML;
+    })
+    .join('');
 }
 
 function textOf(node: Node): string {

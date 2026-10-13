@@ -130,12 +130,14 @@ function splitKey(ref: string): { path: string; fragment: string } {
 class LinkTargets {
   readonly bookmarks = new Map<string, string>();
   private readonly chapterIndex: Map<string, number>;
+  /** The ids in each chapter, gathered once: a book of notes has thousands of links and ids. */
+  private readonly ids: Set<string>[];
 
-  constructor(
-    book: Book,
-    private readonly pages: DocumentFragment[],
-  ) {
+  constructor(book: Book, pages: DocumentFragment[]) {
     this.chapterIndex = new Map(book.chapters.map((chapter, i) => [chapter.href, i]));
+    this.ids = pages.map(
+      (page) => new Set([...page.querySelectorAll('[id]')].map((el) => el.getAttribute('id')!)),
+    );
     pages.forEach((page, i) => {
       for (const link of page.querySelectorAll('a[href]')) {
         const key = this.key(link.getAttribute('href')!, i);
@@ -161,10 +163,7 @@ class LinkTargets {
     const { path, fragment } = splitKey(href.trim());
     const chapter = path === '' ? from : this.chapterIndex.get(path);
     if (chapter === undefined) return undefined;
-    const page = this.pages[chapter]!;
-    const found =
-      fragment !== '' &&
-      [...page.querySelectorAll('[id]')].some((el) => el.getAttribute('id') === fragment);
+    const found = fragment !== '' && this.ids[chapter]!.has(fragment);
     return found ? `${chapter}#${fragment}` : `${chapter}`;
   }
 }
