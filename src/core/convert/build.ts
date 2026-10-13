@@ -1,5 +1,6 @@
 import type { Book, Chapter, Resource, TocEntry } from '../model/book';
 import { sanitizeHtml } from '../sanitize';
+import { guessLanguage } from './language';
 
 export interface NewBookMeta {
   title: string;
@@ -163,7 +164,8 @@ function linkFragments(chapters: Chapter[]): void {
 /**
  * Builds a reflowable book with one chapter per section. Section HTML is
  * sanitized; chapters are `text/c001.xhtml`, `text/c002.xhtml`, … and an
- * untitled section takes the book's title.
+ * untitled section takes the book's title. Without a language, the text's
+ * own is guessed, then English assumed.
  */
 export function bookFromSections(
   sections: Section[],
@@ -192,7 +194,7 @@ export function bookFromSections(
     meta: {
       title: meta.title,
       authors: meta.author === '' ? [] : [meta.author],
-      language: meta.language || 'en',
+      language: meta.language || guessLanguage(chapters.map((c) => c.html).join(' ')) || 'en',
       identifier: `urn:uuid:${crypto.randomUUID()}`,
       layout: 'reflowable',
     },

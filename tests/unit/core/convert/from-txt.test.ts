@@ -45,6 +45,18 @@ describe('fromTxt', () => {
     ]);
   });
 
+  it('guesses the language when none is given', async () => {
+    const page =
+      'C’era una volta un pezzo di legno. Non era un legno di lusso, ma un semplice pezzo ' +
+      'da catasta, di quelli che d’inverno si mettono nelle stufe e nei caminetti per ' +
+      'accendere il fuoco e per riscaldare le stanze. Non so come andasse, ma il fatto gli è ' +
+      'che un bel giorno questo pezzo di legno capitò nella bottega di un falegname.';
+    const b = await fromTxt(enc(page), { title: 'Pinocchio', author: 'Carlo Collodi' });
+    expect(b.meta.language).toBe('it');
+    const given = await fromTxt(enc(page), { title: 'P', author: 'A', language: 'fr' });
+    expect(given.meta.language).toBe('fr');
+  });
+
   it('gives a book without headings one chapter named after the book', async () => {
     const b = await fromTxt(enc('Just one paragraph.'), { title: 'T', author: 'A' });
     expect(b.chapters.map((c) => c.title)).toEqual(['T']);
