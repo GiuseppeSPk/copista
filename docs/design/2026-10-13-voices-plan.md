@@ -135,7 +135,7 @@ Vitest, Playwright (Chromium, WebKit, offline).
 
 **Produces:** navigations answered by the service worker carry `Cross-Origin-Opener-Policy: same-origin` and `Cross-Origin-Embedder-Policy: require-corp` only when `caches.has('copista-voice-v1')`; the cached `index.html` is used, the network otherwise.
 
-- [ ] e2e: without the voice cache, after a reload `crossOriginIsolated` is false; after `caches.open('copista-voice-v1')` and a reload it is true; with isolation on, the sample book opens in the Lectorium with its cover picture loaded and Print opens its preview; a worker created by the app answers `probe` with `identity.onnx` on wasm with no CSP error in the console.
+- [ ] e2e: without the voice cache, after a reload `crossOriginIsolated` is false; after `caches.open('copista-voice-v1')` and a reload it is true; with isolation on, the sample book opens in the Lectorium with its cover picture loaded and Print opens its preview. (The `probe` check moved to Task 7: the worker is in the build only once the app creates it.)
 - [ ] Run `npx playwright test --project=offline`: fails; implement; passes.
 - [ ] Commit.
 
@@ -149,7 +149,7 @@ Vitest, Playwright (Chromium, WebKit, offline).
 - Screen, in order: RoomHero; the Lector's introduction; the two samples (`<audio controls>`); "Works best on recent phones and computers."; size (about 227 MB with the engine files) and source (`huggingface.co`); the use restrictions in short with links to the full licence and notices; an "I accept" checkbox that enables Download; progress; once installed, Lector/Lectrix choice, space used and Remove.
 - The samples: Italian, about 8 s each, made from the spike page in headless Chromium with MediaRecorder (Opus in WebM), one per voice at 8 steps.
 
-- [ ] Tests: `parseHash('#/auditorium')` and `hashOf` round-trip; key `5` goes to the Auditorium; settings keep `voice: 'F1'` and ignore `voice: 'X1'`; `voiceStatus` with the fake service before and after install; e2e (dev, fake voice): Download is disabled until "I accept", installing shows Remove and the voice choice, Remove brings back Download; the five tabs fit at 320 px without overflow.
+- [ ] Tests: `parseHash('#/auditorium')` and `hashOf` round-trip; key `5` goes to the Auditorium; settings keep `voice: 'F1'` and ignore `voice: 'X1'`; `voiceStatus` with the fake service before and after install; e2e (dev, fake voice): Download is disabled until "I accept", installing shows Remove and the voice choice, Remove brings back Download; the five tabs fit at 320 px without overflow; offline project, isolated: the built voice worker (its file found in the service worker's precache list) answers `probe` with `tests/fixtures/identity.onnx` on wasm, with no CSP error in the console.
 - [ ] Run: fails; implement; passes.
 - [ ] Commit.
 

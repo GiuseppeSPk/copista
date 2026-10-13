@@ -39,6 +39,8 @@ export default defineConfig({
         // onnxruntime-web is for the voice only: cached when first used, with the voice.
         globIgnores: ['og-image.png', 'ort/**'],
         navigateFallback: 'index.html',
+        // Isolates the page once the voice is set up, so the voice can use several threads.
+        importScripts: ['coi.js'],
         runtimeCaching: [
           {
             urlPattern: /\/ort\/\d+\.\d+\.\d+\//,
