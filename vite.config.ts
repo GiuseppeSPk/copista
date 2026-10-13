@@ -33,6 +33,8 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,woff2,webmanifest}'],
+        // The link preview picture is for other sites, not for the app offline.
+        globIgnores: ['og-image.png'],
         navigateFallback: 'index.html',
       },
     }),
