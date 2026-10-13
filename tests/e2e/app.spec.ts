@@ -112,16 +112,31 @@ test('adds, follows and deletes a bookmark', async ({ page }) => {
   await page.getByRole('button', { name: 'Next' }).click();
   await expect(page.locator('.where')).toContainText(/Page 2 of/);
   await page.getByRole('button', { name: 'Bookmark this page' }).click();
+  // The panel turns to the bookmarks, and its tab counts them.
+  const bookmarksTab = page.getByRole('tab', { name: 'Bookmarks' });
+  await expect(bookmarksTab).toHaveAttribute('aria-selected', 'true');
+  await expect(bookmarksTab).toHaveText('Bookmarks1');
   const marks = page.locator('.marks li');
   await expect(marks).toHaveCount(1);
   await expect(marks).toContainText('Part 1');
 
+  await page.getByRole('tab', { name: 'Contents' }).click();
+  await expect(marks).toBeHidden();
   await page.getByRole('button', { name: 'Part 2' }).click();
   await expect(page.locator('.where')).toContainText('chapter 2 of 3');
+  await bookmarksTab.click();
   await marks.getByRole('button', { name: /Part 1/ }).click();
   await expect(page.locator('.where')).toContainText(/Page 2 of .* chapter 1 of 3/);
 
   await page.reload();
+  // The arrow keys move along the tabs without turning the page.
+  await expect(page.locator('.where')).toContainText(/Page \d+ of/);
+  const before = await page.locator('.where').textContent();
+  await page.getByRole('tab', { name: 'Contents' }).focus();
+  await page.keyboard.press('ArrowRight');
+  await expect(bookmarksTab).toBeFocused();
+  await expect(bookmarksTab).toHaveAttribute('aria-selected', 'true');
+  await expect(page.locator('.where')).toHaveText(before!);
   await expect(marks).toHaveCount(1);
   await marks.getByRole('button', { name: 'Delete bookmark' }).click();
   await expect(marks).toHaveCount(0);
@@ -349,8 +364,16 @@ test('turns the page with a tap on its sides or a swipe', async ({ page }) => {
 
 test('changes the text size and keeps it', async ({ page }) => {
   await openReader(page);
+  const toggle = page.getByRole('button', { name: 'Text', exact: true });
+  await toggle.click();
   await page.getByRole('button', { name: 'Larger text' }).click();
   await expect(page.locator('.size')).toHaveText('110%');
+  await page.getByRole('button', { name: 'Sepia' }).click();
+  await expect(page.getByRole('button', { name: 'Sepia' })).toHaveAttribute('aria-pressed', 'true');
+  // Escape puts the settings away and gives the focus back to their button.
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('button', { name: 'Larger text' })).toBeHidden();
+  await expect(toggle).toBeFocused();
   // The reader's own "Text size" group is still on screen until the room changes.
   await openRoom(page, 'Archivum');
   await expect(page.getByLabel('Text size')).toHaveValue('110');

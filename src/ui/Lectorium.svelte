@@ -33,6 +33,11 @@
   let marks = $state<BookmarkRecord[]>([]);
   let error = $state('');
   let panelOpen = $state(false);
+  // The panel shows one list at a time: the contents, the bookmarks or the notes.
+  let tab = $state<'contents' | 'marks' | 'notes'>('contents');
+  // Text size and page colours sit together behind one button.
+  let lookOpen = $state(false);
+  let lookBox: HTMLDivElement | undefined = $state();
   let where = $state({ chapter: 0, page: 0, pages: 0, percent: 0 });
   let notes = $state<NoteRecord[]>([]);
   let folded = $state<string[]>([]);
@@ -137,6 +142,12 @@
   function onKey(event: KeyboardEvent): void {
     if (!bookId) return;
     const target = event.target as HTMLElement | null;
+    if (event.key === 'Escape' && lookOpen) {
+      event.preventDefault();
+      lookOpen = false;
+      lookBox?.querySelector<HTMLButtonElement>('.look-toggle')?.focus();
+      return;
+    }
     if (event.key === 'Escape' && fitted) {
       event.preventDefault();
       fit(false);
@@ -158,8 +169,25 @@
     }
   }
 
+  /** The arrow keys move between the panel's tabs, as in any tab list. */
+  function onTabKey(event: KeyboardEvent): void {
+    const order = ['contents', 'marks', 'notes'] as const;
+    const step = event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : 0;
+    if (!step) return;
+    event.preventDefault();
+    event.stopPropagation();
+    tab = order[(order.indexOf(tab) + step + order.length) % order.length]!;
+    document.getElementById(`tab-${tab}`)?.focus();
+  }
+
+  /** A press anywhere outside the text settings puts them away. */
+  function onWindowPointerDown(event: PointerEvent): void {
+    if (lookOpen && !lookBox?.contains(event.target as Node)) lookOpen = false;
+  }
+
   function fit(on: boolean): void {
     fitted = on;
+    lookOpen = false;
     if (on) hint();
     host?.focus();
   }
@@ -229,6 +257,7 @@
     const label = session.book.chapters[pos.spineIndex]?.title ?? `Chapter ${pos.spineIndex + 1}`;
     try {
       marks = [...marks, await addBookmark(session.bookId, pos, label)];
+      tab = 'marks';
     } catch (e) {
       error = errorMessage(e);
     }
@@ -244,6 +273,7 @@
     try {
       const note = await addNote(session.bookId, ctrl.position());
       notes = [...notes, note];
+      tab = 'notes';
       await tick();
       document.getElementById(`note-${note.id}`)?.focus();
     } catch (e) {
@@ -301,7 +331,7 @@
   }
 </script>
 
-<svelte:window onkeydown={onKey} />
+<svelte:window onkeydown={onKey} onpointerdown={onWindowPointerDown} />
 
 <section
   class="room lectorium"
@@ -401,34 +431,48 @@
           <Icon name="expand" size={18} />
           <span class="tool-label">Full page</span>
         </button>
-        <div class="group" role="group" aria-label="Text size">
+        <div class="look" bind:this={lookBox}>
           <button
             type="button"
-            aria-label="Smaller text"
-            disabled={app.settings.fontSizePercent <= 80}
-            onclick={() => restyle({ fontSizePercent: app.settings.fontSizePercent - 10 })}
-            >A−</button
+            class="look-toggle"
+            aria-expanded={lookOpen}
+            aria-controls="reader-look"
+            title="Text size and page colours"
+            onclick={() => (lookOpen = !lookOpen)}
           >
-          <span class="size">{app.settings.fontSizePercent}%</span>
-          <button
-            type="button"
-            aria-label="Larger text"
-            disabled={app.settings.fontSizePercent >= 200}
-            onclick={() => restyle({ fontSizePercent: app.settings.fontSizePercent + 10 })}
-            >A+</button
-          >
+            <Icon name="text" size={18} />
+            <span class="tool-label">Text</span>
+          </button>
+          <div id="reader-look" class="look-panel" hidden={!lookOpen}>
+            <div class="group" role="group" aria-label="Text size">
+              <button
+                type="button"
+                aria-label="Smaller text"
+                disabled={app.settings.fontSizePercent <= 80}
+                onclick={() => restyle({ fontSizePercent: app.settings.fontSizePercent - 10 })}
+                >A−</button
+              >
+              <span class="size">{app.settings.fontSizePercent}%</span>
+              <button
+                type="button"
+                aria-label="Larger text"
+                disabled={app.settings.fontSizePercent >= 200}
+                onclick={() => restyle({ fontSizePercent: app.settings.fontSizePercent + 10 })}
+                >A+</button
+              >
+            </div>
+            <div class="group swatches" role="group" aria-label="Page colours">
+              {#each [['light', 'Light'], ['sepia', 'Sepia'], ['dark', 'Dark']] as const as [value, label] (value)}
+                <button
+                  type="button"
+                  class="swatch {value}"
+                  aria-pressed={app.settings.theme === value}
+                  onclick={() => restyle({ theme: value })}>{label}</button
+                >
+              {/each}
+            </div>
+          </div>
         </div>
-        <label class="theme">
-          <span class="sr-only">Page colours</span>
-          <select
-            value={app.settings.theme}
-            onchange={(e) => restyle({ theme: e.currentTarget.value as Settings['theme'] })}
-          >
-            <option value="light">Light</option>
-            <option value="sepia">Sepia</option>
-            <option value="dark">Dark</option>
-          </select>
-        </label>
       </div>
     </div>
 
@@ -438,64 +482,87 @@
 
     <div class="reading" class:panel-open={panelOpen}>
       <aside id="reader-panel" aria-label="Contents, bookmarks and notes">
-        <h2>Contents</h2>
-        <Contents entries={contents} onpick={goTo} />
-        <h2>Bookmarks</h2>
-        {#if marks.length === 0}
-          <p class="empty">No bookmarks yet.</p>
-        {:else}
-          <ul class="marks">
-            {#each marks as m (m.id)}
-              <li>
-                <button
-                  type="button"
-                  class="link"
-                  onclick={() => {
-                    panelOpen = false;
-                    void ctrl?.goTo({ spineIndex: m.spineIndex, fraction: m.fraction });
-                  }}
-                >
-                  {m.snippet || `Chapter ${m.spineIndex + 1}`}
-                  <small>{book ? Math.round(progressPercent(book, m)) : 0}%</small>
-                </button>
-                <button
-                  type="button"
-                  class="remove"
-                  aria-label="Delete bookmark"
-                  onclick={() => unmark(m.id)}><Icon name="trash" size={16} /></button
-                >
-              </li>
-            {/each}
-          </ul>
-        {/if}
-        <h2>Notes</h2>
-        {#if notes.length === 0}
-          <p class="empty">No notes yet.</p>
-        {:else}
-          <ul class="marks notes-list">
-            {#each notes as note (note.id)}
-              <li>
-                <button
-                  type="button"
-                  class="link"
-                  onclick={() => {
-                    panelOpen = false;
-                    void ctrl?.goTo({ spineIndex: note.spineIndex, fraction: note.fraction });
-                  }}
-                >
-                  <span class="note-line">{firstLine(note.text)}</span>
-                  <small>{book ? Math.round(progressPercent(book, note)) : 0}%</small>
-                </button>
-                <button
-                  type="button"
-                  class="remove"
-                  aria-label="Delete note"
-                  onclick={() => unpin(note.id)}><Icon name="trash" size={16} /></button
-                >
-              </li>
-            {/each}
-          </ul>
-        {/if}
+        <div class="panel-tabs" role="tablist" aria-label="Lists">
+          {#each [['contents', 'Contents', 0], ['marks', 'Bookmarks', marks.length], ['notes', 'Notes', notes.length]] as const as [id, label, count] (id)}
+            <button
+              type="button"
+              role="tab"
+              id={`tab-${id}`}
+              aria-selected={tab === id}
+              aria-controls={`list-${id}`}
+              tabindex={tab === id ? 0 : -1}
+              onclick={() => (tab = id)}
+              onkeydown={onTabKey}
+              >{label}{#if count > 0}<span class="count">{count}</span>{/if}</button
+            >
+          {/each}
+        </div>
+        <div
+          id="list-contents"
+          role="tabpanel"
+          aria-labelledby="tab-contents"
+          hidden={tab !== 'contents'}
+        >
+          <Contents entries={contents} onpick={goTo} />
+        </div>
+        <div id="list-marks" role="tabpanel" aria-labelledby="tab-marks" hidden={tab !== 'marks'}>
+          {#if marks.length === 0}
+            <p class="empty">No bookmarks yet. Bookmark keeps the page you are reading.</p>
+          {:else}
+            <ul class="marks">
+              {#each marks as m (m.id)}
+                <li>
+                  <button
+                    type="button"
+                    class="link"
+                    onclick={() => {
+                      panelOpen = false;
+                      void ctrl?.goTo({ spineIndex: m.spineIndex, fraction: m.fraction });
+                    }}
+                  >
+                    {m.snippet || `Chapter ${m.spineIndex + 1}`}
+                    <small>{book ? Math.round(progressPercent(book, m)) : 0}%</small>
+                  </button>
+                  <button
+                    type="button"
+                    class="remove"
+                    aria-label="Delete bookmark"
+                    onclick={() => unmark(m.id)}><Icon name="trash" size={16} /></button
+                  >
+                </li>
+              {/each}
+            </ul>
+          {/if}
+        </div>
+        <div id="list-notes" role="tabpanel" aria-labelledby="tab-notes" hidden={tab !== 'notes'}>
+          {#if notes.length === 0}
+            <p class="empty">No notes yet. Add note pins one to the page you are reading.</p>
+          {:else}
+            <ul class="marks notes-list">
+              {#each notes as note (note.id)}
+                <li>
+                  <button
+                    type="button"
+                    class="link"
+                    onclick={() => {
+                      panelOpen = false;
+                      void ctrl?.goTo({ spineIndex: note.spineIndex, fraction: note.fraction });
+                    }}
+                  >
+                    <span class="note-line">{firstLine(note.text)}</span>
+                    <small>{book ? Math.round(progressPercent(book, note)) : 0}%</small>
+                  </button>
+                  <button
+                    type="button"
+                    class="remove"
+                    aria-label="Delete note"
+                    onclick={() => unpin(note.id)}><Icon name="trash" size={16} /></button
+                  >
+                </li>
+              {/each}
+            </ul>
+          {/if}
+        </div>
       </aside>
 
       <div class="page-area">
@@ -575,18 +642,20 @@
         </div>
         <div class="page-nav">
           <button type="button" onclick={() => turn(false)} disabled={!session}>
-            <Icon name="back" size={18} /> Previous
+            <Icon name="back" size={18} /> <span class="nav-label">Previous</span>
           </button>
           <p class="where" aria-live="polite">
             {#if session && where.pages > 0}
-              Page {where.page + 1} of {where.pages} · chapter {where.chapter + 1} of {book
-                ?.chapters.length} · {Math.round(where.percent)}%{#if chapterTitle}<span
-                  class="chapter">{` · ${chapterTitle}`}</span
+              Page {where.page + 1} of {where.pages}<span class="of-chapters"
+                >{` · chapter ${where.chapter + 1} of ${book?.chapters.length}`}</span
+              >{` · ${Math.round(where.percent)}%`}{#if chapterTitle}<span class="chapter"
+                  ><span class="sep">{' · '}</span>{chapterTitle}</span
                 >{/if}
             {/if}
           </p>
           <button type="button" onclick={() => turn(true)} disabled={!session}>
-            Next <Icon name="arrow" size={18} />
+            <span class="nav-label">Next</span>
+            <Icon name="arrow" size={18} />
           </button>
         </div>
       </div>
