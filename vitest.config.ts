@@ -14,7 +14,11 @@ export default defineConfig({
         'src/rooms/**/*.ts',
       ],
       // Browser-only: layout needs a real engine, so Playwright covers these.
-      exclude: ['src/reader/paginator.ts', 'src/rooms/lectorium/controller.ts'],
+      exclude: [
+        'src/reader/paginator.ts',
+        'src/reader/scroller.ts',
+        'src/rooms/lectorium/controller.ts',
+      ],
       thresholds: { lines: 90, branches: 80 },
     },
   },

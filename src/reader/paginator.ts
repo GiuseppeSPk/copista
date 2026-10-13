@@ -2,6 +2,17 @@ import { fractionForPage, pageForFraction } from './location';
 
 export type ShowTarget = { fraction: number } | { fragment: string };
 
+/** One chapter on screen, shown a page at a time or as one scrolling column. */
+export interface ChapterView {
+  readonly page: number;
+  readonly pageCount: number;
+  show(srcdoc: string, target: ShowTarget): Promise<void>;
+  next(): boolean;
+  prev(): boolean;
+  fraction(): number;
+  destroy(): void;
+}
+
 export interface PaginatorEvents {
   onInternalLink(key: string): void;
 }
@@ -11,14 +22,48 @@ const SETTLE_TIMEOUT_MS = 5000;
 
 const LAYOUT_STYLE_ID = 'copista-pagination';
 
-const LINK_SELECTOR = '[data-copista-href], [data-copista-external]';
+export const LINK_SELECTOR = '[data-copista-href], [data-copista-external]';
 
 interface Frame {
   element: HTMLIFrameElement;
   doc: Document;
 }
 
-function srcdocLoaded(element: HTMLIFrameElement): Promise<Document> {
+/** Margins around the text: half a column gap on each side, and the space above and below. */
+export function textMargins(width: number, height: number): { side: number; edge: number } {
+  const gap = Math.round(Math.min(48, Math.max(16, width * 0.06)));
+  return { side: gap / 2, edge: Math.round(Math.min(40, Math.max(12, height * 0.05))) };
+}
+
+/** Writes the view's layout rules into a chapter document, replacing earlier ones. */
+export function writeLayoutStyle(doc: Document, css: string): void {
+  let style = doc.getElementById(LAYOUT_STYLE_ID);
+  if (style === null) {
+    style = doc.createElement('style');
+    style.id = LAYOUT_STYLE_ID;
+    doc.head.append(style);
+  }
+  style.textContent = css;
+}
+
+/** Hands a chapter link to the reader, or opens an outside link in a new tab. */
+export function followLink(link: Element, onInternalLink: (key: string) => void): void {
+  const internal = link.getAttribute('data-copista-href');
+  if (internal !== null) {
+    onInternalLink(internal);
+  } else {
+    window.open(link.getAttribute('data-copista-external')!, '_blank', 'noopener,noreferrer');
+  }
+}
+
+/** The link activated by a click inside a chapter document, if any. */
+export function clickedLink(event: MouseEvent): Element | null {
+  const target = event.target as Element | null;
+  if (target === null || !('closest' in target)) return null;
+  return target.closest(LINK_SELECTOR);
+}
+
+export function srcdocLoaded(element: HTMLIFrameElement): Promise<Document> {
   return new Promise((resolve) => {
     const onLoad = () => {
       const doc = element.contentDocument;
@@ -31,7 +76,7 @@ function srcdocLoaded(element: HTMLIFrameElement): Promise<Document> {
 }
 
 /** Resolves once the document's images are decoded and its fonts loaded, or after a timeout. */
-async function settle(doc: Document): Promise<void> {
+export async function settle(doc: Document): Promise<void> {
   const images = [...doc.images].map((img) => {
     if (img.loading === 'lazy') img.loading = 'eager';
     return img.decode().catch(() => undefined);
@@ -54,7 +99,7 @@ async function settle(doc: Document): Promise<void> {
  * scripts, so pointer input lands on a transparent layer in this document
  * instead, which finds the link under the pointer in the frame.
  */
-export class Paginator {
+export class Paginator implements ChapterView {
   private frame: Frame | null = null;
   private currentPage = 0;
   private count = 0;
@@ -219,8 +264,8 @@ export class Paginator {
     const height = Math.max(1, Math.floor(rect.height));
     frame.element.style.width = `${width}px`;
     frame.element.style.height = `${height}px`;
-    const gap = Math.round(Math.min(48, Math.max(16, width * 0.06)));
-    const padding = Math.round(Math.min(40, Math.max(12, height * 0.05)));
+    const { side, edge: padding } = textMargins(width, height);
+    const gap = side * 2;
     const bodyWidth = pages === null ? 'auto' : `${pages * width}px`;
     const css = [
       `html { margin: 0 !important; padding: 0 !important; height: ${height}px !important;` +
@@ -231,13 +276,7 @@ export class Paginator {
         ` column-gap: ${gap}px !important; column-fill: auto !important; overflow: visible !important; }`,
       `img, svg, video { max-height: ${height - 2 * padding}px !important; break-inside: avoid; }`,
     ].join('\n');
-    let style = frame.doc.getElementById(LAYOUT_STYLE_ID);
-    if (style === null) {
-      style = frame.doc.createElement('style');
-      style.id = LAYOUT_STYLE_ID;
-      frame.doc.head.append(style);
-    }
-    style.textContent = css;
+    writeLayoutStyle(frame.doc, css);
     this.pageWidth = width;
   }
 
@@ -264,12 +303,7 @@ export class Paginator {
   }
 
   private follow(link: Element): void {
-    const internal = link.getAttribute('data-copista-href');
-    if (internal !== null) {
-      this.events.onInternalLink(internal);
-    } else {
-      window.open(link.getAttribute('data-copista-external')!, '_blank', 'noopener,noreferrer');
-    }
+    followLink(link, (key) => this.events.onInternalLink(key));
   }
 
   /**
@@ -289,9 +323,7 @@ export class Paginator {
   }
 
   private onClick(event: MouseEvent): void {
-    const target = event.target as Element | null;
-    if (target === null || !('closest' in target)) return;
-    const link = target.closest(LINK_SELECTOR);
+    const link = clickedLink(event);
     if (link === null) return;
     event.preventDefault();
     this.follow(link);
