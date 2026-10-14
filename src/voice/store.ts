@@ -243,7 +243,7 @@ export async function getProfile(): Promise<Profile | null> {
   if (response === undefined) return null;
   const p = (await response.json().catch(() => null)) as Partial<Profile> | null;
   const backendOk = p?.backend === 'webgpu' || p?.backend === 'wasm';
-  return backendOk && (p.steps === 6 || p.steps === 8)
+  return backendOk && (p.steps === 6 || p.steps === 8 || p.steps === 16)
     ? { backend: p.backend!, steps: p.steps }
     : null;
 }

@@ -175,6 +175,11 @@ describe('reading and removing', () => {
     expect(await spaceUsed()).toBe(0);
     expect(await getProfile()).toBeNull();
   });
+
+  it('keeps a profile of 16 steps', async () => {
+    await saveProfile({ backend: 'webgpu', steps: 16 });
+    expect(await getProfile()).toEqual({ backend: 'webgpu', steps: 16 });
+  });
 });
 
 describe('pickSteps', () => {
