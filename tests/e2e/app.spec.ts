@@ -1117,6 +1117,52 @@ test.describe('Listen', () => {
       await expect(listening(page)).toBeVisible();
     });
 
+    test('a new size of the window keeps the piece being read on screen', async ({
+      page,
+      browserName,
+    }) => {
+      test.skip(browserName !== 'chromium', 'the mark is read through CSS highlights');
+      await withVoice(page);
+      await openReader(page);
+      await page.getByRole('button', { name: 'Listen', exact: true }).click();
+      await expect(page.locator('.where')).toContainText(/Page 2 of/, { timeout: 20_000 });
+      const before = await plays(page);
+      await page.setViewportSize({ width: 700, height: 600 });
+      await expect.poll(() => marked(page)).toMatchObject({ onScreen: true });
+      // The reading goes on where it was rather than starting again.
+      await expect.poll(() => plays(page)).toBeGreaterThan(before);
+      await expect(listening(page)).toBeVisible();
+      await expect(page.getByRole('alert')).toHaveCount(0);
+    });
+
+    test('the reader’s name opens the voice sheet and the focus comes back to it', async ({
+      page,
+    }) => {
+      await withVoice(page);
+      await openReader(page);
+      await page.getByRole('button', { name: 'Listen', exact: true }).click();
+      const reader = listening(page).getByRole('button', { name: /^The Lect/ });
+      await expect(reader).toHaveAttribute('aria-expanded', 'false');
+      await reader.click();
+      await expect(page.locator('#voice-sheet')).toBeVisible();
+      await expect(reader).toHaveAttribute('aria-expanded', 'true');
+      await page.keyboard.press('Escape');
+      await expect(page.locator('#voice-sheet')).toHaveCount(0);
+      await expect(reader).toBeFocused();
+      await expect(reader).toHaveAttribute('aria-expanded', 'false');
+    });
+
+    test('the bar leaves the page’s last line in view', async ({ page }) => {
+      await withVoice(page);
+      await openReader(page);
+      await page.getByRole('button', { name: 'Listen', exact: true }).click();
+      const bar = await listening(page).boundingBox();
+      const frame = await page.locator('iframe[title="Book page"]').boundingBox();
+      expect(bar).not.toBeNull();
+      expect(frame).not.toBeNull();
+      expect(frame!.y + frame!.height).toBeLessThanOrEqual(bar!.y + 1);
+    });
+
     test('reading continues into the next chapter', async ({ page }) => {
       await withVoice(page);
       await openReader(page);

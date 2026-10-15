@@ -152,15 +152,20 @@ export class Speaker {
   private held = false;
 
   unlock(): void {
-    this.audio.src = URL.createObjectURL(new Blob([encodeWav(new Float32Array(1), 8000)]));
+    this.load(new Blob([encodeWav(new Float32Array(1), 8000)]));
     void this.audio.play().catch(() => undefined);
+  }
+
+  /** Gives the element a new sound, letting go of the one it had. */
+  private load(sound: Blob): void {
+    if (this.audio.src.startsWith('blob:')) URL.revokeObjectURL(this.audio.src);
+    this.audio.src = URL.createObjectURL(sound);
   }
 
   /** Resolves when the samples have played, or at once when the signal stops them. */
   play(samples: Float32Array, rate: number, signal: AbortSignal): Promise<void> {
     const audio = this.audio;
-    if (audio.src.startsWith('blob:')) URL.revokeObjectURL(audio.src);
-    audio.src = URL.createObjectURL(new Blob([encodeWav(samples, rate)], { type: 'audio/wav' }));
+    this.load(new Blob([encodeWav(samples, rate)], { type: 'audio/wav' }));
     this.live = true;
     this.held = false;
     return new Promise<void>((resolve, reject) => {

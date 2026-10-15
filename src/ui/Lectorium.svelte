@@ -62,6 +62,8 @@
   let sheetOpen = $state(false);
   let listenButton: HTMLButtonElement | undefined = $state();
   let sheetBox: HTMLDivElement | undefined = $state();
+  /** The button that opened the voice sheet, which gets the focus back when it closes. */
+  let sheetOpener: HTMLElement | undefined;
   let aloud: ReadAloud | undefined;
   // What the listening bar shows; null when nothing is being read.
   let aloudState = $state.raw<AloudState | null>(null);
@@ -94,9 +96,14 @@
     untrack(() => aloud?.restart());
   });
 
-  // A voice taken off this device stops the reading that uses it.
+  // A voice taken off this device stops the reading that uses it, and lets go of the model it holds.
   $effect(() => {
-    if (aloudState && !voiceState.status?.installed) untrack(stopListening);
+    if (voiceState.status?.installed) return;
+    untrack(() => {
+      if (aloudState) stopListening();
+      narrator?.destroy();
+      narrator = undefined;
+    });
   });
 
   // The lock screen and the system's media controls show whether the reading plays.
@@ -209,8 +216,7 @@
     const target = event.target as HTMLElement | null;
     if (event.key === 'Escape' && sheetOpen) {
       event.preventDefault();
-      sheetOpen = false;
-      listenButton?.focus();
+      closeVoiceSheet();
       return;
     }
     if (event.key === 'Escape' && lookOpen) {
@@ -371,9 +377,19 @@
     lock = undefined;
   }
 
-  function openVoiceSheet(): void {
+  /** Opens or closes the voice sheet, from the button pressed or else the toolbar's Listen. */
+  function openVoiceSheet(from?: HTMLElement): void {
+    if (sheetOpen) return closeVoiceSheet();
     lookOpen = false;
-    sheetOpen = !sheetOpen;
+    sheetOpener = from;
+    sheetOpen = true;
+  }
+
+  /** Puts the voice sheet away and gives the focus back to what opened it. */
+  function closeVoiceSheet(): void {
+    sheetOpen = false;
+    (sheetOpener?.isConnected ? sheetOpener : listenButton)?.focus();
+    sheetOpener = undefined;
   }
 
   /**
@@ -803,13 +819,7 @@
       </div>
       {#if sheetOpen}
         <div class="voice-sheet-box" bind:this={sheetBox}>
-          <VoiceSheet
-            onListen={toggleListen}
-            onClose={() => {
-              sheetOpen = false;
-              listenButton?.focus();
-            }}
-          />
+          <VoiceSheet onListen={toggleListen} onClose={closeVoiceSheet} />
         </div>
       {/if}
     </div>
@@ -912,6 +922,7 @@
           class:hinting={hinting && !scrolling}
           class:zone-prev={zone === 'prev'}
           class:zone-next={zone === 'next'}
+          class:listening={aloudState !== null}
         >
           <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
           <div
@@ -982,6 +993,7 @@
               waiting={aloudState.waiting}
               onToggle={toggleAloud}
               onSkip={(by) => aloud?.skip(by)}
+              {sheetOpen}
               onVoice={openVoiceSheet}
               onClose={stopListening}
             />

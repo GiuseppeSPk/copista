@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { DEFAULT_FINISH, TODAY, finishPiece, shapeTone } from '../../../src/voice/audio';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { DEFAULT_FINISH, Speaker, TODAY, finishPiece, shapeTone } from '../../../src/voice/audio';
 
 const ones = (n: number): Float32Array => new Float32Array(n).fill(1);
 
@@ -65,5 +65,47 @@ describe('the warmth on the tone', () => {
     const spoken = sine(300, 0.3, 1000, 1);
     const out = finishPiece(spoken, 1000, 'piece', { ...TODAY, tone: true });
     expect(out.subarray(0, 1000)).toEqual(shapeTone(spoken, 1000));
+  });
+});
+
+describe('the speaker', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  /** Audio elements that keep their source and play at once, and blob URLs that are counted. */
+  function stubAudio() {
+    const live = new Set<string>();
+    let made = 0;
+    vi.stubGlobal('URL', {
+      ...URL,
+      createObjectURL: () => {
+        const url = `blob:${++made}`;
+        live.add(url);
+        return url;
+      },
+      revokeObjectURL: (url: string) => live.delete(url),
+    });
+    vi.stubGlobal(
+      'Audio',
+      class {
+        src = '';
+        play = () => Promise.resolve();
+        pause = () => {};
+        addEventListener = () => {};
+        removeEventListener = () => {};
+        removeAttribute = () => (this.src = '');
+      },
+    );
+    return live;
+  }
+
+  it('keeps no more than one sound in memory, however often it is unlocked', () => {
+    const live = stubAudio();
+    const speaker = new Speaker();
+    speaker.unlock();
+    speaker.unlock();
+    void speaker.play(new Float32Array(10), 8000, new AbortController().signal);
+    expect(live.size).toBe(1);
+    speaker.release();
+    expect(live.size).toBe(0);
   });
 });

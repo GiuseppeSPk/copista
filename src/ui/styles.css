@@ -1898,6 +1898,11 @@ button.link:hover:not(:disabled) {
   min-height: 0;
 }
 
+/* While the book is read aloud, the page ends above the listening bar, so its last line shows. */
+.sheet.listening {
+  padding-bottom: calc(max(12px, env(safe-area-inset-bottom)) + 54px);
+}
+
 .pages {
   position: relative;
   min-height: 300px;

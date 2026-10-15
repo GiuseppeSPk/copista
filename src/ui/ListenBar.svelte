@@ -7,6 +7,7 @@
     waiting,
     onToggle,
     onSkip,
+    sheetOpen,
     onVoice,
     onClose,
   }: {
@@ -17,7 +18,10 @@
     waiting: boolean;
     onToggle: () => void;
     onSkip: (by: 1 | -1) => void;
-    onVoice: () => void;
+    /** The voice sheet is open. */
+    sheetOpen: boolean;
+    /** Opens or closes the voice sheet; focus goes back to the button pressed when it closes. */
+    onVoice: (from: HTMLElement) => void;
     onClose: () => void;
   } = $props();
 </script>
@@ -42,8 +46,9 @@
     type="button"
     class="reader"
     aria-controls="voice-sheet"
+    aria-expanded={sheetOpen}
     title="Change the voice"
-    onclick={onVoice}>{reader}<span class="beta">Beta</span></button
+    onclick={(event) => onVoice(event.currentTarget)}>{reader}<span class="beta">Beta</span></button
   >
   <button type="button" aria-label="Stop listening" title="Stop listening" onclick={onClose}
     ><Icon name="close" size={18} /></button
