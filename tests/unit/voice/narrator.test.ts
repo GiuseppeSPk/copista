@@ -113,9 +113,9 @@ describe('isDeviceLost', () => {
 });
 
 describe('the voice by default', () => {
-  it('reads as chosen by ear on 15 October: speed 1.1, seed 2 for the Lector and 3 for the Lectrix, Roman numerals as ordinals', () => {
+  it('reads as chosen by ear on 15 October: speed 1.1, seed 2 for the Lector and 3 for the Lectrix, Roman numerals as ordinals; and numbers as words', () => {
     expect(SPEED).toBe(1.1);
     expect(SEED).toEqual({ M2: 2, F1: 3 });
-    expect(FIXES).toEqual(['roman']);
+    expect(FIXES).toEqual(['roman', 'numbers']);
   });
 });

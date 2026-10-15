@@ -1,8 +1,12 @@
 /** The languages the voice speaks. */
 export type Lang = 'it' | 'en';
 
-/** The longest piece the model is given at once, in characters. */
-export const MAX_PIECE = 300;
+/**
+ * The longest piece the model is given at once, in characters. It was 300
+ * until the Android trial, where the voice now and then dropped or repeated
+ * syllables; a shorter piece gives the model less to keep in line.
+ */
+export const MAX_PIECE = 200;
 
 /** What follows a piece: more of its block, a new paragraph, a new heading, or the end of the chapter. */
 export type Ending = 'piece' | 'paragraph' | 'heading' | 'chapter';

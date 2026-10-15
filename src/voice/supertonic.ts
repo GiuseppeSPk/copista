@@ -26,6 +26,7 @@
  */
 import type * as Ort from 'onnxruntime-web';
 import type { TextFix } from './narrator';
+import { spellNumbers } from './numbers';
 import type { Lang } from './text';
 
 export type OrtModule = typeof Ort;
@@ -151,6 +152,8 @@ function fixItalian(text: string, fixes: readonly TextFix[]): string {
 
 /** Normalises a piece the way the model was trained to read it, and tags its language. */
 export function preprocessText(text: string, lang: Lang, fixes: readonly TextFix[] = []): string {
+  // Before the text is normalised, which turns the "ª" of "2ª" into a plain "a".
+  if (fixes.includes('numbers')) text = spellNumbers(text, lang);
   text = text.normalize('NFKD').replace(EMOJI, '');
   if (lang === 'it') text = fixItalian(text, fixes);
   for (const [from, to] of SYMBOLS) text = text.replaceAll(from, to);

@@ -3,15 +3,21 @@ import type { Lang } from './text';
 /** The two voices: the Lector and the Lectrix. */
 export type VoiceId = 'M2' | 'F1';
 
-/** A text fix the voice can be asked for: Italian abbreviations spelt out, Roman numerals read as ordinals. */
-export type TextFix = 'abbreviations' | 'roman';
+/**
+ * A text fix the voice can be asked for: Italian abbreviations spelt out,
+ * Roman numerals read as ordinals, numbers in digits spelt out as words.
+ */
+export type TextFix = 'abbreviations' | 'roman' | 'numbers';
 
 /** The speed the voice reads at, chosen by ear. */
 export const SPEED = 1.1;
 /** The noise each voice starts from, chosen by ear on Italian prose; the Lectrix's in the blind tests of 15 October. */
 export const SEED: Record<VoiceId, number> = { M2: 2, F1: 3 };
-/** The text fixes the voice makes, chosen by ear in the blind tests of 15 October. */
-export const FIXES: readonly TextFix[] = ['roman'];
+/**
+ * The text fixes the voice makes: Roman numerals, chosen by ear in the blind
+ * tests of 15 October, and numbers as words, asked for after the Android trial.
+ */
+export const FIXES: readonly TextFix[] = ['roman', 'numbers'];
 
 /**
  * The voice's levers, for blind tests. A missing field keeps the default:
