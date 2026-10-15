@@ -23,6 +23,8 @@ export default defineConfig({
         'src/voice/worker.ts',
         'src/voice/supertonic.ts',
         'src/voice/audio.ts',
+        // The voice lab's page, for development only and tried by ear.
+        'src/voice/lab/main.ts',
       ],
       thresholds: { lines: 90, branches: 80 },
     },
