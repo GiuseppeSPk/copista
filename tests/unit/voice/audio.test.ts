@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { TODAY, finishPiece } from '../../../src/voice/audio';
+import { TODAY, finishPiece, shapeTone } from '../../../src/voice/audio';
 
 const ones = (n: number): Float32Array => new Float32Array(n).fill(1);
 
@@ -25,5 +25,37 @@ describe('the finish of a piece', () => {
     for (const ends of ['piece', 'paragraph', 'heading', 'chapter'] as const) {
       expect(finishPiece(ones(44100), 44100, ends, TODAY).length).toBe(44100 + 13230);
     }
+  });
+});
+
+const sine = (hz: number, level: number, rate = 44100, seconds = 0.5): Float32Array =>
+  Float32Array.from(
+    { length: rate * seconds },
+    (_, i) => level * Math.sin((2 * Math.PI * hz * i) / rate),
+  );
+
+const rms = (xs: Float32Array): number => Math.sqrt(xs.reduce((a, b) => a + b * b, 0) / xs.length);
+
+describe('the warmth on the tone', () => {
+  it('keeps the length', () => {
+    expect(shapeTone(sine(300, 0.3), 44100).length).toBe(22050);
+  });
+
+  it('never peaks above -1 dBFS', () => {
+    const out = shapeTone(sine(200, 1), 44100);
+    expect(Math.max(...out.map(Math.abs))).toBeLessThanOrEqual(0.891);
+  });
+
+  it('lifts a low voice more than a high one of the same level', () => {
+    const low = shapeTone(sine(200, 0.05), 44100).subarray(4410);
+    const high = shapeTone(sine(4000, 0.05), 44100).subarray(4410);
+    expect(rms(low)).toBeGreaterThan(rms(high) * 1.1);
+  });
+
+  it('is off today, and the finish applies it to the spoken part when on', () => {
+    expect(TODAY.tone).toBe(false);
+    const spoken = sine(300, 0.3, 1000, 1);
+    const out = finishPiece(spoken, 1000, 'piece', { ...TODAY, tone: true });
+    expect(out.subarray(0, 1000)).toEqual(shapeTone(spoken, 1000));
   });
 });

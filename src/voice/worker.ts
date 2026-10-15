@@ -2,7 +2,13 @@
  * The worker that runs the voice. onnxruntime-web is loaded here only, from
  * the copy served under ort/, so it never weighs on the page.
  */
-import { isDeviceLost, type VoiceId, type WorkerReply, type WorkerRequest } from './narrator';
+import {
+  isDeviceLost,
+  type Tuning,
+  type VoiceId,
+  type WorkerReply,
+  type WorkerRequest,
+} from './narrator';
 import { getProfile, pickSteps, readFile, saveProfile, type Profile } from './store';
 import { Supertonic, parseStyle, type OrtModule, type Style, type TtsConfig } from './supertonic';
 import type { Lang } from './text';
@@ -114,16 +120,31 @@ async function load(): Promise<void> {
   await open('wasm');
 }
 
-async function speak(text: string, lang: Lang, voice: VoiceId): Promise<Float32Array> {
+async function speak(
+  text: string,
+  lang: Lang,
+  voice: VoiceId,
+  tuning: Tuning = {},
+): Promise<Float32Array> {
   await load();
+  const run = async (): Promise<Float32Array> =>
+    tts!.speak(
+      text,
+      lang,
+      await style(voice),
+      profile!.steps,
+      tuning.speed ?? SPEED,
+      tuning.seed ?? SEED[voice],
+      { fixes: tuning.fixes, noise: tuning.noise },
+    );
   try {
-    return await tts!.speak(text, lang, await style(voice), profile!.steps, SPEED, SEED[voice]);
+    return await run();
   } catch (error) {
     if (!isDeviceLost(error) || profile?.backend !== 'webgpu') throw error;
     wasmOnly = true;
     await close().catch(() => {});
     await load();
-    return tts!.speak(text, lang, await style(voice), profile!.steps, SPEED, SEED[voice]);
+    return run();
   }
 }
 
@@ -157,7 +178,7 @@ async function handle(message: WorkerRequest): Promise<WorkerReply> {
       return {
         id: message.id,
         type: 'audio',
-        samples: await speak(message.text, message.lang, message.voice),
+        samples: await speak(message.text, message.lang, message.voice, message.tuning),
       };
     case 'probe':
       return { id: message.id, type: 'audio', samples: await probe(message.model) };

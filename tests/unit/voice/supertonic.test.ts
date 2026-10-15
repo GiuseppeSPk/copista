@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   TextIds,
+  frameNoise,
   latentSize,
   noise,
   parseStyle,
@@ -20,6 +21,47 @@ describe('preprocessText', () => {
     );
     expect(preprocessText('Già 😀 fatto', 'it')).toBe(`<it>Gia${GRAVE} fatto.</it>`);
     expect(preprocessText('Nessuna punteggiatura', 'it')).toBe('<it>Nessuna punteggiatura.</it>');
+  });
+});
+
+describe('the Italian text fixes, each off unless asked for', () => {
+  it('reads a Roman numeral after a heading word as an ordinal, and leaves a king alone', () => {
+    expect(preprocessText('Capitolo XIV', 'it', ['roman'])).toBe(
+      '<it>Capitolo quattordicesimo.</it>',
+    );
+    expect(preprocessText('CANTO I', 'it', ['roman'])).toBe('<it>CANTO primo.</it>');
+    expect(preprocessText('Parte II', 'it', ['roman'])).toBe('<it>Parte seconda.</it>');
+    expect(preprocessText('Luigi XIV', 'it', ['roman'])).toBe('<it>Luigi XIV.</it>');
+    expect(preprocessText('nel canto i fiori', 'it', ['roman'])).toBe(
+      '<it>nel canto i fiori.</it>',
+    );
+  });
+
+  it('spells out the common abbreviations, and not a word that ends like one', () => {
+    expect(preprocessText('il sig. Rossi', 'it', ['abbreviations'])).toBe(
+      '<it>il signor Rossi.</it>',
+    );
+    expect(preprocessText('la sig.ra Rossi', 'it', ['abbreviations'])).toBe(
+      '<it>la signora Rossi.</it>',
+    );
+    expect(preprocessText('mele, pere ecc., e poi', 'it', ['abbreviations'])).toBe(
+      '<it>mele, pere eccetera, e poi.</it>',
+    );
+    expect(preprocessText('un buon design. Poi', 'it', ['abbreviations'])).toBe(
+      '<it>un buon design. Poi.</it>',
+    );
+  });
+
+  it('keeps the full stop when an abbreviation ends the sentence', () => {
+    expect(preprocessText('mele, pere ecc. Poi venne', 'it', ['abbreviations'])).toBe(
+      '<it>mele, pere eccetera. Poi venne.</it>',
+    );
+  });
+
+  it('changes nothing when no fix is asked for', () => {
+    const text = 'Il sig. Rossi, Capitolo XIV, ecc.';
+    expect(preprocessText(text, 'it')).toBe('<it>Il sig. Rossi, Capitolo XIV, ecc.</it>');
+    expect(preprocessText(text, 'it', [])).toBe(preprocessText(text, 'it'));
   });
 });
 
@@ -54,6 +96,16 @@ describe('noise', () => {
     const variance = xs.reduce((a, b) => a + (b - mean) ** 2, 0) / xs.length;
     expect(Math.abs(mean)).toBeLessThan(0.05);
     expect(Math.abs(variance - 1)).toBeLessThan(0.05);
+  });
+});
+
+describe('frameNoise', () => {
+  it('draws frame by frame, so a longer piece starts with the same noise', () => {
+    const short = frameNoise(4, 10, 2);
+    const long = frameNoise(4, 50, 2);
+    for (let d = 0; d < 4; d++) {
+      for (let t = 0; t < 10; t++) expect(short[d * 10 + t]).toBe(long[d * 50 + t]);
+    }
   });
 });
 

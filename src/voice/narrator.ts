@@ -3,19 +3,34 @@ import type { Lang } from './text';
 /** The two voices: the Lector and the Lectrix. */
 export type VoiceId = 'M2' | 'F1';
 
+/** A text fix the voice can be asked for: Italian abbreviations spelt out, Roman numerals read as ordinals. */
+export type TextFix = 'abbreviations' | 'roman';
+
+/**
+ * The voice's levers, for blind tests. A missing field keeps today's value:
+ * the voice's own seed, speed 1.1, no fixes, and noise drawn for the whole latent.
+ */
+export interface Tuning {
+  seed?: number;
+  speed?: number;
+  fixes?: readonly TextFix[];
+  /** 'frame' draws the noise frame by frame, so a piece's start never shifts with its length. */
+  noise?: 'latent' | 'frame';
+}
+
 /** What reads a piece aloud. The app uses the worker; tests use the fake. */
 export interface Narrator {
   readonly sampleRate: number;
   readonly backend: 'webgpu' | 'wasm' | 'fake';
   load(): Promise<void>;
-  speak(text: string, lang: Lang, voice: VoiceId): Promise<Float32Array>;
+  speak(text: string, lang: Lang, voice: VoiceId, tuning?: Tuning): Promise<Float32Array>;
   destroy(): void;
 }
 
 /** Messages to the worker. */
 export type WorkerRequest =
   | { id: number; type: 'load' }
-  | { id: number; type: 'speak'; text: string; lang: Lang; voice: VoiceId }
+  | { id: number; type: 'speak'; text: string; lang: Lang; voice: VoiceId; tuning?: Tuning }
   | { id: number; type: 'probe'; model: ArrayBuffer };
 
 /** Messages from the worker. */
@@ -60,8 +75,15 @@ export class WorkerNarrator implements Narrator {
     }
   }
 
-  async speak(text: string, lang: Lang, voice: VoiceId): Promise<Float32Array> {
-    const reply = await this.request({ id: 0, type: 'speak', text, lang, voice });
+  async speak(text: string, lang: Lang, voice: VoiceId, tuning?: Tuning): Promise<Float32Array> {
+    const reply = await this.request({
+      id: 0,
+      type: 'speak',
+      text,
+      lang,
+      voice,
+      ...(tuning && { tuning }),
+    });
     return reply.type === 'audio' ? reply.samples : new Float32Array(0);
   }
 

@@ -38,6 +38,14 @@ function setUp() {
 }
 
 describe('WorkerNarrator', () => {
+  it('sends the tuning along with a piece, and none when not asked', async () => {
+    const { worker, narrator } = setUp();
+    void narrator.speak('Uno.', 'it', 'M2', { seed: 7, fixes: ['roman'], noise: 'frame' });
+    void narrator.speak('Due.', 'it', 'M2');
+    expect(worker.sent[0]).toMatchObject({ tuning: { seed: 7, fixes: ['roman'], noise: 'frame' } });
+    expect(worker.sent[1]!).not.toHaveProperty('tuning');
+  });
+
   it('takes the sample rate and backend from the ready reply', async () => {
     const { worker, narrator } = setUp();
     const loading = narrator.load();

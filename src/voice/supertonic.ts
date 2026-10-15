@@ -25,6 +25,7 @@
  * SOFTWARE.
  */
 import type * as Ort from 'onnxruntime-web';
+import type { TextFix } from './narrator';
 import type { Lang } from './text';
 
 export type OrtModule = typeof Ort;
@@ -80,9 +81,78 @@ const EXPRESSIONS: [string, string][] = [
   ['i.e.,', 'that is, '],
 ];
 
+/**
+ * Common Italian abbreviations, spelt out. Each ends where a word cannot go on,
+ * and an "ecc." that closes a sentence keeps its full stop.
+ */
+const ABBREVIATIONS_IT: [RegExp, string][] = [
+  [/\becc\.(?=\s*$|\s+[A-Z])/gi, 'eccetera.'],
+  [/\becc\.(?!\w)/gi, 'eccetera'],
+  [/\bp\.?\s*es\.(?!\w)/gi, 'per esempio,'],
+  [/\bcfr\.(?!\w)/gi, 'confronta'],
+  [/\bprof\.(?!\w)/gi, 'professor'],
+  [/\bdott\.(?!\w)/gi, 'dottor'],
+  [/\bsig\.ra(?!\w)/gi, 'signora'],
+  [/\bsig\.(?!\w)/gi, 'signor'],
+];
+
+const ORDINALS_IT = [
+  'primo',
+  'secondo',
+  'terzo',
+  'quarto',
+  'quinto',
+  'sesto',
+  'settimo',
+  'ottavo',
+  'nono',
+  'decimo',
+  'undicesimo',
+  'dodicesimo',
+  'tredicesimo',
+  'quattordicesimo',
+  'quindicesimo',
+  'sedicesimo',
+  'diciassettesimo',
+  'diciottesimo',
+  'diciannovesimo',
+  'ventesimo',
+];
+const ROMAN_TO_TEN = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'];
+const ROMAN_TO_TWENTY = [...ROMAN_TO_TEN, ...ROMAN_TO_TEN.map((r) => `X${r}`)];
+/** The words a heading's number follows; the feminine ones take a feminine ordinal. */
+const HEADINGS_IT = ['Capitolo', 'Canto', 'Libro', 'Tomo', 'Atto', 'Parte', 'Scena'];
+const FEMININE_IT = new Set(['parte', 'scena']);
+
+/**
+ * A Roman numeral up to XX after a heading word, as in "Capitolo XIV". The
+ * numeral must be in capitals, so "canto i fiori" stays as it is, and a king's
+ * "Luigi XIV" has no heading word before it.
+ */
+const ROMAN_HEADING_IT = new RegExp(
+  `\\b(${HEADINGS_IT.flatMap((w) => [w, w.toLowerCase(), w.toUpperCase()]).join('|')})` +
+    `\\s+(${[...ROMAN_TO_TWENTY].reverse().join('|')})(?!\\w)`,
+  'g',
+);
+
+function fixItalian(text: string, fixes: readonly TextFix[]): string {
+  if (fixes.includes('roman')) {
+    text = text.replace(ROMAN_HEADING_IT, (_, word: string, roman: string) => {
+      const ordinal = ORDINALS_IT[ROMAN_TO_TWENTY.indexOf(roman)]!;
+      const feminine = FEMININE_IT.has(word.toLowerCase());
+      return `${word} ${feminine ? `${ordinal.slice(0, -1)}a` : ordinal}`;
+    });
+  }
+  if (fixes.includes('abbreviations')) {
+    for (const [pattern, spelt] of ABBREVIATIONS_IT) text = text.replace(pattern, spelt);
+  }
+  return text;
+}
+
 /** Normalises a piece the way the model was trained to read it, and tags its language. */
-export function preprocessText(text: string, lang: Lang): string {
+export function preprocessText(text: string, lang: Lang, fixes: readonly TextFix[] = []): string {
   text = text.normalize('NFKD').replace(EMOJI, '');
+  if (lang === 'it') text = fixItalian(text, fixes);
   for (const [from, to] of SYMBOLS) text = text.replaceAll(from, to);
   text = text.replace(/[♥☆♡©\\]/g, '');
   for (const [from, to] of EXPRESSIONS) text = text.replaceAll(from, to);
@@ -97,8 +167,8 @@ export function preprocessText(text: string, lang: Lang): string {
 export class TextIds {
   constructor(private readonly indexer: number[]) {}
 
-  encode(text: string, lang: Lang): BigInt64Array {
-    const prepared = preprocessText(text, lang);
+  encode(text: string, lang: Lang, fixes: readonly TextFix[] = []): BigInt64Array {
+    const prepared = preprocessText(text, lang, fixes);
     const ids = new BigInt64Array(prepared.length);
     for (let i = 0; i < prepared.length; i++) {
       // Code units, as the original does: a surrogate pair gives two ids.
@@ -175,6 +245,24 @@ export function noise(size: number, seed: number): Float32Array {
   return out;
 }
 
+/**
+ * The same noise, drawn frame by frame and laid out as the latent is, [dim, length]:
+ * a longer piece starts with the very noise a shorter one has, so its opening
+ * intonation does not shift with how long the piece is.
+ */
+export function frameNoise(dim: number, length: number, seed: number): Float32Array {
+  const random = uniform(seed);
+  const out = new Float32Array(dim * length);
+  for (let t = 0; t < length; t++) {
+    for (let d = 0; d < dim; d++) {
+      const u1 = Math.max(0.0001, random());
+      const u2 = random();
+      out[d * length + t] = Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
+    }
+  }
+  return out;
+}
+
 /** The Supertonic voice, run with onnxruntime-web. */
 export class Supertonic {
   readonly sampleRate: number;
@@ -217,10 +305,11 @@ export class Supertonic {
     steps: number,
     speed: number,
     seed: number,
+    options: { fixes?: readonly TextFix[]; noise?: 'latent' | 'frame' } = {},
   ): Promise<Float32Array> {
     const { Tensor } = this.ort;
     const s = this.sessions;
-    const ids = this.ids.encode(text, lang);
+    const ids = this.ids.encode(text, lang, options.fixes);
     const textIds = new Tensor('int64', ids, [1, ids.length]);
     const textMask = new Tensor('float32', new Float32Array(ids.length).fill(1), [
       1,
@@ -244,7 +333,8 @@ export class Supertonic {
     });
 
     const { length, dim } = latentSize(seconds, this.cfg);
-    let latent = noise(dim * length, seed);
+    let latent =
+      options.noise === 'frame' ? frameNoise(dim, length, seed) : noise(dim * length, seed);
     const latentMask = new Tensor('float32', new Float32Array(length).fill(1), [1, 1, length]);
     const totalStep = new Tensor('float32', new Float32Array([steps]), [1]);
     for (let step = 0; step < steps; step++) {
