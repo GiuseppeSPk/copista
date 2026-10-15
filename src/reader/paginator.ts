@@ -10,6 +10,10 @@ export interface ChapterView {
   next(): boolean;
   prev(): boolean;
   fraction(): number;
+  /** The chapter's document, once one is shown. */
+  readonly document: Document | null;
+  /** The index of the first of these elements of the chapter that shows on screen, or -1. */
+  firstVisible(elements: readonly Element[]): number;
   destroy(): void;
 }
 
@@ -148,6 +152,18 @@ export class Paginator implements ChapterView {
 
   fraction(): number {
     return this.anchor;
+  }
+
+  get document(): Document | null {
+    return this.frame?.doc ?? null;
+  }
+
+  /** The frame scrolls one page into view, so an element shows when one of its boxes lies in it. */
+  firstVisible(elements: readonly Element[]): number {
+    const width = this.pageWidth;
+    return elements.findIndex((element) =>
+      [...element.getClientRects()].some((r) => r.width > 0 && r.right > 1 && r.left < width - 1),
+    );
   }
 
   /** Replaces the shown chapter; the old one stays visible until the new one is laid out. */

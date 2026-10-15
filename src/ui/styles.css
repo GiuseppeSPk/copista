@@ -1526,8 +1526,9 @@ button.link:hover:not(:disabled) {
   margin: 0;
 }
 
-/* While the text moves by itself, its button says so. */
-.reading-bar .autoscroll-toggle[aria-pressed='true'] {
+/* While the text moves by itself, or the voice reads, its button says so. */
+.reading-bar .autoscroll-toggle[aria-pressed='true'],
+.reading-bar .listen-toggle[aria-pressed='true'] {
   border-color: var(--accent);
   color: var(--accent);
 }
@@ -4085,8 +4086,8 @@ button:active:not(:disabled),
     gap: 2px;
   }
 
-  /* Six tools share a 328px row on a small phone, so each takes an even share, but never less
-     than its name: a phone's own font may set "Bookmark" wider than ours does. */
+  /* Six tools, seven with the voice, share a 328px row on a small phone, so each takes an even
+     share, but never less than its name: a phone's own font may set "Bookmark" wider than ours does. */
   .reading-bar .toolbar > button,
   .look-toggle {
     flex: 1 1 0;

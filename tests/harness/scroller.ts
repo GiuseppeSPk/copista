@@ -93,6 +93,11 @@ const harness = {
     const first = paragraphs.find((p) => p.getBoundingClientRect().bottom > top + 1);
     return first?.textContent?.split('.')[0] ?? '';
   },
+  /** The same, as the scroller finds it. */
+  firstVisible(): string {
+    const paragraphs = [...scroller.document!.querySelectorAll('p')];
+    return paragraphs[scroller.firstVisible(paragraphs)]?.textContent?.split('.')[0] ?? '';
+  },
   destroy(): void {
     scroller.destroy();
   },

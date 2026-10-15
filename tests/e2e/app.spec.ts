@@ -934,6 +934,68 @@ test('links to free libraries and searches them for what is typed', async ({ pag
   );
 });
 
+test.describe('Listen', () => {
+  /** Sets up the fake voice, and counts the pieces the page starts playing. */
+  async function withVoice(page: Page): Promise<void> {
+    await page.addInitScript(() => {
+      localStorage.setItem('copista-test-voice', 'installed');
+      const played: string[] = [];
+      (window as unknown as { played: string[] }).played = played;
+      const play = HTMLMediaElement.prototype.play;
+      HTMLMediaElement.prototype.play = function (this: HTMLMediaElement) {
+        played.push(this.src);
+        return play.call(this);
+      };
+    });
+  }
+
+  const plays = (page: Page): Promise<number> =>
+    page.evaluate(() => (window as unknown as { played: string[] }).played.length);
+
+  test('shows only once the voice is set up', async ({ page }) => {
+    await page.addInitScript(() => localStorage.setItem('copista-test-voice', 'absent'));
+    await openReader(page);
+    await expect(page.getByRole('button', { name: 'Autoscroll' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Listen' })).toHaveCount(0);
+  });
+
+  test('reads aloud from the page on screen until pressed again', async ({ page, browserName }) => {
+    // Playwright's WebKit on Windows plays no audio at all: play() fails as not supported.
+    test.skip(browserName === 'webkit', 'this WebKit build has no audio');
+    await withVoice(page);
+    await openReader(page);
+    const button = page.getByRole('button', { name: 'Listen' });
+    await button.click();
+    await expect(button).toHaveAttribute('aria-pressed', 'true');
+    // The first play unlocks the audio during the press; the next ones are the pieces.
+    await expect.poll(() => plays(page)).toBeGreaterThanOrEqual(2);
+    await button.click();
+    await expect(button).toHaveAttribute('aria-pressed', 'false');
+    const stopped = await plays(page);
+    await page.waitForTimeout(1500);
+    expect(await plays(page)).toBe(stopped);
+    await expect(page.getByRole('alert')).toHaveCount(0);
+  });
+
+  test.describe('on a small phone', () => {
+    test.use({ viewport: { width: 360, height: 640 } });
+
+    test('fits all seven reading tools, each with its whole name', async ({ page }) => {
+      await withVoice(page);
+      await openReader(page);
+      const tools = page.locator('.reading-bar .toolbar > button, .reading-bar .look-toggle');
+      await expect(tools).toHaveCount(7);
+      for (const tool of await tools.all()) {
+        const box = (await tool.boundingBox())!;
+        expect(box.x).toBeGreaterThanOrEqual(0);
+        expect(box.x + box.width).toBeLessThanOrEqual(360);
+        const clipped = await tool.evaluate((b) => b.scrollWidth - b.clientWidth);
+        expect(clipped).toBeLessThanOrEqual(0);
+      }
+    });
+  });
+});
+
 test.describe('scroll mode', () => {
   /** Opens the long book and switches the reader to one scrolling column. */
   async function openScrolling(page: Page): Promise<void> {

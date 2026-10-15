@@ -41,6 +41,15 @@ for (const viewport of [
       expect(await page.evaluate(() => window.scroller.topParagraph())).not.toBe('1');
     });
 
+    test('finds the first paragraph showing at the top of the screen', async ({ page }) => {
+      await page.evaluate(() => window.scroller.open('longChapter', 0, { fraction: 0 }));
+      expect(await page.evaluate(() => window.scroller.firstVisible())).toBe('1');
+      await page.evaluate(() => window.scroller.open('longChapter', 0, { fraction: 0.5 }));
+      const found = await page.evaluate(() => window.scroller.firstVisible());
+      expect(found).not.toBe('1');
+      expect(found).toBe(await page.evaluate(() => window.scroller.topParagraph()));
+    });
+
     test('opens at a fragment', async ({ page }) => {
       const info = await page.evaluate(() =>
         window.scroller.open('longChapter', 0, { fragment: 'end' }),

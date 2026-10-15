@@ -5,6 +5,7 @@ import { Paginator, type ChapterView, type ShowTarget } from '../../reader/pagin
 import { buildSrcdoc, type ReaderLook, type ReadingMode } from '../../reader/render';
 import { ResourceUrls } from '../../reader/resources';
 import { Scroller } from '../../reader/scroller';
+import { readableBlocks } from '../../voice/text';
 import { progressPercent, savePosition, type ReadingSession } from './index';
 
 export interface GoToTarget {
@@ -146,6 +147,17 @@ export class ReadingController {
 
   position(): Position {
     return { spineIndex: this.spineIndex, fraction: this.view.fraction() };
+  }
+
+  /**
+   * Where reading aloud starts: the chapter on screen and the first of its
+   * blocks read aloud that shows, or its first block when none does.
+   */
+  listeningStart(): { doc: Document; spineIndex: number; block: number } | null {
+    const doc = this.view.document;
+    if (doc === null) return null;
+    const block = Math.max(0, this.view.firstVisible(readableBlocks(doc)));
+    return { doc, spineIndex: this.spineIndex, block };
   }
 
   destroy(): void {

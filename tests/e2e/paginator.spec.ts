@@ -162,6 +162,25 @@ for (const viewport of [
       expect(await page.evaluate(() => window.harness.info().page)).toBe(0);
     });
 
+    test('finds the first paragraph on each page, further on as the pages turn', async ({
+      page,
+    }) => {
+      const firsts = await page.evaluate(async () => {
+        const { pageCount } = await window.harness.open('longChapter', 0, { fraction: 0 });
+        const found = [window.harness.firstParagraph()];
+        for (let i = 1; i < pageCount; i++) {
+          window.harness.next();
+          found.push(window.harness.firstParagraph());
+        }
+        return found;
+      });
+      expect(firsts[0]).toEqual({ index: 0, text: '1' });
+      for (let i = 1; i < firsts.length; i++) {
+        expect(firsts[i]!.index).toBeGreaterThanOrEqual(firsts[i - 1]!.index);
+      }
+      expect(firsts.at(-1)!.index).toBeGreaterThan(60);
+    });
+
     test('runs no book script and loads nothing from the network', async ({ page }) => {
       const outside: string[] = [];
       page.on('request', (request) => {

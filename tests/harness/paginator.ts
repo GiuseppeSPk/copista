@@ -54,6 +54,12 @@ const harness = {
     return info();
   },
   info,
+  /** The first paragraph of the chapter that shows on the page, and its opening words. */
+  firstParagraph(): { index: number; text: string } {
+    const paragraphs = [...paginator.document!.querySelectorAll('p')];
+    const index = paginator.firstVisible(paragraphs);
+    return { index, text: paragraphs[index]?.textContent?.split('.')[0] ?? '' };
+  },
   frame: () => document.querySelector('iframe')!,
   lastLink: null as string | null,
 };

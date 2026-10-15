@@ -25,6 +25,11 @@
   import RoomHero from './RoomHero.svelte';
   import Icon from './Icon.svelte';
   import { errorMessage } from './text';
+  import { voiceService } from '../voice/index';
+  import { Speaker } from '../voice/audio';
+  import { listen, type Listening } from '../voice/listen';
+  import type { Narrator } from '../voice/narrator';
+  import { piecesOf, type Lang } from '../voice/text';
 
   let { bookId }: { bookId?: string | undefined } = $props();
 
@@ -49,6 +54,12 @@
   let zone = $state<'prev' | 'next' | undefined>();
   // The text moves by itself, in scroll mode only.
   let playing = $state(false);
+  // The voice reads the chapter aloud, once it is set up in the Auditorium.
+  let voiceReady = $state(false);
+  let listening = $state.raw<Listening>();
+  let listenError = $state('');
+  let narrator: Narrator | undefined;
+  let speaker: Speaker | undefined;
 
   // The window behind a fitted page shows no scrollbar. Only the scrollbar is
   // hidden: flipping the root's overflow while the page is still being laid out
@@ -116,6 +127,10 @@
       timer = setTimeout(refreshWhere, 300);
     });
     resize.observe(host);
+    voiceService()
+      .isInstalled()
+      .then((installed) => (voiceReady = installed))
+      .catch(() => undefined);
 
     openSession(bookId)
       .then(async (opened) => {
@@ -141,6 +156,9 @@
       clearTimeout(hintTimer);
       for (const id of [...pending.keys()]) void storeNote(id);
       resize.disconnect();
+      stopListening();
+      narrator?.destroy();
+      speaker?.release();
       ctrl?.destroy();
       ctrl = undefined;
     };
@@ -287,6 +305,46 @@
     lookOpen = false;
     if (!scrolling) await restyle({ mode: 'scroll' });
     togglePlay();
+  }
+
+  function stopListening(): void {
+    listening?.stop();
+    listening = undefined;
+  }
+
+  /**
+   * The toolbar's Listen: reads aloud from the first paragraph on screen to the
+   * end of the chapter, or stops.
+   */
+  function toggleListen(): void {
+    if (listening) return stopListening();
+    const start = ctrl?.listeningStart();
+    if (!start || !session) return;
+    lookOpen = false;
+    listenError = '';
+    const out = (speaker ??= new Speaker());
+    out.unlock();
+    const voice = (narrator ??= voiceService().narrator());
+    const loaded = voice.load();
+    const lang: Lang = /^en/i.test(session.book.meta.language) ? 'en' : 'it';
+    const texts = piecesOf(start.doc, lang, start.spineIndex)
+      .filter((piece) => piece.block >= start.block)
+      .map((piece) => piece.text);
+    const current = listen(
+      { speak: (text, l, v) => loaded.then(() => voice.speak(text, l, v)) },
+      texts,
+      lang,
+      app.settings.voice,
+      (samples, signal) => out.play(samples, voice.sampleRate, signal),
+    );
+    listening = current;
+    current.done
+      .catch((e: unknown) => {
+        if (listening === current) listenError = errorMessage(e);
+      })
+      .finally(() => {
+        if (listening === current) listening = undefined;
+      });
   }
 
   // A turn of the wheel or a swipe of two fingers on a touchpad turns one page.
@@ -552,6 +610,19 @@
           <Icon name={playing ? 'pause' : 'play'} size={18} />
           <span class="tool-label">Auto<wbr />scroll</span>
         </button>
+        {#if voiceReady}
+          <button
+            type="button"
+            class="listen-toggle"
+            onclick={toggleListen}
+            disabled={!session}
+            aria-pressed={listening !== undefined}
+            title="Read the chapter aloud from this page"
+          >
+            <Icon name={listening ? 'pause' : 'listen'} size={18} />
+            <span class="tool-label">Listen</span>
+          </button>
+        {/if}
         <div class="look" bind:this={lookBox}>
           <button
             type="button"
@@ -626,6 +697,9 @@
 
     {#if error}
       <p class="error" role="alert">{error} <a href="#/bibliotheca">Back to the library</a></p>
+    {/if}
+    {#if listenError}
+      <p class="error" role="alert">{listenError}</p>
     {/if}
 
     <div class="reading" class:panel-open={panelOpen}>

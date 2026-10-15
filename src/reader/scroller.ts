@@ -123,6 +123,20 @@ export class Scroller implements ChapterView {
     return this.anchor;
   }
 
+  get document(): Document | null {
+    return this.frame?.doc ?? null;
+  }
+
+  /** The frame is as tall as the chapter, so the first element showing is the first to end below the top. */
+  firstVisible(elements: readonly Element[]): number {
+    if (this.frame === null) return -1;
+    const top =
+      this.host.getBoundingClientRect().top +
+      this.host.clientTop -
+      this.frame.element.getBoundingClientRect().top;
+    return elements.findIndex((element) => element.getBoundingClientRect().bottom > top + 1);
+  }
+
   /** Replaces the shown chapter; the old one stays visible until the new one is laid out. */
   async show(srcdoc: string, target: ShowTarget): Promise<void> {
     this.cancelPending?.();
