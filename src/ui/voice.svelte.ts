@@ -9,7 +9,7 @@ import {
   removeVoice,
   voiceStatus,
   type VoiceStatus,
-} from '../rooms/auditorium';
+} from '../rooms/voice';
 import type { VoiceId } from '../rooms/archivum';
 import { changeSettings } from './state.svelte';
 import { errorMessage } from './text';

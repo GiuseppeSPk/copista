@@ -233,7 +233,9 @@ export async function spaceUsed(): Promise<number> {
 export async function readFile(path: string): Promise<ArrayBuffer> {
   const response = await lookup(fileUrl(path));
   if (response === undefined) {
-    throw new VoiceDownloadError('The voice is not installed. Install it in the Auditorium.');
+    throw new VoiceDownloadError(
+      'The voice is not installed. Set it up from Listen in the Lectorium.',
+    );
   }
   return response.arrayBuffer();
 }

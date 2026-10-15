@@ -140,6 +140,7 @@
           >Pages that turn like a book, and your place kept for next time.</span
         >
       {/if}
+      <span class="door-note">Can read aloud · <span class="beta">Beta</span></span>
       <span class="door-foot">
         <span class="plaque" style:--vt="title-lectorium">Lectorium</span>
         <span class="door-go"><Icon name="arrow" size={18} /></span>
@@ -193,22 +194,6 @@
       <span class="door-body">No account, no upload. See what is kept and erase it.</span>
       <span class="door-foot">
         <span class="plaque" style:--vt="title-archivum">Archivum</span>
-        <span class="door-go"><Icon name="arrow" size={18} /></span>
-      </span>
-    </a>
-
-    <a
-      class="door door-listen"
-      href={hashOf({ room: 'auditorium' })}
-      aria-labelledby="door-auditorium"
-      onpointermove={follow}
-      style:--i={4}
-    >
-      <span class="door-icon"><Icon name="listen" size={22} /></span>
-      <span class="door-title" id="door-auditorium">{door('auditorium').action}</span>
-      <span class="door-body">A voice that reads your books aloud, on this device. Optional.</span>
-      <span class="door-foot">
-        <span class="plaque" style:--vt="title-auditorium">Auditorium</span>
         <span class="door-go"><Icon name="arrow" size={18} /></span>
       </span>
     </a>

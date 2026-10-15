@@ -25,7 +25,6 @@ const TAB = {
   Lectorium: 'Read a book',
   Scriptorium: 'Convert a file',
   Archivum: 'Manage your data',
-  Auditorium: 'Listen to a book',
 } as const;
 
 type Room = keyof typeof TAB;
@@ -814,100 +813,11 @@ test('deletes all data from the Archivum', async ({ page }) => {
   await expect(page.getByText('No books yet.')).toBeVisible();
 });
 
-test.describe('Auditorium', () => {
-  test.beforeEach(async ({ page }) => {
-    // The fake voice keeps its state in this key; the real one would download 200 MB.
-    await page.addInitScript(() => {
-      if (localStorage.getItem('copista-test-voice') === null) {
-        localStorage.setItem('copista-test-voice', 'absent');
-      }
-    });
-    await page.goto('/#/auditorium');
-  });
-
-  test('plays both samples before anything is set up', async ({ page }) => {
-    await expect(page.locator('.samples audio')).toHaveCount(2);
-    for (const name of ['lector', 'lectrix']) {
-      for (const extension of ['webm', 'm4a']) {
-        const response = await page.request.get(`/voice/${name}.${extension}`);
-        expect(response.status()).toBe(200);
-      }
-    }
-    for (const file of ['openrail-m.txt', 'notices.txt']) {
-      expect((await page.request.get(`/licences/${file}`)).status()).toBe(200);
-    }
-  });
-
-  test('sets up the voice once the licence is accepted, then removes it', async ({ page }) => {
-    const download = page.getByRole('button', { name: 'Download the voice' });
-    await expect(page.getByText('Works best on recent phones and computers.')).toBeVisible();
-    await expect(download).toBeDisabled();
-    await page.getByLabel('I accept the licence and its use restrictions').check();
-    await download.click();
-    await expect(page.getByRole('status')).toContainText('The voice is ready.');
-
-    await page.getByRole('radio', { name: 'The Lectrix' }).check();
-    // The choice is saved a moment after the click; reload only once it is.
-    await expect
-      .poll(() =>
-        page.evaluate(
-          () =>
-            new Promise((resolve) => {
-              indexedDB.open('copista').onsuccess = ({ target }) => {
-                const db = (target as IDBOpenDBRequest).result;
-                const get = db.transaction('settings').objectStore('settings').get('reader');
-                get.onsuccess = () => {
-                  db.close();
-                  resolve(get.result?.value?.voice);
-                };
-              };
-            }),
-        ),
-      )
-      .toBe('F1');
-    await page.reload();
-    await expect(page.getByRole('radio', { name: 'The Lectrix' })).toBeChecked();
-
-    await page.getByRole('button', { name: 'Remove the voice' }).click();
-    await expect(page.getByRole('status')).toContainText('has been removed');
-    await expect(page.getByRole('button', { name: 'Download the voice' })).toBeDisabled();
-  });
-
-  test('stops a download when asked', async ({ page }) => {
-    await page.getByLabel('I accept the licence and its use restrictions').check();
-    await page.getByRole('button', { name: 'Download the voice' }).click();
-    await page.getByRole('button', { name: 'Cancel' }).click();
-    await expect(page.getByRole('status')).toContainText('Download stopped.');
-    await expect(page.getByRole('button', { name: 'Download the voice' })).toBeVisible();
-  });
-
-  test('opens from the fifth key', async ({ page }) => {
-    await page.goto('/');
-    await page.keyboard.press('5');
-    await expect(page.getByRole('heading', { level: 1, name: 'Auditorium' })).toBeVisible();
-  });
-
-  test('fits its six tabs on the narrowest phone', async ({ page }) => {
-    await page.setViewportSize({ width: 320, height: 640 });
-    await expect(page.getByRole('heading', { level: 1, name: 'Auditorium' })).toBeVisible();
-    const overflow = await page.evaluate(
-      () => document.documentElement.scrollWidth - window.innerWidth,
-    );
-    expect(overflow).toBeLessThanOrEqual(0);
-    const links = page.getByRole('navigation', { name: 'Rooms' }).getByRole('link');
-    for (const link of await links.all()) {
-      const box = (await link.boundingBox())!;
-      expect(box.x).toBeGreaterThanOrEqual(0);
-      expect(box.x + box.width).toBeLessThanOrEqual(320);
-    }
-  });
-});
-
 test('makes no request outside its own site', async ({ page, baseURL }) => {
   const foreign = watchForeignRequests(page, baseURL!);
   await openReader(page);
   await page.getByRole('button', { name: 'Next' }).click();
-  for (const room of ['Scriptorium', 'Archivum', 'Auditorium', 'Bibliotheca'] as const) {
+  for (const room of ['Scriptorium', 'Archivum', 'Bibliotheca'] as const) {
     await openRoom(page, room);
   }
   await page.getByRole('link', { name: 'Copista, all rooms' }).click();
@@ -980,6 +890,15 @@ test.describe('Listen', () => {
     await expect(sheet.getByRole('heading', { name: /^The Lector/ })).toContainText('Beta');
     await expect(sheet.getByText('It may stumble over a name or a number')).toBeVisible();
     await expect(sheet.locator('audio')).toHaveCount(2);
+    for (const name of ['lector', 'lectrix']) {
+      for (const extension of ['webm', 'm4a']) {
+        expect((await page.request.get(`/voice/${name}.${extension}`)).status()).toBe(200);
+      }
+    }
+    for (const file of ['openrail-m.txt', 'notices.txt']) {
+      expect((await page.request.get(`/licences/${file}`)).status()).toBe(200);
+    }
+    await expect(sheet.getByText('Works best on recent phones and computers.')).toBeVisible();
     const download = sheet.getByRole('button', { name: 'Download the voice' });
     await expect(download).toBeDisabled();
     await sheet.getByLabel('I accept the licence and its use restrictions').check();
@@ -1039,6 +958,49 @@ test.describe('Listen', () => {
     await expect(listen).toHaveAttribute('aria-pressed', 'false');
     await expect(listen).not.toHaveAttribute('aria-expanded');
     await expect(page.locator('#voice-sheet')).toBeHidden();
+  });
+
+  test('stops a download when asked', async ({ page }) => {
+    await withoutVoice(page);
+    await openReader(page);
+    await startDownload(page);
+    const sheet = page.locator('#voice-sheet');
+    await sheet.getByRole('button', { name: 'Cancel' }).click();
+    await expect(sheet.getByRole('status')).toContainText('Download stopped.');
+    await expect(sheet.getByRole('button', { name: 'Download the voice' })).toBeVisible();
+  });
+
+  test('chooses who reads, and removes the voice, from the sheet', async ({ page }) => {
+    await withoutVoice(page);
+    await openReader(page);
+    await startDownload(page);
+    const sheet = page.locator('#voice-sheet');
+    await expect(sheet.getByRole('status')).toContainText('The voice is ready.');
+    await expect(sheet.getByText('Space used')).toBeVisible();
+
+    await sheet.getByRole('radio', { name: 'The Lectrix' }).check();
+    await expect
+      .poll(() =>
+        page.evaluate(
+          () =>
+            new Promise((resolve) => {
+              indexedDB.open('copista').onsuccess = ({ target }) => {
+                const db = (target as IDBOpenDBRequest).result;
+                const get = db.transaction('settings').objectStore('settings').get('reader');
+                get.onsuccess = () => {
+                  db.close();
+                  resolve(get.result?.value?.voice);
+                };
+              };
+            }),
+        ),
+      )
+      .toBe('F1');
+
+    await sheet.getByRole('button', { name: 'Remove the voice' }).click();
+    await expect(sheet.getByRole('status')).toContainText('has been removed');
+    await expect(sheet.getByRole('button', { name: 'Download the voice' })).toBeDisabled();
+    await expect(sheet.getByRole('button', { name: 'Listen from here' })).toHaveCount(0);
   });
 
   test('cancels the download on leaving the Lectorium', async ({ page }) => {
@@ -1280,7 +1242,7 @@ test.describe('on a phone-sized screen', () => {
     await expect(page.getByRole('button', { name: 'Part 2' })).toBeVisible();
     await page.getByRole('button', { name: 'Part 2' }).click();
     await expect(page.locator('.where')).toContainText('chapter 2 of 3');
-    for (const room of ['Bibliotheca', 'Scriptorium', 'Archivum', 'Auditorium'] as const) {
+    for (const room of ['Bibliotheca', 'Scriptorium', 'Archivum'] as const) {
       await openRoom(page, room);
       expect(await overflow()).toBeLessThanOrEqual(0);
     }
@@ -1294,10 +1256,10 @@ test('has no serious accessibility problems in any room, in either theme', async
   await openReader(page);
   const screens: [string, () => Promise<void>][] = [
     ['Lectorium', async () => {}],
+    ['Voice sheet', () => page.getByRole('button', { name: 'Listen' }).click()],
     ['Bibliotheca', () => openRoom(page, 'Bibliotheca')],
     ['Scriptorium', () => openRoom(page, 'Scriptorium')],
     ['Archivum', () => openRoom(page, 'Archivum')],
-    ['Auditorium', () => openRoom(page, 'Auditorium')],
     [
       'Home',
       async () => {
@@ -1307,7 +1269,13 @@ test('has no serious accessibility problems in any room, in either theme', async
     ],
     ['Home, dark', () => page.getByRole('button', { name: 'Switch to dark theme' }).click()],
     ['Archivum, dark', () => openRoom(page, 'Archivum')],
-    ['Auditorium, dark', () => openRoom(page, 'Auditorium')],
+    [
+      'Voice sheet, dark',
+      async () => {
+        await page.getByRole('link', { name: 'Read a book' }).first().click();
+        await page.getByRole('button', { name: 'Listen' }).click();
+      },
+    ],
   ];
   await page.emulateMedia({ reducedMotion: 'reduce', colorScheme: 'light' });
   for (const [name, open] of screens) {
@@ -1335,13 +1303,7 @@ test.describe('home', () => {
   test('opens each room from its door and comes back', async ({ page }) => {
     await page.goto('/');
     await expect(page.getByRole('heading', { level: 1, name: 'Copista' })).toBeVisible();
-    for (const room of [
-      'Scriptorium',
-      'Lectorium',
-      'Bibliotheca',
-      'Archivum',
-      'Auditorium',
-    ] as const) {
+    for (const room of ['Scriptorium', 'Lectorium', 'Bibliotheca', 'Archivum'] as const) {
       await page.getByRole('main').getByRole('link', { name: TAB[room] }).click();
       await expect(page.getByRole('heading', { level: 1, name: room })).toBeVisible();
       await expect(page.getByRole('list', { name: 'In this room' })).toBeVisible();
@@ -1350,16 +1312,51 @@ test.describe('home', () => {
     }
   });
 
-  test('leads from the first line to a guide of the five rooms', async ({ page }) => {
+  test('leads from the first line to a guide of the four rooms', async ({ page }) => {
     await page.goto('/');
     await page.getByRole('button', { name: 'See how it works' }).click();
     const title = page.getByRole('heading', { level: 2, name: 'How it works' });
     await expect(title).toBeFocused();
     await expect(title).toBeInViewport();
     const guide = page.getByRole('region', { name: 'How it works' });
-    await expect(guide.getByRole('listitem')).toHaveCount(5);
+    await expect(guide.getByRole('listitem')).toHaveCount(4);
     await guide.getByRole('link', { name: /Open the Scriptorium/ }).click();
     await expect(page.getByRole('heading', { level: 1, name: 'Scriptorium' })).toBeVisible();
+  });
+
+  test('the home page has four doors and says the Lectorium can read aloud', async ({ page }) => {
+    await page.goto('/');
+    const doors = page.locator('.door');
+    await expect(doors).toHaveCount(4);
+    await expect(page.locator('a[href="#/auditorium"]')).toHaveCount(0);
+    await expect(page.locator('.door-read')).toContainText('Can read aloud · Beta');
+  });
+
+  test('opens nothing on the 5 key, now that there are four rooms', async ({ page }) => {
+    await page.goto('/');
+    await page.keyboard.press('5');
+    await page.keyboard.press('4');
+    // 4 opens the Archivum, so 5 had its chance to open something first.
+    await expect(page.getByRole('heading', { level: 1, name: 'Archivum' })).toBeVisible();
+    await page.goBack();
+    await expect(page.getByRole('heading', { level: 1, name: 'Copista' })).toBeVisible();
+  });
+
+  test('fits its five tabs on the narrowest phone', async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 640 });
+    await page.goto('/#/archivum');
+    await expect(page.getByRole('heading', { level: 1, name: 'Archivum' })).toBeVisible();
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollWidth - window.innerWidth,
+    );
+    expect(overflow).toBeLessThanOrEqual(0);
+    const links = page.getByRole('navigation', { name: 'Rooms' }).getByRole('link');
+    await expect(links).toHaveCount(5);
+    for (const link of await links.all()) {
+      const box = (await link.boundingBox())!;
+      expect(box.x).toBeGreaterThanOrEqual(0);
+      expect(box.x + box.width).toBeLessThanOrEqual(320);
+    }
   });
 
   test('offers to continue the last book read', async ({ page }) => {

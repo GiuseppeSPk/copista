@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { DOWNLOAD_BYTES, VOICE_HOST } from '../rooms/auditorium';
+  import { DOWNLOAD_BYTES, VOICE_HOST } from '../rooms/voice';
   import Icon from './Icon.svelte';
   import { app } from './state.svelte';
   import { megabytes } from './text';

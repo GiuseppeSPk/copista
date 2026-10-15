@@ -4,18 +4,11 @@ export type Route =
   | { room: 'bibliotheca' }
   | { room: 'lectorium'; bookId?: string }
   | { room: 'scriptorium' }
-  | { room: 'archivum' }
-  | { room: 'auditorium' };
+  | { room: 'archivum' };
 
 export type Room = Route['room'];
 
-const ROOMS: readonly Room[] = [
-  'bibliotheca',
-  'lectorium',
-  'scriptorium',
-  'archivum',
-  'auditorium',
-];
+const ROOMS: readonly Room[] = ['bibliotheca', 'lectorium', 'scriptorium', 'archivum'];
 
 export function parseHash(hash: string): Route {
   const path = hash.replace(/^#\/?/, '');
@@ -28,6 +21,8 @@ export function parseHash(hash: string): Route {
     }
     return { room: 'bibliotheca' };
   }
+  // The voice had a room of its own before it moved into the Lectorium.
+  if (path === 'auditorium') return { room: 'lectorium' };
   const room = ROOMS.find((name) => name === path);
   return room ? ({ room } as Route) : { room: 'home' };
 }

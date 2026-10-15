@@ -116,9 +116,9 @@
       > applies. After the first visit the app works offline.
     </p>
     <p>
-      The voice in the Auditorium is optional. If you set it up, its files are downloaded once from
-      huggingface.co, which may likewise record your IP address. The reading itself happens on this
-      device: no text ever leaves it.
+      The voice is optional. If you set it up from Listen in the Lectorium, its files are downloaded
+      once from huggingface.co, which may likewise record your IP address. The reading itself
+      happens on this device: no text ever leaves it.
     </p>
     <p>Deleting your data below removes everything Copista has kept in this browser.</p>
   </div>

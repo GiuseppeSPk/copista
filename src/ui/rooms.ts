@@ -18,7 +18,7 @@ export interface RoomInfo {
   can: string[];
 }
 
-/** The five rooms, in the order of the tabs and of the keys 1 to 5. */
+/** The four rooms, in the order of the tabs and of the keys 1 to 4. */
 export const ROOMS: readonly RoomInfo[] = [
   {
     room: 'bibliotheca',
@@ -69,20 +69,6 @@ export const ROOMS: readonly RoomInfo[] = [
       'See the space your books use',
       'Set text size and page colours',
       'Delete everything at once',
-    ],
-  },
-  {
-    room: 'auditorium',
-    name: 'Auditorium',
-    action: 'Listen to a book',
-    short: 'Listen',
-    icon: 'listen',
-    about:
-      'The listening room. Set up a voice once, and the Lector or the Lectrix reads your books aloud on this device.',
-    can: [
-      'Hear the two voices before choosing',
-      'Set up the voice once, about 220 MB',
-      'Remove it whenever you like',
     ],
   },
 ];

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { installVoice, removeVoice, voiceStatus } from '../../../src/rooms/auditorium/index';
+import { installVoice, removeVoice, voiceStatus } from '../../../src/rooms/voice/index';
 import { TEST_VOICE_KEY, voiceService } from '../../../src/voice/index';
 
 beforeEach(() => {
@@ -10,7 +10,7 @@ afterEach(() => {
   localStorage.clear();
 });
 
-describe('auditorium', () => {
+describe('voice', () => {
   it('reports the voice absent, then installed, then removed', async () => {
     expect(await voiceStatus()).toEqual({ installed: false, bytes: 0 });
 
