@@ -107,6 +107,15 @@ describe('the trials', () => {
     }
   });
 
+  it('are heard as on 15 October, whatever the voice reads with now', () => {
+    for (const { voice, a, b } of TRIALS) {
+      expect(a.tuning.fixes).toEqual([]);
+      expect(a.tuning.seed).toBe({ M2: 2, F1: 1 }[voice]);
+      expect(b.tuning.fixes).toBeDefined();
+      expect(b.tuning.seed).toBeDefined();
+    }
+  });
+
   it('keep today as the a side', () => {
     for (const { a } of TRIALS) {
       expect(a.finish).toEqual(TODAY);

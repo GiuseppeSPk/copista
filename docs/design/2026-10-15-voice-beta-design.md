@@ -172,6 +172,21 @@ shows the answers only at the end. It replaces the spike page that is no longer 
 A lever that loses, or ties, is dropped. Once the levers are settled, the two samples are
 recorded again with the final settings.
 
+**What Giuseppe's ear decided** (one blind round of the eleven trials, seed 3416134635,
+2026-10-15):
+
+- Kept: the 15 ms fade, the warmer tone, Roman numerals read as ordinals, and seed 3 for the
+  Lectrix (against 1).
+- Dropped: pauses by structure (0.3 s after every piece was preferred), the Italian
+  abbreviations (a tie), the frame noise (the noise over the whole latent was preferred), and the
+  other seeds for the Lector (5 and 7 tied with 2) and for the Lectrix (4 tied with 1).
+- Speed stays at 1.1, preferred over 1.0.
+- Each lever was heard once, on one passage, so a later round can still overturn any of them.
+  The lab keeps playing the trials against the voice as it read before this round, so its labels
+  stay true now that the defaults have moved.
+- The two samples were recorded again through the app's own voice code, with these settings,
+  at 16 steps.
+
 ## 8. Units
 
 | Unit | Change |

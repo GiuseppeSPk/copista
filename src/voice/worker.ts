@@ -3,6 +3,9 @@
  * the copy served under ort/, so it never weighs on the page.
  */
 import {
+  FIXES,
+  SEED,
+  SPEED,
   isDeviceLost,
   type Tuning,
   type VoiceId,
@@ -24,9 +27,6 @@ interface WorkerScope {
 const scope = self as unknown as WorkerScope;
 
 const ORT_DIR = new URL(`${import.meta.env.BASE_URL}ort/1.30.0/`, scope.location.href).href;
-const SPEED = 1.1;
-/** The noise each voice starts from, chosen by ear on Italian prose. */
-const SEED: Record<VoiceId, number> = { M2: 2, F1: 1 };
 const WARM_UP = 'Buongiorno.';
 const SELF_TEST = 'Buongiorno, oggi leggiamo insieme un racconto.';
 
@@ -135,7 +135,7 @@ async function speak(
       profile!.steps,
       tuning.speed ?? SPEED,
       tuning.seed ?? SEED[voice],
-      { fixes: tuning.fixes, noise: tuning.noise },
+      { fixes: tuning.fixes ?? FIXES, noise: tuning.noise },
     );
   try {
     return await run();

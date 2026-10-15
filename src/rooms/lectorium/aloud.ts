@@ -1,4 +1,4 @@
-import { TODAY, type Finish } from '../../voice/audio';
+import { DEFAULT_FINISH, type Finish } from '../../voice/audio';
 import { listen, type Listening, type Player } from '../../voice/listen';
 import type { Narrator, VoiceId } from '../../voice/narrator';
 import { piecesOf, rangeOf, type Lang } from '../../voice/text';
@@ -133,7 +133,7 @@ export class ReadAloud {
             lang,
             this.deps.voice(),
             this.deps.player,
-            this.deps.finish ?? TODAY,
+            this.deps.finish ?? DEFAULT_FINISH,
             {
               onPiece: (i) => {
                 this.show({ ...this.state, piece: pieces[i]!.text, waiting: false });

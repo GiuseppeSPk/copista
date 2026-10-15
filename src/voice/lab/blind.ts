@@ -13,7 +13,7 @@ export interface Variant {
   finish: Finish;
 }
 
-/** Two settings over one passage, read by one voice. `a` is always today's. */
+/** Two settings over one passage, read by one voice. `a` is always the voice as it read before 15 October. */
 export interface Trial {
   name: string;
   passage: PassageId;
@@ -41,8 +41,11 @@ function seeds(voice: VoiceId, today: number, other: number, passage: PassageId)
   };
 }
 
-/** The trials, in the order they are played. */
-export const TRIALS: readonly Trial[] = [
+/** How each voice read before the blind tests of 15 October, under the settings each trial names. */
+const BEFORE: Record<VoiceId, Tuning> = { M2: { seed: 2, fixes: [] }, F1: { seed: 1, fixes: [] } };
+
+/** The trials of 15 October, in the order they are played. */
+const ROUND: readonly Trial[] = [
   {
     name: 'pauses',
     passage: 'manzoni',
@@ -146,3 +149,10 @@ export function tally(
   }
   return counts;
 }
+
+/** The trials, heard as on 15 October whatever the voice's defaults are now. */
+export const TRIALS: readonly Trial[] = ROUND.map((trial) => ({
+  ...trial,
+  a: { ...trial.a, tuning: { ...BEFORE[trial.voice], ...trial.a.tuning } },
+  b: { ...trial.b, tuning: { ...BEFORE[trial.voice], ...trial.b.tuning } },
+}));

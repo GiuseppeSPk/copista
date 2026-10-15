@@ -16,6 +16,9 @@ export const TODAY: Finish = {
   tone: false,
 };
 
+/** The finish the voice reads with, chosen by ear in the blind tests of 15 October: a fade and the warmer tone. */
+export const DEFAULT_FINISH: Finish = { ...TODAY, fadeMs: 15, tone: true };
+
 /** A second-order filter's coefficients, normalised so a0 is 1. */
 type Biquad = [b0: number, b1: number, b2: number, a1: number, a2: number];
 

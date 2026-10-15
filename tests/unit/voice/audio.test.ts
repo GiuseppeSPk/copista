@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { TODAY, finishPiece, shapeTone } from '../../../src/voice/audio';
+import { DEFAULT_FINISH, TODAY, finishPiece, shapeTone } from '../../../src/voice/audio';
 
 const ones = (n: number): Float32Array => new Float32Array(n).fill(1);
 
@@ -19,6 +19,14 @@ describe('the finish of a piece', () => {
     expect(out[999]).toBe(0);
     expect(out[984]).toBe(1);
     for (let i = 985; i <= 999; i++) expect(out[i]!).toBeLessThan(out[i - 1]!);
+  });
+
+  it('reads with the finish chosen by ear on 15 October: 0.3 s after every piece, a 15 ms fade and the warmer tone', () => {
+    expect(DEFAULT_FINISH).toEqual({
+      pauses: { piece: 0.3, paragraph: 0.3, heading: 0.3, chapter: 0.3 },
+      fadeMs: 15,
+      tone: true,
+    });
   });
 
   it('keeps today’s length: the spoken samples and 0.3 s, whatever follows', () => {

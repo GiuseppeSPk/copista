@@ -105,6 +105,38 @@ function setUp(docs: Document[]) {
 }
 
 describe('reading aloud', () => {
+  it('ends each piece with the finish chosen by ear, a fade before the pause', async () => {
+    const heard: Float32Array[] = [];
+    let ended = () => {};
+    const end = new Promise<void>((resolve) => (ended = resolve));
+    const aloud = new ReadAloud({
+      reader: new Reader([MORE]),
+      narrator: {
+        sampleRate: 1000,
+        speak: () => Promise.resolve(new Float32Array(1000).fill(0.5)),
+      },
+      player: {
+        play: (samples) => {
+          heard.push(samples);
+          return Promise.resolve();
+        },
+        pause: () => {},
+        resume: () => {},
+      },
+      lang: 'en',
+      voice: () => 'M2',
+      onState: (state) => state === null && ended(),
+      onError: () => {},
+    });
+    aloud.start();
+    await end;
+    expect(heard).toHaveLength(texts(MORE).length);
+    for (const samples of heard) {
+      expect(samples.length).toBe(1300);
+      expect(samples[999]).toBe(0);
+    }
+  });
+
   it('follows each piece', async () => {
     const { reader, aloud, states, end, played } = setUp([PROSE]);
     expect(aloud.start()).toBe(true);

@@ -6,6 +6,9 @@ import {
   type WorkerLike,
   type WorkerReply,
   type WorkerRequest,
+  FIXES,
+  SEED,
+  SPEED,
 } from '../../../src/voice/narrator';
 
 /** A worker that keeps what it is sent and answers when the test says. */
@@ -106,5 +109,13 @@ describe('isDeviceLost', () => {
     expect(isDeviceLost(new Error('Device is lost'))).toBe(true);
     expect(isDeviceLost(new Error('GPU device lost: unknown'))).toBe(true);
     expect(isDeviceLost(new Error('out of memory'))).toBe(false);
+  });
+});
+
+describe('the voice by default', () => {
+  it('reads as chosen by ear on 15 October: speed 1.1, seed 2 for the Lector and 3 for the Lectrix, Roman numerals as ordinals', () => {
+    expect(SPEED).toBe(1.1);
+    expect(SEED).toEqual({ M2: 2, F1: 3 });
+    expect(FIXES).toEqual(['roman']);
   });
 });
