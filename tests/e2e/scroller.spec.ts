@@ -192,6 +192,20 @@ for (const viewport of [
       await expect(page.getByRole('button', { name: 'End of the book' })).toBeDisabled();
     });
 
+    test('reveals a range in the upper third without counting as a hand scroll', async ({
+      page,
+    }) => {
+      await page.evaluate(() => window.scroller.open('longChapter', 0, { fraction: 0 }));
+      const { moved, top } = await page.evaluate(() => window.scroller.revealMiddle());
+      expect(moved).toBe(true);
+      expect(top).toBeGreaterThan(1 / 8);
+      expect(top).toBeLessThan(1 / 2);
+      expect(await page.evaluate(() => window.scroller.handScrolls)).toBe(0);
+      expect(await page.evaluate(() => window.scroller.revealMiddle())).toMatchObject({
+        moved: false,
+      });
+    });
+
     test('gives the host back as it found it', async ({ page }) => {
       const after = await page.evaluate(async () => {
         await window.scroller.open('longChapter', 0, { fraction: 0.5 });

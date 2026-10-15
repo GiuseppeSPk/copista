@@ -1,5 +1,5 @@
 import 'fake-indexeddb/auto';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { readEpub } from '../../../src/core/epub/read';
 import { BookNotFoundError } from '../../../src/storage/db';
 import {
@@ -13,11 +13,55 @@ import {
   saveNote,
   savePosition,
 } from '../../../src/rooms/lectorium/index';
+import { ReadingController } from '../../../src/rooms/lectorium/controller';
 import { bookPercent } from '../../../src/reader/location';
 import { deleteAllStorage, putBook, putProgress } from '../../../src/storage/db';
 import { EPUB } from '../../fixtures/catalog';
 
 const ID = 'three';
+
+/** What the fake page view was asked to do. */
+const seen = vi.hoisted(() => ({ calls: [] as string[] }));
+
+// jsdom lays nothing out, so the controller turns the pages of a view that only counts them.
+vi.mock('../../../src/reader/paginator', async (importOriginal) => {
+  const real = await importOriginal<typeof import('../../../src/reader/paginator')>();
+  class Pages {
+    page = 0;
+    readonly pageCount = 3;
+    readonly document = null;
+    show(): Promise<void> {
+      this.page = 0;
+      return Promise.resolve();
+    }
+    next(): boolean {
+      if (this.page >= this.pageCount - 1) return false;
+      this.page++;
+      return true;
+    }
+    prev(): boolean {
+      if (this.page <= 0) return false;
+      this.page--;
+      return true;
+    }
+    fraction(): number {
+      return this.page / this.pageCount;
+    }
+    firstVisible(): number {
+      return -1;
+    }
+    highlight(range: Range | null): void {
+      seen.calls.push(range === null ? 'highlight none' : 'highlight');
+    }
+    reveal(): boolean {
+      seen.calls.push('reveal');
+      this.page = 2;
+      return true;
+    }
+    destroy(): void {}
+  }
+  return { ...real, Paginator: Pages };
+});
 
 beforeEach(async () => {
   await deleteAllStorage();
@@ -112,5 +156,63 @@ describe('lectorium', () => {
       expect(progressPercent(book, pos)).toBe(bookPercent(pos, lengths));
     }
     expect(progressPercent(book, { spineIndex: 2, fraction: 1 })).toBe(100);
+  });
+});
+
+describe('reading controller', () => {
+  // The chapters' styles ask for object URLs, which jsdom cannot make from a Blob.
+  beforeEach(() => {
+    vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:copista-test');
+    vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined);
+  });
+  afterEach(() => vi.restoreAllMocks());
+
+  async function open(onReaderMove: () => void, onChange = () => {}) {
+    const session = await openSession(ID);
+    const host = document.createElement('div');
+    const look = { fontSizePercent: 100, theme: 'light' as const };
+    const controller = new ReadingController(
+      host,
+      session,
+      look,
+      onChange,
+      undefined,
+      onReaderMove,
+    );
+    await controller.open();
+    seen.calls.length = 0;
+    return controller;
+  }
+
+  it('tells a move by the reader from a move by the reading', async () => {
+    let moves = 0;
+    let saved = 0;
+    const controller = await open(
+      () => moves++,
+      () => saved++,
+    );
+    await controller.next();
+    expect(moves).toBe(1);
+    saved = 0;
+    controller.follow(document.createRange());
+    controller.follow(null);
+    expect(seen.calls).toEqual(['highlight', 'reveal', 'highlight none']);
+    // The page the reading turned to is saved as the place.
+    await vi.waitFor(() => expect(saved).toBe(1));
+    expect(controller.page).toBe(2);
+    expect(moves).toBe(1);
+    expect(await controller.continueReading()).toBe(true);
+    expect(controller.position().spineIndex).toBe(1);
+    expect(moves).toBe(1);
+  });
+
+  it('continues into no chapter after the last', async () => {
+    let moves = 0;
+    const controller = await open(() => moves++);
+    await controller.goTo({ spineIndex: 2 });
+    expect(moves).toBe(1);
+    expect(await controller.continueReading()).toBe(false);
+    expect(controller.position().spineIndex).toBe(2);
+    expect(moves).toBe(1);
   });
 });

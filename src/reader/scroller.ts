@@ -4,6 +4,7 @@ import {
   clickedLink,
   followLink,
   LINK_SELECTOR,
+  markReading,
   settle,
   srcdocLoaded,
   textMargins,
@@ -22,6 +23,9 @@ export interface ScrollerEvents {
 
 /** Widest text column, so lines stay short enough to follow while they move. */
 const COLUMN_WIDTH = '36em';
+
+/** How long the text glides to bring the stretch being read on screen. */
+const GLIDE_MS = 300;
 
 interface Frame {
   element: HTMLIFrameElement;
@@ -50,6 +54,8 @@ export class Scroller implements ChapterView {
   /** The last scrollTop this view set, to tell its own moves from the reader's. */
   private lastSet = 0;
   private cancelPending: (() => void) | null = null;
+  /** The animation frame of a glide under way. */
+  private glideFrame = 0;
   private relayoutQueued = false;
   private lastSize = '';
   private readonly observer: ResizeObserver;
@@ -135,6 +141,53 @@ export class Scroller implements ChapterView {
       this.host.clientTop -
       this.frame.element.getBoundingClientRect().top;
     return elements.findIndex((element) => element.getBoundingClientRect().bottom > top + 1);
+  }
+
+  highlight(range: Range | null): void {
+    if (this.frame !== null) markReading(this.frame.doc, range);
+  }
+
+  /**
+   * Leaves the range where it is while its top lies between an eighth and two
+   * thirds of the way down the screen; otherwise glides it to a third, or jumps
+   * there for a reader who asks for less motion.
+   */
+  reveal(range: Range): boolean {
+    if (this.frame === null) return false;
+    const height = this.host.clientHeight;
+    const y =
+      this.frame.element.getBoundingClientRect().top +
+      range.getBoundingClientRect().top -
+      (this.host.getBoundingClientRect().top + this.host.clientTop);
+    if (y >= height / 8 && y <= (2 * height) / 3) return false;
+    const maxScroll = Math.max(0, this.host.scrollHeight - height);
+    const from = this.host.scrollTop;
+    const to = Math.round(Math.min(maxScroll, Math.max(0, from + y - height / 3)));
+    if (Math.abs(to - from) <= 1) return false;
+    this.cancelGlide();
+    // The place is where the glide ends, so a save made on the way keeps it.
+    const frameHeight = this.frameHeight();
+    if (frameHeight > 0) {
+      this.anchor = Math.min(1, Math.max(0, (to - this.textTop()) / frameHeight));
+    }
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
+      this.place(to);
+      return true;
+    }
+    const start = performance.now();
+    const step = (now: number): void => {
+      // A reader who scrolls during the glide takes over.
+      if (this.frame === null || Math.abs(this.host.scrollTop - this.lastSet) > 1) {
+        this.glideFrame = 0;
+        return;
+      }
+      const t = Math.min(1, (now - start) / GLIDE_MS);
+      const eased = 1 - (1 - t) ** 3;
+      this.place(from + (to - from) * eased);
+      this.glideFrame = t < 1 ? requestAnimationFrame(step) : 0;
+    };
+    this.glideFrame = requestAnimationFrame(step);
+    return true;
   }
 
   /** Replaces the shown chapter; the old one stays visible until the new one is laid out. */
@@ -240,6 +293,7 @@ export class Scroller implements ChapterView {
   }
 
   destroy(): void {
+    this.cancelGlide();
     this.observer.disconnect();
     this.host.removeEventListener('scroll', this.onScroll);
     this.cancelPending?.();
@@ -253,6 +307,7 @@ export class Scroller implements ChapterView {
 
   private readonly onScroll = (): void => {
     if (this.frame === null || Math.abs(this.host.scrollTop - this.lastSet) <= 1) return;
+    this.cancelGlide();
     this.lastSet = this.host.scrollTop;
     this.exact = this.lastSet;
     this.anchor = this.currentFraction();
@@ -305,12 +360,23 @@ export class Scroller implements ChapterView {
     this.moveTo(this.textTop() + y);
   }
 
+  /** Moves the column, ending any glide under way. */
   private moveTo(top: number, round = true): void {
+    this.cancelGlide();
+    this.place(top, round);
+  }
+
+  private place(top: number, round = true): void {
     const maxScroll = Math.max(0, this.host.scrollHeight - this.host.clientHeight);
     const target = Math.min(maxScroll, Math.max(0, top));
     this.host.scrollTop = round ? Math.round(target) : target;
     this.lastSet = this.host.scrollTop;
     if (round) this.exact = this.lastSet;
+  }
+
+  private cancelGlide(): void {
+    if (this.glideFrame !== 0) cancelAnimationFrame(this.glideFrame);
+    this.glideFrame = 0;
   }
 
   private fragmentTop(fragment: string): number {

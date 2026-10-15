@@ -17,6 +17,9 @@ export interface GoToTarget {
 /** How often, at most, a scroll saves the place. */
 const SAVE_EVERY_MS = 1000;
 
+/** How long a scroll by hand must rest before it counts as the reader's move. */
+const READER_SCROLL_MS = 400;
+
 /**
  * Reads one book in a host element, a page at a time or as one scrolling column
  * per chapter, across chapters, and saves the place after every move. In scroll
@@ -33,6 +36,7 @@ export class ReadingController {
   /** Moves run one after another, so a tap during a chapter load waits its turn. */
   private queue: Promise<unknown> = Promise.resolve();
   private saveTimer: ReturnType<typeof setTimeout> | undefined;
+  private handTimer: ReturnType<typeof setTimeout> | undefined;
   private destroyed = false;
 
   constructor(
@@ -41,6 +45,8 @@ export class ReadingController {
     private look: ReaderLook & { mode?: ReadingMode; pace?: number },
     private readonly onChange?: (pos: Position, percent: number) => void,
     private readonly onPlaying?: (playing: boolean) => void,
+    /** The reader moved through the book, not the reading aloud. */
+    private readonly onReaderMove?: () => void,
   ) {
     this.urls = new ResourceUrls(session.book);
     this.spineIndex = session.position.spineIndex;
@@ -74,61 +80,90 @@ export class ReadingController {
   /** The next page or screen, crossing into the next chapter; false at the end of the book. */
   next(): Promise<boolean> {
     this.scroll?.motion.hold();
-    return this.run(async () => {
-      if (this.view.next()) {
-        await this.moved();
-        return true;
-      }
-      return this.openNextChapter();
-    });
+    return this.byReader(
+      this.run(async () => {
+        if (this.view.next()) {
+          await this.moved();
+          return true;
+        }
+        return this.openNextChapter();
+      }),
+    );
   }
 
   /** The previous page or screen, crossing into the end of the previous chapter; false at the start. */
   prev(): Promise<boolean> {
     this.scroll?.motion.hold();
-    return this.run(async () => {
-      if (this.view.prev()) {
-        await this.moved();
+    return this.byReader(
+      this.run(async () => {
+        if (this.view.prev()) {
+          await this.moved();
+          return true;
+        }
+        if (this.spineIndex <= 0) return false;
+        await this.show(this.spineIndex - 1, { fraction: 1 });
         return true;
-      }
-      if (this.spineIndex <= 0) return false;
-      await this.show(this.spineIndex - 1, { fraction: 1 });
-      return true;
-    });
+      }),
+    );
   }
 
   goTo(target: GoToTarget): Promise<void> {
-    return this.run(() => {
-      const last = this.session.book.chapters.length - 1;
-      const index = Math.min(last, Math.max(0, Math.trunc(target.spineIndex)));
-      const where: ShowTarget =
-        target.fragment !== undefined
-          ? { fragment: target.fragment }
-          : { fraction: target.fraction ?? 0 };
-      return this.show(index, where);
-    });
+    return this.byReader(
+      this.run(() => {
+        const last = this.session.book.chapters.length - 1;
+        const index = Math.min(last, Math.max(0, Math.trunc(target.spineIndex)));
+        const where: ShowTarget =
+          target.fragment !== undefined
+            ? { fragment: target.fragment }
+            : { fraction: target.fraction ?? 0 };
+        return this.show(index, where);
+      }),
+    );
   }
 
   /** Changes font size or theme and stays at the same place in the chapter. */
   setLook(look: ReaderLook): Promise<void> {
     this.pause();
-    return this.run(() => {
-      this.look = { ...this.look, ...look };
-      return this.show(this.spineIndex, { fraction: this.view.fraction() });
-    });
+    return this.byReader(
+      this.run(() => {
+        this.look = { ...this.look, ...look };
+        return this.show(this.spineIndex, { fraction: this.view.fraction() });
+      }),
+    );
   }
 
   /** Switches between pages and scrolling, staying at the same place in the chapter. */
   setMode(mode: ReadingMode): Promise<void> {
     this.pause();
-    return this.run(async () => {
-      if (mode === this.currentMode || this.destroyed) return;
-      const fraction = this.view.fraction();
-      this.dropView();
-      this.currentMode = mode;
-      this.view = this.makeView();
-      await this.show(this.spineIndex, { fraction });
-    });
+    return this.byReader(
+      this.run(async () => {
+        if (mode === this.currentMode || this.destroyed) return;
+        const fraction = this.view.fraction();
+        this.dropView();
+        this.currentMode = mode;
+        this.view = this.makeView();
+        await this.show(this.spineIndex, { fraction });
+      }),
+    );
+  }
+
+  /**
+   * Marks the stretch being read aloud, or clears the mark, and brings it on
+   * screen; a move made this way is saved as the place but is not the reader's.
+   */
+  follow(range: Range | null): void {
+    if (this.destroyed) return;
+    this.view.highlight(range);
+    if (range !== null && this.view.reveal(range)) {
+      void this.run(() => (this.destroyed ? Promise.resolve() : this.moved())).catch(
+        () => undefined,
+      );
+    }
+  }
+
+  /** Opens the next chapter for the reading aloud; false at the end of the book. */
+  continueReading(): Promise<boolean> {
+    return this.run(() => this.openNextChapter());
   }
 
   /** Sets the autoscroll pace in words a minute; a moving text changes speed at once. */
@@ -178,6 +213,11 @@ export class ReadingController {
       onHandScroll: () => {
         motion.hold();
         this.saveSoon();
+        clearTimeout(this.handTimer);
+        this.handTimer = setTimeout(() => {
+          this.handTimer = undefined;
+          this.onReaderMove?.();
+        }, READER_SCROLL_MS);
       },
       onEdge: (direction) => {
         void (direction === 'next' ? this.next() : this.prev()).catch(() => undefined);
@@ -200,6 +240,8 @@ export class ReadingController {
   private dropView(): void {
     clearTimeout(this.saveTimer);
     this.saveTimer = undefined;
+    clearTimeout(this.handTimer);
+    this.handTimer = undefined;
     this.scroll?.motion.destroy();
     this.scroll = null;
     this.view.destroy();
@@ -220,6 +262,13 @@ export class ReadingController {
         () => undefined,
       );
     }, SAVE_EVERY_MS);
+  }
+
+  /** Tells the page once a move the reader asked for is done. */
+  private async byReader<T>(move: Promise<T>): Promise<T> {
+    const result = await move;
+    this.onReaderMove?.();
+    return result;
   }
 
   private run<T>(move: () => Promise<T>): Promise<T> {

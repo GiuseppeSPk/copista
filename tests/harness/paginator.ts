@@ -60,6 +60,20 @@ const harness = {
     const index = paginator.firstVisible(paragraphs);
     return { index, text: paragraphs[index]?.textContent?.split('.')[0] ?? '' };
   },
+  /** Marks the last paragraph of the chapter and brings it on screen. */
+  revealLast(): boolean {
+    const doc = paginator.document!;
+    const range = doc.createRange();
+    range.selectNodeContents([...doc.querySelectorAll('p')].at(-1)!);
+    paginator.highlight(range);
+    return paginator.reveal(range);
+  },
+  highlight: (on: boolean) => paginator.highlight(on ? paginator.document!.createRange() : null),
+  /** Whether the frame's own highlight registry holds the reading mark, or null without one. */
+  marked(): boolean | null {
+    const win = paginator.document!.defaultView!;
+    return win.CSS?.highlights ? win.CSS.highlights.has('copista-reading') : null;
+  },
   frame: () => document.querySelector('iframe')!,
   lastLink: null as string | null,
 };

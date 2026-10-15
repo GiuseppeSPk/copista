@@ -181,6 +181,22 @@ for (const viewport of [
       expect(firsts.at(-1)!.index).toBeGreaterThan(60);
     });
 
+    test('reveals a range on a later page and highlights it', async ({ page, browserName }) => {
+      const { pageCount } = await page.evaluate(() =>
+        window.harness.open('longChapter', 0, { fraction: 0 }),
+      );
+      expect(await page.evaluate(() => window.harness.revealLast())).toBe(true);
+      expect(await page.evaluate(() => window.harness.info().page)).toBe(pageCount - 1);
+      expect(await page.evaluate(() => window.harness.revealLast())).toBe(false);
+      // WebKit and Firefox mark the text only where they have the highlight registry.
+      const marked = await page.evaluate(() => window.harness.marked());
+      if (browserName === 'chromium' || marked !== null) {
+        expect(marked).toBe(true);
+        await page.evaluate(() => window.harness.highlight(false));
+        expect(await page.evaluate(() => window.harness.marked())).toBe(false);
+      }
+    });
+
     test('runs no book script and loads nothing from the network', async ({ page }) => {
       const outside: string[] = [];
       page.on('request', (request) => {

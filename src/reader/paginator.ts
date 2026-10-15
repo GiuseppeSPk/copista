@@ -14,6 +14,10 @@ export interface ChapterView {
   readonly document: Document | null;
   /** The index of the first of these elements of the chapter that shows on screen, or -1. */
   firstVisible(elements: readonly Element[]): number;
+  /** Marks a stretch of the chapter as the one being read, or clears the mark. */
+  highlight(range: Range | null): void;
+  /** Brings a stretch of the chapter on screen; true when the view moved. */
+  reveal(range: Range): boolean;
   destroy(): void;
 }
 
@@ -25,6 +29,17 @@ export interface PaginatorEvents {
 const SETTLE_TIMEOUT_MS = 5000;
 
 const LAYOUT_STYLE_ID = 'copista-pagination';
+
+const READING_STYLE_ID = 'copista-reading-style';
+
+/** The name the stretch being read is registered under in the chapter's highlights. */
+export const READING_HIGHLIGHT = 'copista-reading';
+
+/** The reader's accent, faint behind the text: the light one serves sepia too. */
+const READING_CSS = [
+  `::highlight(${READING_HIGHLIGHT}) { background-color: color-mix(in srgb, #a3241c 22%, transparent); }`,
+  `[data-theme='dark'] ::highlight(${READING_HIGHLIGHT}) { background-color: color-mix(in srgb, #f2c14e 22%, transparent); }`,
+].join('\n');
 
 export const LINK_SELECTOR = '[data-copista-href], [data-copista-external]';
 
@@ -40,14 +55,32 @@ export function textMargins(width: number, height: number): { side: number; edge
 }
 
 /** Writes the view's layout rules into a chapter document, replacing earlier ones. */
-export function writeLayoutStyle(doc: Document, css: string): void {
-  let style = doc.getElementById(LAYOUT_STYLE_ID);
+export function writeLayoutStyle(doc: Document, css: string, id = LAYOUT_STYLE_ID): void {
+  let style = doc.getElementById(id);
   if (style === null) {
     style = doc.createElement('style');
-    style.id = LAYOUT_STYLE_ID;
+    style.id = id;
     doc.head.append(style);
   }
   style.textContent = css;
+}
+
+/**
+ * Marks a stretch of a chapter document as the one being read, or clears the
+ * mark. Where the browser has no highlights, the text simply stays unmarked.
+ */
+export function markReading(doc: Document, range: Range | null): void {
+  const win = doc.defaultView as (Window & typeof globalThis) | null;
+  const highlights = win?.CSS?.highlights;
+  if (!win || !highlights) return;
+  if (range === null) {
+    highlights.delete(READING_HIGHLIGHT);
+    return;
+  }
+  if (doc.getElementById(READING_STYLE_ID) === null) {
+    writeLayoutStyle(doc, READING_CSS, READING_STYLE_ID);
+  }
+  highlights.set(READING_HIGHLIGHT, new win.Highlight(range));
 }
 
 /** Hands a chapter link to the reader, or opens an outside link in a new tab. */
@@ -164,6 +197,19 @@ export class Paginator implements ChapterView {
     return elements.findIndex((element) =>
       [...element.getClientRects()].some((r) => r.width > 0 && r.right > 1 && r.left < width - 1),
     );
+  }
+
+  highlight(range: Range | null): void {
+    if (this.frame !== null) markReading(this.frame.doc, range);
+  }
+
+  /** Turns to the page that holds the start of the range. */
+  reveal(range: Range): boolean {
+    if (this.frame === null) return false;
+    const page = this.pageAt(range.getClientRects()[0] ?? range.getBoundingClientRect());
+    if (page === this.currentPage) return false;
+    this.turnTo(page);
+    return true;
   }
 
   /** Replaces the shown chapter; the old one stays visible until the new one is laid out. */
@@ -300,8 +346,12 @@ export class Paginator implements ChapterView {
     const doc = this.frame!.doc;
     const target = doc.getElementById(fragment) ?? doc.getElementsByName(fragment)[0];
     if (target === undefined || target === null) return 0;
-    const rect = target.getClientRects()[0] ?? target.getBoundingClientRect();
-    const x = rect.left - doc.body.getBoundingClientRect().left;
+    return this.pageAt(target.getClientRects()[0] ?? target.getBoundingClientRect());
+  }
+
+  /** The page a box of the chapter lies on. */
+  private pageAt(rect: DOMRect): number {
+    const x = rect.left - this.frame!.doc.body.getBoundingClientRect().left;
     return Math.min(this.count - 1, Math.max(0, Math.floor(x / this.pageWidth)));
   }
 

@@ -98,6 +98,20 @@ const harness = {
     const paragraphs = [...scroller.document!.querySelectorAll('p')];
     return paragraphs[scroller.firstVisible(paragraphs)]?.textContent?.split('.')[0] ?? '';
   },
+  /** Brings the middle paragraph of the chapter on screen; where its top ends, as a share of the screen. */
+  async revealMiddle(): Promise<{ moved: boolean; top: number }> {
+    const doc = scroller.document!;
+    const paragraphs = [...doc.querySelectorAll('p')];
+    const range = doc.createRange();
+    range.selectNodeContents(paragraphs[Math.floor(paragraphs.length / 2)]!);
+    const moved = scroller.reveal(range);
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    const top =
+      frame().getBoundingClientRect().top +
+      range.getBoundingClientRect().top -
+      host.getBoundingClientRect().top;
+    return { moved, top: top / host.clientHeight };
+  },
   destroy(): void {
     scroller.destroy();
   },
