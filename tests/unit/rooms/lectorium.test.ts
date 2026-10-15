@@ -29,8 +29,12 @@ vi.mock('../../../src/reader/paginator', async (importOriginal) => {
   class Pages {
     page = 0;
     readonly pageCount = 3;
-    readonly document = null;
+    document: Document | null = null;
     show(): Promise<void> {
+      this.document = new DOMParser().parseFromString(
+        '<html><body><p>Text.</p></body></html>',
+        'text/html',
+      );
       this.page = 0;
       return Promise.resolve();
     }
@@ -197,7 +201,7 @@ describe('reading controller', () => {
     await controller.next();
     expect(moves).toBe(1);
     saved = 0;
-    controller.follow(document.createRange());
+    controller.follow(controller.listeningStart()!.doc.createRange());
     controller.follow(null);
     expect(seen.calls).toEqual(['highlight', 'reveal', 'highlight none']);
     // The page the reading turned to is saved as the place.
@@ -207,6 +211,25 @@ describe('reading controller', () => {
     expect(await controller.continueReading()).toBe(true);
     expect(controller.position().spineIndex).toBe(1);
     expect(moves).toBe(1);
+  });
+
+  it('ignores a stretch of a chapter that is no longer shown', async () => {
+    const controller = await open(() => undefined);
+    const old = controller.listeningStart()!.doc;
+    await controller.continueReading();
+    expect(controller.listeningStart()!.doc).not.toBe(old);
+    seen.calls.length = 0;
+    controller.follow(old.createRange());
+    expect(seen.calls).toEqual([]);
+  });
+
+  it('gives the start of the reading aloud only after the moves in flight', async () => {
+    const controller = await open(() => undefined);
+    const first = controller.listeningStart()!.spineIndex;
+    const moving = controller.continueReading();
+    const start = controller.listeningStartQueued();
+    await moving;
+    expect((await start)!.spineIndex).toBe(first + 1);
   });
 
   it('continues into no chapter after the last', async () => {

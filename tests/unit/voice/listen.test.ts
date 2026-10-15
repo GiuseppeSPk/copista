@@ -160,14 +160,23 @@ describe('listen', () => {
     await tick();
     listening.skip(1);
     await tick();
-    listening.skip(1);
-    await tick();
     expect(started).toEqual([0, 1, 2]);
     listening.skip(-1);
     await tick();
     // A piece skipped past counts as heard and is dropped, so going back makes it again.
     await say('b', 1);
     expect(started).toEqual([0, 1, 2, 1]);
+  });
+
+  it('ends the listening when skipping forward from the last piece, so the next chapter follows', async () => {
+    const { listening, started, say, tick } = setUp(['a', 'b']);
+    await say('a', 1);
+    listening.skip(1);
+    await tick();
+    await say('b', 1);
+    expect(started).toEqual([0, 1]);
+    listening.skip(1);
+    await expect(listening.done).resolves.toBeUndefined();
   });
 
   it('makes again a piece skipped back to after it was dropped', async () => {

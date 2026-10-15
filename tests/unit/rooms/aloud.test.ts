@@ -34,6 +34,12 @@ class Reader {
   /** The text of each range followed, or null when the mark was taken off. */
   readonly follows: (string | null)[] = [];
   onFollow: (count: number) => void = () => {};
+  /** Holds back the opening of the next chapter, as a chapter that takes time to load. */
+  hold: Promise<void> | null = null;
+  /** Called when the next chapter is asked for. */
+  onContinue: () => void = () => {};
+  /** The moves in flight, one after the other as the real reader keeps them. */
+  private chain: Promise<unknown> = Promise.resolve();
 
   constructor(private readonly docs: Document[]) {}
 
@@ -47,11 +53,22 @@ class Reader {
     this.follows.push(range === null ? null : range.toString());
     this.onFollow(this.follows.length);
   }
+  listeningStartQueued() {
+    const start = this.chain.then(() => this.listeningStart());
+    this.chain = start;
+    return start;
+  }
   continueReading(): Promise<boolean> {
-    if (this.index + 1 >= this.docs.length) return Promise.resolve(false);
-    this.index++;
-    this.block = 0;
-    return Promise.resolve(true);
+    const move = this.chain.then(async () => {
+      if (this.index + 1 >= this.docs.length) return false;
+      this.onContinue();
+      await this.hold;
+      this.index++;
+      this.block = 0;
+      return true;
+    });
+    this.chain = move;
+    return move;
   }
   pause(): void {
     this.pauses++;
@@ -122,6 +139,21 @@ describe('reading aloud', () => {
     expect(reader.follows).toEqual([texts(PROSE)[0], null, ...texts(PROSE, 2), null]);
     // The bar stays up across the restart: the reading stopped only at the end.
     expect(states.indexOf(null)).toBe(states.length - 1);
+  });
+
+  it('restarts into the chapter being opened, not the one just left', async () => {
+    const { reader, aloud, end, played } = setUp([PROSE, MORE]);
+    let release = () => {};
+    reader.hold = new Promise<void>((resolve) => (release = resolve));
+    reader.onContinue = () => {
+      // The reader moves while the next chapter loads; the view still shows the last one.
+      aloud.restart();
+      release();
+    };
+    aloud.start();
+    await end;
+    expect(reader.follows).toEqual([...texts(PROSE), null, ...texts(MORE), null]);
+    expect(played()).toBe(texts(PROSE).length + texts(MORE).length);
   });
 
   it('starts at the first piece on screen when a paragraph began on the page before', async () => {

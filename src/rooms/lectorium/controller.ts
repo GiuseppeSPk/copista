@@ -153,6 +153,8 @@ export class ReadingController {
    */
   follow(range: Range | null): void {
     if (this.destroyed) return;
+    // A stretch of a chapter that has been replaced would only drag the view toward its top.
+    if (range !== null && range.startContainer.getRootNode() !== this.view.document) return;
     this.view.highlight(range);
     if (range !== null && this.view.reveal(range)) {
       void this.run(() => (this.destroyed ? Promise.resolve() : this.moved())).catch(
@@ -198,6 +200,11 @@ export class ReadingController {
     if (doc === null) return null;
     const block = Math.max(0, this.view.firstVisible(readableBlocks(doc)));
     return { doc, spineIndex: this.spineIndex, block };
+  }
+
+  /** The same start, taken once the moves in flight are over. */
+  listeningStartQueued(): Promise<ReturnType<ReadingController['listeningStart']>> {
+    return this.run(() => Promise.resolve(this.listeningStart()));
   }
 
   destroy(): void {

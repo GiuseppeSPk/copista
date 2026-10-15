@@ -16,7 +16,12 @@ export interface AloudState {
 export interface AloudDeps {
   reader: Pick<
     ReadingController,
-    'listeningStart' | 'beforeScreen' | 'follow' | 'continueReading' | 'pause'
+    | 'listeningStart'
+    | 'listeningStartQueued'
+    | 'beforeScreen'
+    | 'follow'
+    | 'continueReading'
+    | 'pause'
   >;
   narrator: Pick<Narrator, 'speak' | 'sampleRate'>;
   player: Player;
@@ -61,10 +66,14 @@ export class ReadAloud {
   restart(): void {
     if (!this.running) return;
     this.halt();
-    const from = this.deps.reader.listeningStart();
-    if (from === null) return this.stop();
     this.show({ ...this.state, piece: '', waiting: true });
-    void this.read(++this.run, from);
+    const run = ++this.run;
+    // Asked behind the moves in flight, so a chapter still opening is the one taken.
+    void this.deps.reader.listeningStartQueued().then((from) => {
+      if (run !== this.run) return;
+      if (from === null) this.stop();
+      else void this.read(run, from);
+    });
   }
 
   pause(): void {

@@ -24,7 +24,7 @@ export interface Listening {
   stop(): void;
   pause(): void;
   resume(): void;
-  /** Moves a piece back or forward, within the chapter. */
+  /** Moves a piece back or forward; forward from the last piece ends the reading. */
   skip(by: 1 | -1): void;
   readonly paused: boolean;
   /** Settles when the last piece has played or the reading stopped, and rejects on an error. */
@@ -155,6 +155,11 @@ export function listen(
       toPlayer.ring();
     },
     skip(by) {
+      // Forward from the last piece ends the reading, so the next chapter follows.
+      if (by === 1 && current === pieces.length - 1) {
+        this.stop();
+        return;
+      }
       const to = Math.max(Math.min(current + by, pieces.length - 1), 0);
       if (stopped || to === current) return;
       // A piece skipped past counts as heard.
