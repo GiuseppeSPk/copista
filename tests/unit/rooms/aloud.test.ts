@@ -1,0 +1,135 @@
+import { describe, expect, it } from 'vitest';
+import { ReadAloud, type AloudState } from '../../../src/rooms/lectorium/aloud';
+import { FakeNarrator } from '../../../src/voice/narrator';
+import { piecesOf } from '../../../src/voice/text';
+
+function chapter(body: string): Document {
+  return new DOMParser().parseFromString(`<html><body>${body}</body></html>`, 'text/html');
+}
+
+const PROSE = chapter(
+  '<h1>One</h1><p>The first paragraph. It has two sentences.</p><p>The second paragraph.</p><p>The third paragraph.</p>',
+);
+const PICTURE = chapter('<p><img src="a.png" alt=""></p>');
+const MORE = chapter('<p>The next chapter begins.</p><p>And it ends.</p>');
+
+/** What a chapter reads aloud from a block on. */
+function texts(doc: Document, from = 0): string[] {
+  return piecesOf(doc, 'en', 0)
+    .filter((piece) => piece.block >= from)
+    .map((piece) => piece.text);
+}
+
+/** A reader that holds a list of chapter documents and notes what the reading asked of it. */
+class Reader {
+  index = 0;
+  block = 0;
+  pauses = 0;
+  /** The text of each range followed, or null when the mark was taken off. */
+  readonly follows: (string | null)[] = [];
+  onFollow: (count: number) => void = () => {};
+
+  constructor(private readonly docs: Document[]) {}
+
+  listeningStart() {
+    return { doc: this.docs[this.index]!, spineIndex: this.index, block: this.block };
+  }
+  follow(range: Range | null): void {
+    this.follows.push(range === null ? null : range.toString());
+    this.onFollow(this.follows.length);
+  }
+  continueReading(): Promise<boolean> {
+    if (this.index + 1 >= this.docs.length) return Promise.resolve(false);
+    this.index++;
+    this.block = 0;
+    return Promise.resolve(true);
+  }
+  pause(): void {
+    this.pauses++;
+  }
+}
+
+function setUp(docs: Document[]) {
+  const reader = new Reader(docs);
+  const states: (AloudState | null)[] = [];
+  const errors: unknown[] = [];
+  let played = 0;
+  let ended = () => {};
+  const end = new Promise<void>((resolve) => (ended = resolve));
+  const aloud = new ReadAloud({
+    reader,
+    narrator: new FakeNarrator({ msPerChar: 0 }),
+    player: {
+      play: () => {
+        played++;
+        return Promise.resolve();
+      },
+      pause: () => {},
+      resume: () => {},
+    },
+    lang: 'en',
+    voice: () => 'M2',
+    onState: (state) => {
+      states.push(state);
+      if (state === null) ended();
+    },
+    onError: (error) => errors.push(error),
+  });
+  return { reader, aloud, states, errors, end, played: () => played };
+}
+
+describe('reading aloud', () => {
+  it('follows each piece', async () => {
+    const { reader, aloud, states, end, played } = setUp([PROSE]);
+    expect(aloud.start()).toBe(true);
+    expect(aloud.active).toBe(true);
+    expect(reader.pauses).toBe(1);
+    await end;
+    expect(reader.follows).toEqual([...texts(PROSE), null]);
+    expect(played()).toBe(texts(PROSE).length);
+    expect(states.filter((s) => s !== null).map((s) => s.piece)).toContain(texts(PROSE)[1]);
+    expect(aloud.active).toBe(false);
+  });
+
+  it('carries on into the next chapter, past one with nothing to read', async () => {
+    const { reader, aloud, errors, end, played } = setUp([PROSE, PICTURE, MORE]);
+    aloud.start();
+    await end;
+    expect(reader.follows).toEqual([...texts(PROSE), ...texts(MORE), null]);
+    expect(played()).toBe(texts(PROSE).length + texts(MORE).length);
+    expect(reader.index).toBe(2);
+    expect(errors).toEqual([]);
+  });
+
+  it('restarts where the reader moved', async () => {
+    const { reader, aloud, states, end } = setUp([PROSE]);
+    reader.onFollow = (count) => {
+      if (count !== 1) return;
+      reader.block = 2;
+      queueMicrotask(() => aloud.restart());
+    };
+    aloud.start();
+    await end;
+    expect(reader.follows).toEqual([texts(PROSE)[0], null, ...texts(PROSE, 2), null]);
+    // The bar stays up across the restart: the reading stopped only at the end.
+    expect(states.indexOf(null)).toBe(states.length - 1);
+  });
+
+  it('stops cleanly', async () => {
+    const { reader, aloud, states, errors, end, played } = setUp([PROSE, MORE]);
+    reader.onFollow = (count) => {
+      if (count === 1) queueMicrotask(() => aloud.stop());
+    };
+    aloud.start();
+    await end;
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(played()).toBe(1);
+    expect(reader.follows).toEqual([texts(PROSE)[0], null]);
+    expect(states.at(-1)).toBeNull();
+    expect(states.indexOf(null)).toBe(states.length - 1);
+    expect(errors).toEqual([]);
+    expect(aloud.active).toBe(false);
+    aloud.restart();
+    expect(aloud.active).toBe(false);
+  });
+});
