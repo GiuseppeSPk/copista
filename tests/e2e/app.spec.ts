@@ -952,11 +952,114 @@ test.describe('Listen', () => {
   const plays = (page: Page): Promise<number> =>
     page.evaluate(() => (window as unknown as { played: string[] }).played.length);
 
-  test('shows only once the voice is set up', async ({ page }) => {
-    await page.addInitScript(() => localStorage.setItem('copista-test-voice', 'absent'));
+  /** Leaves the fake voice to be set up, and counts the pieces the page starts playing. */
+  async function withoutVoice(page: Page): Promise<void> {
+    await page.addInitScript(() => {
+      if (localStorage.getItem('copista-test-voice') === null) {
+        localStorage.setItem('copista-test-voice', 'absent');
+      }
+    });
+  }
+
+  async function startDownload(page: Page): Promise<void> {
+    await page.getByRole('button', { name: 'Listen' }).click();
+    const sheet = page.locator('#voice-sheet');
+    await sheet.getByLabel('I accept the licence and its use restrictions').check();
+    await sheet.getByRole('button', { name: 'Download the voice' }).click();
+    await expect(sheet.getByRole('progressbar')).toBeVisible();
+  }
+
+  test('opens the voice sheet when the voice is not set up', async ({ page }) => {
+    await withoutVoice(page);
     await openReader(page);
-    await expect(page.getByRole('button', { name: 'Autoscroll' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Listen' })).toHaveCount(0);
+    const listen = page.getByRole('button', { name: 'Listen' });
+    await expect(listen).toHaveAttribute('aria-expanded', 'false');
+    await listen.click();
+    await expect(listen).toHaveAttribute('aria-expanded', 'true');
+    const sheet = page.locator('#voice-sheet');
+    await expect(sheet.getByRole('heading', { name: /^The Lector/ })).toContainText('Beta');
+    await expect(sheet.getByText('It may stumble over a name or a number')).toBeVisible();
+    await expect(sheet.locator('audio')).toHaveCount(2);
+    const download = sheet.getByRole('button', { name: 'Download the voice' });
+    await expect(download).toBeDisabled();
+    await sheet.getByLabel('I accept the licence and its use restrictions').check();
+    await expect(download).toBeEnabled();
+    await page.keyboard.press('Escape');
+    await expect(sheet).toBeHidden();
+    await expect(listen).toBeFocused();
+  });
+
+  test('closes the voice sheet on a press outside it, and with its close button', async ({
+    page,
+  }) => {
+    await withoutVoice(page);
+    await openReader(page);
+    const sheet = page.locator('#voice-sheet');
+    await page.getByRole('button', { name: 'Listen' }).click();
+    await sheet.getByRole('button', { name: 'Close' }).click();
+    await expect(sheet).toBeHidden();
+    await page.getByRole('button', { name: 'Listen' }).click();
+    await expect(sheet).toBeVisible();
+    await page.locator('.where').click();
+    await expect(sheet).toBeHidden();
+    // The sheet and the Look card never show together.
+    await page.getByRole('button', { name: 'Listen' }).click();
+    await page.getByRole('button', { name: 'Look' }).click();
+    await expect(sheet).toBeHidden();
+    await expect(page.locator('#reader-look')).toBeVisible();
+  });
+
+  test('sets the voice up from the sheet and reads from here', async ({ page, browserName }) => {
+    // Playwright's WebKit on Windows plays no audio at all: play() fails as not supported.
+    test.skip(browserName === 'webkit', 'this WebKit build has no audio');
+    await withoutVoice(page);
+    await openReader(page);
+    await startDownload(page);
+    const sheet = page.locator('#voice-sheet');
+    await expect(sheet.getByRole('status')).toContainText('The voice is ready.');
+    await sheet.getByRole('button', { name: 'Listen from here' }).click();
+    await expect(sheet).toBeHidden();
+    await expect(page.getByRole('button', { name: 'Listen' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+  });
+
+  test('keeps downloading with the sheet closed', async ({ page }) => {
+    await withoutVoice(page);
+    await openReader(page);
+    await startDownload(page);
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#voice-sheet')).toBeHidden();
+    await expect
+      .poll(() => page.evaluate(() => localStorage.getItem('copista-test-voice')))
+      .toBe('installed');
+    // With the voice in, Listen stops opening the sheet and reads.
+    const listen = page.getByRole('button', { name: 'Listen' });
+    await expect(listen).toHaveAttribute('aria-pressed', 'false');
+    await expect(listen).not.toHaveAttribute('aria-expanded');
+    await expect(page.locator('#voice-sheet')).toBeHidden();
+  });
+
+  test('cancels the download on leaving the Lectorium', async ({ page }) => {
+    const errors: string[] = [];
+    page.on('pageerror', (error) => errors.push(error.message));
+    await withoutVoice(page);
+    await openReader(page);
+    await startDownload(page);
+    await page.evaluate(() => (location.hash = '#/bibliotheca'));
+    await expect(page.getByRole('heading', { level: 1, name: 'Bibliotheca' })).toBeVisible();
+    // The fake takes a second to download; give it longer, to be sure it stopped.
+    await page.waitForTimeout(1500);
+    expect(await page.evaluate(() => localStorage.getItem('copista-test-voice'))).toBe('absent');
+    await page.goBack();
+    await expect(page.locator('.where')).toContainText(/Page 1 of \d+/);
+    await page.getByRole('button', { name: 'Listen' }).click();
+    await expect(
+      page.locator('#voice-sheet').getByRole('button', { name: 'Download the voice' }),
+    ).toBeVisible();
+    await expect(page.getByRole('alert')).toHaveCount(0);
+    expect(errors).toEqual([]);
   });
 
   test('reads aloud from the page on screen until pressed again', async ({ page, browserName }) => {
@@ -981,7 +1084,8 @@ test.describe('Listen', () => {
     test.use({ viewport: { width: 360, height: 640 } });
 
     test('fits all seven reading tools, each with its whole name', async ({ page }) => {
-      await withVoice(page);
+      // Listen shows before the voice is set up, to open the voice sheet.
+      await withoutVoice(page);
       await openReader(page);
       const tools = page.locator('.reading-bar .toolbar > button, .reading-bar .look-toggle');
       await expect(tools).toHaveCount(7);
@@ -1137,10 +1241,13 @@ test.describe('scroll mode', () => {
       expect(await overflow()).toBeLessThanOrEqual(0);
     });
 
-    test('fits all six reading tools on the screen, each with its whole name', async ({ page }) => {
+    test('fits all seven reading tools on the screen, each with its whole name', async ({
+      page,
+    }) => {
       await openReader(page);
+      // Listen is there with or without the voice: without it, it opens the voice sheet.
       const tools = page.locator('.reading-bar .toolbar > button, .reading-bar .look-toggle');
-      await expect(tools).toHaveCount(6);
+      await expect(tools).toHaveCount(7);
       for (const tool of await tools.all()) {
         const box = (await tool.boundingBox())!;
         expect(box.x).toBeGreaterThanOrEqual(0);

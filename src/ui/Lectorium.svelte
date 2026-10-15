@@ -25,6 +25,8 @@
   import RoomHero from './RoomHero.svelte';
   import Icon from './Icon.svelte';
   import { errorMessage } from './text';
+  import VoiceSheet from './VoiceSheet.svelte';
+  import { cancelDownload, measureVoice, voice as voiceState } from './voice.svelte';
   import { voiceService } from '../voice/index';
   import { Speaker } from '../voice/audio';
   import { listen, type Listening } from '../voice/listen';
@@ -54,8 +56,10 @@
   let zone = $state<'prev' | 'next' | undefined>();
   // The text moves by itself, in scroll mode only.
   let playing = $state(false);
-  // The voice reads the chapter aloud, once it is set up in the Auditorium.
-  let voiceReady = $state(false);
+  // The voice reads the chapter aloud once it is set up; until then Listen opens the voice sheet.
+  let sheetOpen = $state(false);
+  let listenButton: HTMLButtonElement | undefined = $state();
+  let sheetBox: HTMLDivElement | undefined = $state();
   let listening = $state.raw<Listening>();
   let listenError = $state('');
   let narrator: Narrator | undefined;
@@ -72,7 +76,7 @@
 
   // Anything that takes the reader's eyes off the text stops it moving.
   $effect(() => {
-    if (panelOpen || lookOpen || error) ctrl?.pause();
+    if (panelOpen || lookOpen || sheetOpen || error) ctrl?.pause();
   });
 
   const scrolling = $derived(app.settings.mode === 'scroll');
@@ -127,10 +131,7 @@
       timer = setTimeout(refreshWhere, 300);
     });
     resize.observe(host);
-    voiceService()
-      .isInstalled()
-      .then((installed) => (voiceReady = installed))
-      .catch(() => undefined);
+    void measureVoice();
 
     openSession(bookId)
       .then(async (opened) => {
@@ -157,6 +158,7 @@
       for (const id of [...pending.keys()]) void storeNote(id);
       resize.disconnect();
       stopListening();
+      cancelDownload();
       narrator?.destroy();
       speaker?.release();
       ctrl?.destroy();
@@ -172,6 +174,12 @@
   function onKey(event: KeyboardEvent): void {
     if (!bookId) return;
     const target = event.target as HTMLElement | null;
+    if (event.key === 'Escape' && sheetOpen) {
+      event.preventDefault();
+      sheetOpen = false;
+      listenButton?.focus();
+      return;
+    }
     if (event.key === 'Escape' && lookOpen) {
       event.preventDefault();
       lookOpen = false;
@@ -222,12 +230,17 @@
 
   /** A press anywhere outside the text settings puts them away. */
   function onWindowPointerDown(event: PointerEvent): void {
-    if (lookOpen && !lookBox?.contains(event.target as Node)) lookOpen = false;
+    const target = event.target as Node;
+    if (lookOpen && !lookBox?.contains(target)) lookOpen = false;
+    if (sheetOpen && !sheetBox?.contains(target) && !listenButton?.contains(target)) {
+      sheetOpen = false;
+    }
   }
 
   function fit(on: boolean): void {
     fitted = on;
     lookOpen = false;
+    sheetOpen = false;
     if (on) hint();
     host?.focus();
   }
@@ -303,6 +316,7 @@
   /** The toolbar's Autoscroll: from pages it switches to one scrolling column and starts at once. */
   async function autoscroll(): Promise<void> {
     lookOpen = false;
+    sheetOpen = false;
     if (!scrolling) await restyle({ mode: 'scroll' });
     togglePlay();
   }
@@ -318,9 +332,17 @@
    */
   function toggleListen(): void {
     if (listening) return stopListening();
+    if (!voiceState.status?.installed) {
+      sheetOpen = !sheetOpen;
+      if (sheetOpen) lookOpen = false;
+      return;
+    }
     const start = ctrl?.listeningStart();
     if (!start || !session) return;
     lookOpen = false;
+    sheetOpen = false;
+    voiceState.ready = false;
+    voiceState.message = undefined;
     listenError = '';
     const out = (speaker ??= new Speaker());
     out.unlock();
@@ -610,16 +632,30 @@
           <Icon name={playing ? 'pause' : 'play'} size={18} />
           <span class="tool-label">Auto<wbr />scroll</span>
         </button>
-        {#if voiceReady}
+        {#if voiceState.status?.installed}
           <button
             type="button"
             class="listen-toggle"
+            bind:this={listenButton}
             onclick={toggleListen}
             disabled={!session}
             aria-pressed={listening !== undefined}
             title="Read the chapter aloud from this page"
           >
             <Icon name={listening ? 'pause' : 'listen'} size={18} />
+            <span class="tool-label">Listen</span>
+          </button>
+        {:else}
+          <button
+            type="button"
+            class="listen-toggle"
+            bind:this={listenButton}
+            onclick={toggleListen}
+            aria-expanded={sheetOpen}
+            aria-controls="voice-sheet"
+            title="Have the book read aloud: set up the voice"
+          >
+            <Icon name="listen" size={18} />
             <span class="tool-label">Listen</span>
           </button>
         {/if}
@@ -630,7 +666,10 @@
             aria-expanded={lookOpen}
             aria-controls="reader-look"
             title="Text size, page colours and reading mode"
-            onclick={() => (lookOpen = !lookOpen)}
+            onclick={() => {
+              lookOpen = !lookOpen;
+              if (lookOpen) sheetOpen = false;
+            }}
           >
             <Icon name="text" size={18} />
             <span class="tool-label">Look</span>
@@ -693,6 +732,17 @@
           </div>
         </div>
       </div>
+      {#if sheetOpen}
+        <div class="voice-sheet-box" bind:this={sheetBox}>
+          <VoiceSheet
+            onListen={toggleListen}
+            onClose={() => {
+              sheetOpen = false;
+              listenButton?.focus();
+            }}
+          />
+        </div>
+      {/if}
     </div>
 
     {#if error}

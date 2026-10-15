@@ -1450,12 +1450,14 @@ button.link:hover:not(:disabled) {
   width: 100%;
 }
 
-.auditorium .note {
+.auditorium .note,
+.voice-sheet .note {
   color: var(--muted);
   font-style: italic;
 }
 
-.auditorium .facts {
+.auditorium .facts,
+.voice-sheet .facts {
   margin-bottom: 16px;
 }
 
@@ -1505,6 +1507,7 @@ button.link:hover:not(:disabled) {
 }
 
 .reading-bar {
+  position: relative;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -1554,6 +1557,95 @@ button.link:hover:not(:disabled) {
 
 .look-panel[hidden] {
   display: none;
+}
+
+/* The voice sheet: the voice set up without leaving the book. It hangs under the bar like the
+   Look card, wider, and scrolls inside when the window is short. */
+.voice-sheet-box {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 10;
+  width: min(32rem, 100%);
+  max-height: 70vh;
+  max-height: 70dvh;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 16px 20px 4px;
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  background: var(--card);
+  box-shadow: 0 10px 28px -10px var(--shadow);
+  animation: sheet-in 160ms ease-out;
+}
+
+@keyframes sheet-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+.voice-sheet header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.voice-sheet h2 {
+  margin: 4px 0 10px;
+  font-size: 18px;
+}
+
+.voice-sheet h3 {
+  margin: 20px 0 8px;
+  font-size: 15px;
+}
+
+.voice-sheet h4 {
+  margin: 16px 0 6px;
+  font-size: 14px;
+}
+
+.voice-sheet .close {
+  flex: none;
+  width: 36px;
+  margin: -6px -12px 0 0;
+  padding: 0;
+  border-color: transparent;
+  background: transparent;
+  color: var(--muted);
+}
+
+.voice-sheet .close:hover {
+  color: var(--ink);
+}
+
+.voice-sheet .prose p:last-child {
+  margin-bottom: 0;
+}
+
+.voice-sheet .samples {
+  grid-template-columns: 1fr;
+}
+
+.voice-sheet .facts dt,
+.voice-sheet .facts dd {
+  padding: 8px 0;
+}
+
+.voice-sheet .next {
+  margin-top: 12px;
+}
+
+/* Beta: a label in the accent colour, set as small capitals, with no box around it. */
+.beta {
+  margin-left: 0.3em;
+  color: var(--accent);
+  font-weight: 650;
+  font-variant-caps: all-small-caps;
+  letter-spacing: 0.06em;
 }
 
 .look-panel .group {
@@ -1643,14 +1735,15 @@ button.link:hover:not(:disabled) {
   transform: translateX(18px);
 }
 
-.reading-bar button,
+/* The voice sheet hangs from the bar too, but its buttons are the usual ones. */
+.reading-bar :where(.toolbar) button,
 .reading-bar select,
 .page-nav button {
   border-color: var(--line-strong);
   background: var(--card);
 }
 
-.reading-bar button:hover:not(:disabled),
+.reading-bar :where(.toolbar) button:hover:not(:disabled),
 .reading-bar select:hover,
 .page-nav button:hover:not(:disabled) {
   border-color: var(--ink);
@@ -3949,6 +4042,12 @@ button:active:not(:disabled),
 
 /* Phones: the rooms move to a bar within thumb reach. */
 @media (max-width: 700px) {
+  /* Short enough to end above the bar. */
+  .voice-sheet-box {
+    max-height: 62vh;
+    max-height: 62dvh;
+  }
+
   .masthead {
     height: 56px;
     padding: 0 16px;
