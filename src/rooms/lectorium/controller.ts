@@ -5,7 +5,7 @@ import { Paginator, type ChapterView, type ShowTarget } from '../../reader/pagin
 import { buildSrcdoc, type ReaderLook, type ReadingMode } from '../../reader/render';
 import { ResourceUrls } from '../../reader/resources';
 import { Scroller } from '../../reader/scroller';
-import { readableBlocks } from '../../voice/text';
+import { placeOf, readableBlocks, type Place } from '../../voice/text';
 import { progressPercent, savePosition, type ReadingSession } from './index';
 
 export interface GoToTarget {
@@ -200,6 +200,18 @@ export class ReadingController {
     if (doc === null) return null;
     const block = Math.max(0, this.view.firstVisible(readableBlocks(doc)));
     return { doc, spineIndex: this.spineIndex, block };
+  }
+
+  /** Where reading aloud starts from a point of the screen: the sentence under it. */
+  listeningStartAt(
+    clientX: number,
+    clientY: number,
+  ): ({ doc: Document; spineIndex: number } & Place) | null {
+    const doc = this.view.document;
+    const caret = this.view.caretAt(clientX, clientY);
+    if (doc === null || caret === null || caret.node.ownerDocument !== doc) return null;
+    const place = placeOf(doc, caret.node, caret.offset);
+    return place && { doc, spineIndex: this.spineIndex, ...place };
   }
 
   /** The same start, taken once the moves in flight are over. */

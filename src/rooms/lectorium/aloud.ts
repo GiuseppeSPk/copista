@@ -1,8 +1,11 @@
 import { DEFAULT_FINISH, type Finish } from '../../voice/audio';
 import { listen, type Listening, type Player } from '../../voice/listen';
 import type { Narrator, VoiceId } from '../../voice/narrator';
-import { piecesOf, rangeOf, type Lang } from '../../voice/text';
+import { piecesOf, rangeOf, type Lang, type Place } from '../../voice/text';
 import type { ReadingController } from './controller';
+
+/** Where a reading starts: a chapter, a block, and with an offset the sentence there. */
+type From = { doc: Document; spineIndex: number; block: number; offset?: number };
 
 /** What the listening bar shows. */
 export interface AloudState {
@@ -51,10 +54,15 @@ export class ReadAloud {
     return this.running;
   }
 
-  /** Starts from the first block on screen; false when there is no chapter to read. */
-  start(): boolean {
-    const from = this.deps.reader.listeningStart();
+  /**
+   * Starts from the first block on screen, or from a place chosen on it, then
+   * going on from there even over a reading under way; false when there is no
+   * chapter to read.
+   */
+  start(at?: { doc: Document; spineIndex: number } & Place): boolean {
+    const from = at ?? this.deps.reader.listeningStart();
     if (from === null) return false;
+    if (this.running) this.halt();
     this.deps.reader.pause();
     this.running = true;
     this.show({ piece: '', waiting: true, paused: false });
@@ -112,20 +120,20 @@ export class ReadAloud {
     this.deps.onState(state);
   }
 
-  private async read(
-    run: number,
-    from: { doc: Document; spineIndex: number; block: number },
-  ): Promise<void> {
+  private async read(run: number, from: From): Promise<void> {
     const { reader, lang } = this.deps;
     try {
-      for (let at: typeof from | null = from; at !== null;) {
-        const { doc, spineIndex, block } = at;
+      for (let at: From | null = from; at !== null;) {
+        const { doc, spineIndex, block, offset } = at;
         // A paragraph that began on the page before is taken up at its first piece on screen.
-        const pieces = piecesOf(doc, lang, spineIndex).filter((p) => {
-          if (p.block !== block) return p.block > block;
-          const range = rangeOf(doc, p);
-          return range === null || !reader.beforeScreen(range);
-        });
+        const pieces =
+          offset !== undefined
+            ? piecesOf(doc, lang, spineIndex, { block, offset })
+            : piecesOf(doc, lang, spineIndex).filter((p) => {
+                if (p.block !== block) return p.block > block;
+                const range = rangeOf(doc, p);
+                return range === null || !reader.beforeScreen(range);
+              });
         if (pieces.length > 0) {
           const listening = listen(
             this.deps.narrator,

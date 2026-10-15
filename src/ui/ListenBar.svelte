@@ -7,6 +7,8 @@
     waiting,
     onToggle,
     onSkip,
+    rate,
+    onRate,
     sheetOpen,
     onVoice,
     onClose,
@@ -18,6 +20,10 @@
     waiting: boolean;
     onToggle: () => void;
     onSkip: (by: 1 | -1) => void;
+    /** How fast the voice is heard, as a multiple of its own pace. */
+    rate: number;
+    /** Steps on to the next speed. */
+    onRate: () => void;
     /** The voice sheet is open. */
     sheetOpen: boolean;
     /** Opens or closes the voice sheet; focus goes back to the button pressed when it closes. */
@@ -41,6 +47,13 @@
   >
   <button type="button" aria-label="Next" title="The piece after" onclick={() => onSkip(1)}
     ><Icon name="next" size={18} /></button
+  >
+  <button
+    type="button"
+    class="rate"
+    aria-label={`Speed ${rate} times`}
+    title="Read faster or slower"
+    onclick={onRate}>{rate}×</button
   >
   <button
     type="button"

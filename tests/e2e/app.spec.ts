@@ -359,6 +359,23 @@ test('fits the page to the window and gives the chrome back', async ({ page }) =
   await expect(page.locator('.where')).toContainText(/Page 1 of/);
 });
 
+test('two taps in the middle fill the whole screen, and two more give it back', async ({
+  page,
+  browserName,
+}) => {
+  await openReader(page);
+  const bar = page.locator('.reading-bar');
+  const full = () => page.evaluate(() => document.fullscreenElement !== null);
+  await page.locator('.pages').dblclick();
+  await expect(bar).toBeHidden();
+  // Playwright's WebKit grants no full screen; the full page is what it gets.
+  if (browserName === 'chromium') await expect.poll(full).toBe(true);
+  await page.locator('.pages').dblclick();
+  await expect(bar).toBeVisible();
+  await expect.poll(full).toBe(false);
+  await expect(page.locator('.where')).toContainText(/Page 1 of/);
+});
+
 test('turns the page with a tap on its sides or a swipe', async ({ page }) => {
   await openReader(page);
   // Raw mouse events skip Playwright's hit check: wait until the screen has stopped moving.
@@ -852,8 +869,11 @@ test.describe('Listen', () => {
       const played: string[] = [];
       (window as unknown as { played: string[] }).played = played;
       const play = HTMLMediaElement.prototype.play;
+      const rates: number[] = [];
+      (window as unknown as { rates: number[] }).rates = rates;
       HTMLMediaElement.prototype.play = function (this: HTMLMediaElement) {
         played.push(this.src);
+        rates.push(this.playbackRate);
         return play.call(this);
       };
     });
@@ -1220,32 +1240,129 @@ test.describe('Listen', () => {
       await expect(page.getByRole('alert')).toHaveCount(0);
     });
 
-    test.describe('on a 320 px phone', () => {
-      test.use({ viewport: { width: 320, height: 640 } });
+    test('a finger held on a paragraph reads from the sentence under it', async ({
+      page,
+      browserName,
+    }) => {
+      test.skip(browserName !== 'chromium', 'the mark is read through CSS highlights');
+      await withVoice(page);
+      await openReader(page);
+      const frame = page.locator('iframe[title="Book page"]');
+      // The middle of the third paragraph on the page, and the text from its sentence on.
+      const target = await frame.evaluate((element: HTMLIFrameElement) => {
+        const doc = element.contentDocument!;
+        const box = element.getBoundingClientRect();
+        const visible = [...doc.querySelectorAll('p')].filter((p) => {
+          const r = p.getBoundingClientRect();
+          return r.left >= 0 && r.right <= element.clientWidth && r.bottom <= element.clientHeight;
+        });
+        const p = visible[2]!;
+        const r = p.getClientRects()[0]!;
+        return {
+          x: box.left + r.left + 20,
+          y: box.top + r.top + r.height / 2,
+          text: p.textContent!,
+        };
+      });
+      // The page takes a press only once the move into the reader has finished.
+      await expect
+        .poll(() =>
+          page.evaluate(
+            ([x, y]) => !!document.elementFromPoint(x!, y!)?.closest('.pages'),
+            [target.x, target.y],
+          ),
+        )
+        .toBe(true);
+      await page.mouse.move(target.x, target.y);
+      await page.mouse.down();
+      await page.waitForTimeout(700);
+      await page.mouse.up();
+      await expect(listening(page)).toBeVisible();
+      await expect.poll(async () => (await marked(page))?.text ?? '').not.toBe('');
+      const first = (await marked(page))!.text.replace(/\s+/g, ' ').trim();
+      expect(target.text.replace(/\s+/g, ' ')).toContain(first);
+      // The press is not a tap: the page stays as it was.
+      await expect(page.locator('.reading-bar')).toBeVisible();
+      await expect(page.locator('.where')).toContainText(/Page 1 of/);
+    });
 
-      test('the bar fits a 320 px phone in the three looks', async ({ page }) => {
+    test('steps the speed of the voice and keeps it for the next time', async ({ page }) => {
+      await withVoice(page);
+      await openReader(page);
+      await page.getByRole('button', { name: 'Listen', exact: true }).click();
+      const rate = listening(page).getByRole('button', { name: /^Speed/ });
+      await expect(rate).toHaveText('1×');
+      await rate.click();
+      await expect(rate).toHaveText('1.25×');
+      const before = await plays(page);
+      await expect.poll(() => plays(page), { timeout: 20_000 }).toBeGreaterThan(before);
+      const rates = () => page.evaluate(() => (window as unknown as { rates: number[] }).rates);
+      expect((await rates()).at(-1)).toBe(1.25);
+      await page.reload();
+      await expect(page.locator('.where')).toContainText(/Page 1 of/);
+      await page.getByRole('button', { name: 'Listen', exact: true }).click();
+      await expect(rate).toHaveText('1.25×');
+      await expect.poll(async () => (await rates()).length).toBeGreaterThan(0);
+      expect((await rates()).at(-1)).toBe(1.25);
+    });
+
+    test.describe('on a phone turned on its side', () => {
+      test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+
+      test('the reading goes on and the bar leaves the last line in view', async ({
+        page,
+        browserName,
+      }) => {
+        test.skip(browserName !== 'chromium', 'the mark is read through CSS highlights');
         await withVoice(page);
         await openReader(page);
         await page.getByRole('button', { name: 'Listen', exact: true }).click();
-        await expect(listening(page).getByRole('button', { name: /^The Lect/ })).toBeVisible();
-        for (const look of ['Light', 'Sepia', 'Dark']) {
-          await page.getByRole('button', { name: 'Look', exact: true }).click();
-          await page.getByRole('button', { name: look, exact: true }).click();
-          await page.keyboard.press('Escape');
-          const bar = listening(page);
-          await expect(bar).toBeVisible();
-          const box = (await bar.boundingBox())!;
-          expect(box.height).toBeLessThanOrEqual(56);
-          for (const part of await bar.getByRole('button').all()) {
-            const b = (await part.boundingBox())!;
-            expect(b.x).toBeGreaterThanOrEqual(0);
-            expect(b.x + b.width).toBeLessThanOrEqual(320);
-            const clipped = await part.evaluate((e) => e.scrollWidth - e.clientWidth);
-            expect(clipped).toBeLessThanOrEqual(0);
-          }
-        }
+        await expect.poll(() => plays(page), { timeout: 20_000 }).toBeGreaterThan(1);
+        await page.setViewportSize({ width: 844, height: 390 });
+        const before = await plays(page);
+        await expect.poll(() => marked(page)).toMatchObject({ onScreen: true });
+        await expect.poll(() => plays(page), { timeout: 20_000 }).toBeGreaterThan(before + 1);
+        await expect(listening(page)).toBeVisible();
+        const bar = (await listening(page).boundingBox())!;
+        const frame = (await page.locator('iframe[title="Book page"]').boundingBox())!;
+        expect(frame.y + frame.height).toBeLessThanOrEqual(bar.y + 1);
+        await expect(page.getByRole('alert')).toHaveCount(0);
       });
     });
+
+    // A mouse keeps the buttons small; a finger makes them bigger, so both are tried.
+    for (const { width, touch } of [
+      { width: 320, touch: false },
+      { width: 320, touch: true },
+      { width: 360, touch: true },
+    ]) {
+      test.describe(`on a ${width} px phone${touch ? ' held by a finger' : ''}`, () => {
+        test.use({ viewport: { width, height: 640 }, hasTouch: touch, isMobile: touch });
+
+        test(`the bar fits a ${width} px phone in the three looks`, async ({ page }) => {
+          await withVoice(page);
+          await openReader(page);
+          await page.getByRole('button', { name: 'Listen', exact: true }).click();
+          await expect(listening(page).getByRole('button', { name: /^The Lect/ })).toBeVisible();
+          for (const look of ['Light', 'Sepia', 'Dark']) {
+            await page.getByRole('button', { name: 'Look', exact: true }).click();
+            await page.getByRole('button', { name: look, exact: true }).click();
+            await page.keyboard.press('Escape');
+            const bar = listening(page);
+            await expect(bar).toBeVisible();
+            const box = (await bar.boundingBox())!;
+            expect(box.height).toBeLessThanOrEqual(56);
+            for (const part of await bar.getByRole('button').all()) {
+              const b = (await part.boundingBox())!;
+              expect(b.x).toBeGreaterThanOrEqual(0);
+              expect(b.x + b.width).toBeLessThanOrEqual(width);
+              const clipped = await part.evaluate((e) => e.scrollWidth - e.clientWidth);
+              expect(clipped).toBeLessThanOrEqual(0);
+            }
+          }
+        });
+      });
+    }
   });
 
   test.describe('on a small phone', () => {

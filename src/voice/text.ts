@@ -152,10 +152,44 @@ function sentences(text: string, lang: Lang): Span[] {
   );
 }
 
-/** The pieces of a chapter in reading order. */
-export function piecesOf(doc: Document, lang: Lang, spineIndex: number): Piece[] {
+/** A point in a chapter's read text: a block of `readableBlocks` and an offset into its text. */
+export interface Place {
+  block: number;
+  offset: number;
+}
+
+/**
+ * Where a point of the document falls in the read text: in the innermost
+ * block that holds it, at the first character from it on, or else at the
+ * start of the first block after it. Null when no block follows.
+ */
+export function placeOf(doc: Document, node: Node, offset: number): Place | null {
+  const blocks = blocksWithText(doc);
+  const point = doc.createRange();
+  point.setStart(node, offset);
+  // Nested blocks come after the one around them, so the last match is the innermost.
+  const block = blocks.findLastIndex(({ block: element }) => element.contains(node));
+  if (block >= 0) {
+    const { spots } = blocks[block]!.reading;
+    const at = spots.findIndex((spot) => point.comparePoint(spot.node, spot.offset) >= 0);
+    return { block, offset: at >= 0 ? at : spots.length };
+  }
+  const after = blocks.findIndex(({ block: element }) => point.comparePoint(element, 0) >= 0);
+  return after >= 0 ? { block: after, offset: 0 } : null;
+}
+
+/**
+ * The pieces of a chapter in reading order; from a place, only those from the
+ * sentence that holds it on.
+ */
+export function piecesOf(doc: Document, lang: Lang, spineIndex: number, from?: Place): Piece[] {
   const pieces = blocksWithText(doc).flatMap(({ block: element, reading: { text } }, block) => {
-    const spans = pack(sentences(text, lang).flatMap((sentence) => fit(text, sentence)));
+    if (from !== undefined && block < from.block) return [];
+    const kept =
+      from !== undefined && block === from.block
+        ? sentences(text, lang).filter(([, end]) => end > from.offset)
+        : sentences(text, lang);
+    const spans = pack(kept.flatMap((sentence) => fit(text, sentence)));
     const last: Ending = /^h[1-6]$/.test(element.localName) ? 'heading' : 'paragraph';
     return spans.map(([start, end], i): Piece => ({
       text: text.slice(start, end),

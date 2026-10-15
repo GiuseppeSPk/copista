@@ -108,4 +108,39 @@ describe('the speaker', () => {
     speaker.release();
     expect(live.size).toBe(0);
   });
+
+  it('keeps the speed chosen for every piece after, as a new source sets the rate back', () => {
+    stubAudio();
+    const made: { playbackRate: number }[] = [];
+    vi.stubGlobal(
+      'Audio',
+      class {
+        #src = '';
+        defaultPlaybackRate = 1;
+        playbackRate = 1;
+        constructor() {
+          made.push(this);
+        }
+        get src() {
+          return this.#src;
+        }
+        set src(url: string) {
+          this.#src = url;
+          this.playbackRate = this.defaultPlaybackRate;
+        }
+        play = () => Promise.resolve();
+        pause = () => {};
+        addEventListener = () => {};
+        removeEventListener = () => {};
+        removeAttribute = () => (this.#src = '');
+      },
+    );
+    const speaker = new Speaker();
+    speaker.unlock();
+    speaker.setRate(1.5);
+    expect(made[0]!.playbackRate).toBe(1.5);
+    void speaker.play(new Float32Array(10), 8000, new AbortController().signal);
+    void speaker.play(new Float32Array(10), 8000, new AbortController().signal);
+    expect(made[0]!.playbackRate).toBe(1.5);
+  });
 });

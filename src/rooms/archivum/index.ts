@@ -14,7 +14,12 @@ export interface Settings {
   guideLine: boolean;
   /** Who reads aloud: the Lector (M2) or the Lectrix (F1). */
   voice: VoiceId;
+  /** How fast the voice is heard, as a multiple of its own pace; one of `VOICE_RATES`. */
+  voiceRate: number;
 }
+
+/** The speeds the voice can be heard at, in the order the listening bar steps through them. */
+export const VOICE_RATES: readonly number[] = [1, 1.25, 1.5, 2, 0.75];
 
 export const DEFAULT_SETTINGS: Settings = {
   fontSizePercent: 100,
@@ -23,6 +28,7 @@ export const DEFAULT_SETTINGS: Settings = {
   pace: DEFAULT_PACE,
   guideLine: false,
   voice: 'M2',
+  voiceRate: 1,
 };
 
 const SETTINGS_KEY = 'reader';
@@ -54,6 +60,9 @@ function merge(base: Settings, patch: Partial<Settings>): Settings {
         : base.pace,
     guideLine: typeof patch.guideLine === 'boolean' ? patch.guideLine : base.guideLine,
     voice: VOICES.includes(patch.voice as VoiceId) ? (patch.voice as VoiceId) : base.voice,
+    voiceRate: VOICE_RATES.includes(patch.voiceRate as number)
+      ? (patch.voiceRate as number)
+      : base.voiceRate,
   };
 }
 

@@ -34,6 +34,9 @@ export interface Listening {
 /** How much of the voice is made ahead of the ear, at most. */
 export const AHEAD_SECONDS = 120;
 
+/** How many pieces just heard are kept, so going back to them plays at once. */
+export const KEPT_BEHIND = 2;
+
 /**
  * Reads the pieces aloud one after another. The voice makes the pieces in order,
  * one at a time, while the earlier ones play, and rests once two minutes are
@@ -74,6 +77,10 @@ export function listen(
     let samples = 0;
     for (const [i, piece] of made) if (i >= current) samples += piece.length;
     return samples / narrator.sampleRate;
+  };
+  /** Lets go of the pieces heard longer ago than the ones kept. */
+  const dropBehind = (): void => {
+    for (const i of made.keys()) if (i < current - KEPT_BEHIND) made.delete(i);
   };
   const nextToMake = (): number => {
     let i = current;
@@ -118,8 +125,8 @@ export function listen(
         controller.signal,
       );
       if (controller.signal.aborted) continue;
-      made.delete(index);
       current++;
+      dropBehind();
       toVoice.ring();
     }
     if (failure) throw failure.error;
@@ -163,8 +170,8 @@ export function listen(
       const to = Math.max(Math.min(current + by, pieces.length - 1), 0);
       if (stopped || to === current) return;
       // A piece skipped past counts as heard.
-      for (const i of made.keys()) if (i < to) made.delete(i);
       current = to;
+      dropBehind();
       playing?.abort();
       wake();
     },

@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { MAX_PIECE, blockText, piecesOf, rangeOf, readableBlocks } from '../../../src/voice/text';
+import {
+  MAX_PIECE,
+  blockText,
+  piecesOf,
+  placeOf,
+  rangeOf,
+  readableBlocks,
+} from '../../../src/voice/text';
 
 function chapter(body: string): Document {
   return new DOMParser().parseFromString(`<html><body>${body}</body></html>`, 'text/html');
@@ -142,5 +149,38 @@ describe('ranges', () => {
     expect(
       rangeOf(doc, { text: 'x', spineIndex: 0, block: 3, start: 0, end: 1, ends: 'chapter' }),
     ).toBeNull();
+  });
+});
+
+describe('reading from a point', () => {
+  const doc = chapter(
+    '<h1>Titolo</h1><p>Prima frase. Seconda <em>frase</em> qui. Terza frase.</p><p>Altro paragrafo.</p>',
+  );
+  const em = doc.querySelector('em')!.firstChild!;
+
+  it('finds the block and the character under a point, inside inline markup', () => {
+    const place = placeOf(doc, em, 2);
+    expect(place).toEqual({ block: 1, offset: 'Prima frase. Seconda fr'.length });
+  });
+
+  it('takes a point between blocks to the start of the next one', () => {
+    expect(placeOf(doc, doc.body, 1)).toEqual({ block: 1, offset: 0 });
+    expect(placeOf(doc, doc.body, doc.body.childNodes.length)).toBeNull();
+  });
+
+  it('starts at the sentence that holds the point and goes on to the end', () => {
+    const texts = piecesOf(doc, 'it', 0, placeOf(doc, em, 2)!).map((piece) => piece.text);
+    expect(texts).toEqual(['Seconda frase qui. Terza frase.', 'Altro paragrafo.']);
+  });
+
+  it('keeps the offsets of the whole block, so the ranges still cover the text', () => {
+    const [first] = piecesOf(doc, 'it', 0, { block: 1, offset: 15 });
+    expect(first!.start).toBe('Prima frase. '.length);
+    expect(rangeOf(doc, first!)!.toString()).toBe(first!.text);
+  });
+
+  it('starts at the next sentence from a space after a full stop', () => {
+    const [first] = piecesOf(doc, 'it', 0, { block: 1, offset: 'Prima frase.'.length });
+    expect(first!.text.startsWith('Seconda')).toBe(true);
   });
 });

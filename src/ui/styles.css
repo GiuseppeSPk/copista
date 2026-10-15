@@ -1899,8 +1899,23 @@ button.link:hover:not(:disabled) {
 }
 
 /* While the book is read aloud, the page ends above the listening bar, so its last line shows. */
+.sheet {
+  --bar-room: 54px;
+}
+
 .sheet.listening {
-  padding-bottom: calc(max(12px, env(safe-area-inset-bottom)) + 54px);
+  padding-bottom: calc(max(12px, env(safe-area-inset-bottom)) + var(--bar-room));
+}
+
+/* In full page the listening bar sits above the bar to leave it. */
+.lectorium.fitted .sheet.listening {
+  padding-bottom: calc(max(12px, env(safe-area-inset-bottom)) + 52px + var(--bar-room));
+}
+
+@media (pointer: coarse) {
+  .sheet {
+    --bar-room: 62px;
+  }
 }
 
 .pages {
@@ -2099,6 +2114,8 @@ button.link:hover:not(:disabled) {
 }
 
 .lectorium.fitted .pages {
+  /* A phone on its side has less height than a page asks for elsewhere. */
+  min-height: 0;
   border: 0;
   border-radius: 0;
 }
@@ -2198,6 +2215,26 @@ button.link:hover:not(:disabled) {
   white-space: nowrap;
 }
 
+/* A finger needs bigger buttons, answered at once, and a bar that stays easy to see. */
+@media (pointer: coarse) {
+  .autoscroll-bar button,
+  .listen-bar button {
+    min-width: 44px;
+    min-height: 44px;
+    touch-action: manipulation;
+  }
+
+  .autoscroll-bar.playing,
+  .listen-bar.playing {
+    opacity: 0.8;
+  }
+}
+
+.listen-bar .rate {
+  min-width: 52px;
+  font-variant-numeric: tabular-nums;
+}
+
 /* The reader's name opens the voice sheet; it is never cut. */
 .listen-bar .reader {
   flex-shrink: 0;
@@ -2205,7 +2242,7 @@ button.link:hover:not(:disabled) {
   white-space: nowrap;
 }
 
-/* On the narrowest phones the bar draws in, so the name and its Beta stay whole. */
+/* On the narrowest phones the bar draws in, so the name stays whole; its Beta stays on the voice sheet. */
 @media (max-width: 360px) {
   .listen-bar {
     gap: 2px;
@@ -2215,9 +2252,25 @@ button.link:hover:not(:disabled) {
     padding-inline: 4px;
   }
 
+  .listen-bar .rate {
+    min-width: 44px;
+  }
+
   .listen-bar .reader {
     padding-inline: 8px;
     font-size: 12px;
+  }
+
+  .listen-bar .beta {
+    display: none;
+  }
+}
+
+@media (max-width: 340px) and (pointer: coarse) {
+  .listen-bar button,
+  .listen-bar .rate {
+    min-width: 40px;
+    min-height: 40px;
   }
 }
 

@@ -1,6 +1,7 @@
 import { countWords, pixelsPerSecond } from './autoscroll';
 import { pageForFraction } from './location';
 import {
+  caretInFrame,
   clickedLink,
   followLink,
   LINK_SELECTOR,
@@ -9,6 +10,7 @@ import {
   srcdocLoaded,
   textMargins,
   writeLayoutStyle,
+  type Caret,
   type ChapterView,
   type ShowTarget,
 } from './paginator';
@@ -150,6 +152,11 @@ export class Scroller implements ChapterView {
   before(range: Range): boolean {
     if (this.frame === null) return false;
     return this.offsetOnScreen(range) < 0;
+  }
+
+  caretAt(clientX: number, clientY: number): Caret | null {
+    if (this.frame === null) return null;
+    return caretInFrame(this.frame.element, this.frame.doc, clientX, clientY);
   }
 
   /** How far down the screen the top of a range lies, in pixels; negative above it. */

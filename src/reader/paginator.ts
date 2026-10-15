@@ -20,6 +20,8 @@ export interface ChapterView {
   reveal(range: Range): boolean;
   /** Whether a stretch of the chapter starts before the screen, on an earlier page or above it. */
   before(range: Range): boolean;
+  /** The point of the chapter's text shown at a point of the viewport, if any. */
+  caretAt(clientX: number, clientY: number): Caret | null;
   destroy(): void;
 }
 
@@ -83,6 +85,31 @@ export function markReading(doc: Document, range: Range | null): void {
     writeLayoutStyle(doc, READING_CSS, READING_STYLE_ID);
   }
   highlights.set(READING_HIGHLIGHT, new win.Highlight(range));
+}
+
+/** A point in a document's text: a node and an offset into it. */
+export interface Caret {
+  node: Node;
+  offset: number;
+}
+
+/** The point of a framed document's text at a point of the viewport, if any. */
+export function caretInFrame(
+  frame: HTMLIFrameElement,
+  doc: Document,
+  clientX: number,
+  clientY: number,
+): Caret | null {
+  const rect = frame.getBoundingClientRect();
+  const x = clientX - rect.left;
+  const y = clientY - rect.top;
+  if ('caretPositionFromPoint' in doc) {
+    const position = doc.caretPositionFromPoint(x, y);
+    return position && { node: position.offsetNode, offset: position.offset };
+  }
+  // WebKit has only the older call.
+  const range = (doc as Document).caretRangeFromPoint(x, y);
+  return range && { node: range.startContainer, offset: range.startOffset };
 }
 
 /** Hands a chapter link to the reader, or opens an outside link in a new tab. */
@@ -212,6 +239,11 @@ export class Paginator implements ChapterView {
     if (page === this.currentPage) return false;
     this.turnTo(page);
     return true;
+  }
+
+  caretAt(clientX: number, clientY: number): Caret | null {
+    if (this.frame === null) return null;
+    return caretInFrame(this.frame.element, this.frame.doc, clientX, clientY);
   }
 
   before(range: Range): boolean {

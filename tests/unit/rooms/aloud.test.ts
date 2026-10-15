@@ -199,6 +199,32 @@ describe('reading aloud', () => {
     expect(reader.follows).toEqual([...shown, null]);
   });
 
+  it('starts at the sentence chosen, even one before the screen', async () => {
+    const { reader, aloud, end } = setUp([PROSE, MORE]);
+    reader.hidden.add('It has two sentences.');
+    expect(aloud.start({ doc: PROSE, spineIndex: 0, block: 1, offset: 25 })).toBe(true);
+    await end;
+    expect(reader.follows).toEqual([
+      'It has two sentences.',
+      ...texts(PROSE, 2),
+      ...texts(MORE),
+      null,
+    ]);
+  });
+
+  it('starts again from the place chosen while a reading is under way, playing', async () => {
+    const { reader, aloud, states, end } = setUp([PROSE]);
+    reader.onFollow = (count) => {
+      if (count !== 1) return;
+      aloud.pause();
+      queueMicrotask(() => aloud.start({ doc: PROSE, spineIndex: 0, block: 3, offset: 0 }));
+    };
+    aloud.start();
+    await end;
+    expect(reader.follows).toEqual([texts(PROSE)[0], null, ...texts(PROSE, 3), null]);
+    expect(states.indexOf(null)).toBe(states.length - 1);
+  });
+
   it('stops cleanly', async () => {
     const { reader, aloud, states, errors, end, played } = setUp([PROSE, MORE]);
     reader.onFollow = (count) => {

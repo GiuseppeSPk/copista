@@ -29,6 +29,7 @@ describe('archivum', () => {
       pace: 200,
       guideLine: false,
       voice: 'M2',
+      voiceRate: 1,
     };
     expect(await getSettings()).toEqual(defaults);
     expect(DEFAULT_SETTINGS).toEqual(defaults);
@@ -62,7 +63,15 @@ describe('archivum', () => {
       pace: 200,
       guideLine: false,
       voice: 'M2',
+      voiceRate: 1,
     });
+  });
+
+  it('keeps a speed of the voice from its steps and ignores any other', async () => {
+    expect((await updateSettings({ voiceRate: 1.5 })).voiceRate).toBe(1.5);
+    expect((await updateSettings({ voiceRate: 1.4 })).voiceRate).toBe(1.5);
+    expect((await updateSettings({ voiceRate: 'fast' as unknown as number })).voiceRate).toBe(1.5);
+    expect(await getSettings()).toMatchObject({ voiceRate: 1.5 });
   });
 
   it('keeps the Lectrix as the voice and ignores a voice it does not know', async () => {

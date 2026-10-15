@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, tick, untrack } from 'svelte';
-  import type { Settings } from '../rooms/archivum';
+  import { VOICE_RATES, type Settings } from '../rooms/archivum';
   import {
     addBookmark,
     addNote,
@@ -195,6 +195,8 @@
       cancelled = true;
       clearTimeout(timer);
       clearTimeout(hintTimer);
+      clearTimeout(tapTimer);
+      endPress();
       for (const id of [...pending.keys()]) void storeNote(id);
       resize.disconnect();
       stopListening();
@@ -280,11 +282,61 @@
 
   function fit(on: boolean): void {
     fitted = on;
+    autoFitted = false;
+    if (!on && fullscreened) {
+      fullscreened = false;
+      if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
+    }
     lookOpen = false;
     sheetOpen = false;
     if (on) hint();
     host?.focus();
   }
+
+  // Two taps in the middle fill the whole screen, the browser's bars too.
+  let fullscreened = false;
+  // A phone turned on its side fits the page by itself, and turned back gives the chrome back.
+  let autoFitted = false;
+
+  function toggleFullscreen(): void {
+    if (fullscreened) return fit(false);
+    fit(true);
+    const root = document.documentElement;
+    // Safari on the iPhone has no full screen for a page: the full page is all it gets.
+    if (!root.requestFullscreen || document.fullscreenElement) return;
+    root.requestFullscreen({ navigationUI: 'hide' }).then(
+      () => (fullscreened = true),
+      () => {},
+    );
+  }
+
+  $effect(() => {
+    if (!bookId) return;
+    const short = matchMedia(
+      '(pointer: coarse) and (orientation: landscape) and (max-height: 500px)',
+    );
+    const follow = (): void => {
+      if (short.matches && !fitted) {
+        fit(true);
+        autoFitted = true;
+      } else if (!short.matches && autoFitted) {
+        fit(false);
+      }
+    };
+    untrack(follow);
+    short.addEventListener('change', follow);
+    // Leaving the browser's full screen, with its own gesture or key, leaves the full page too.
+    const left = (): void => {
+      if (!document.fullscreenElement && fullscreened) fit(false);
+    };
+    document.addEventListener('fullscreenchange', left);
+    return () => {
+      short.removeEventListener('change', follow);
+      document.removeEventListener('fullscreenchange', left);
+      if (fullscreened && document.fullscreenElement)
+        void document.exitFullscreen().catch(() => {});
+    };
+  });
 
   function hint(): void {
     hinting = true;
@@ -302,14 +354,35 @@
   // A horizontal swipe turns the page; the click that follows it is not a tap.
   let start: { x: number; y: number; id: number } | undefined;
   let swiped = false;
+  // A finger held still on the text reads aloud from there; the click after it is not a tap.
+  const PRESS_MS = 500;
+  let pressTimer: ReturnType<typeof setTimeout> | undefined;
+  let pressed = false;
+  let pointerType = '';
+  // A single tap in the middle waits a moment, in case a second one follows.
+  const DOUBLE_TAP_MS = 300;
+  let tapTimer: ReturnType<typeof setTimeout> | undefined;
+
+  function endPress(): void {
+    clearTimeout(pressTimer);
+    pressTimer = undefined;
+  }
 
   function onPointerDown(event: PointerEvent): void {
     if (!event.isPrimary) return;
     start = { x: event.clientX, y: event.clientY, id: event.pointerId };
     swiped = false;
+    pressed = false;
+    pointerType = event.pointerType;
+    endPress();
+    if (event.button === 0) {
+      const { clientX, clientY } = event;
+      pressTimer = setTimeout(() => readFrom(clientX, clientY), PRESS_MS);
+    }
   }
 
   function onPointerUp(event: PointerEvent): void {
+    endPress();
     if (!start || event.pointerId !== start.id) return;
     if (scrolling) {
       start = undefined;
@@ -325,6 +398,7 @@
   }
 
   function onPointerMove(event: PointerEvent): void {
+    if (start && Math.hypot(event.clientX - start.x, event.clientY - start.y) > 10) endPress();
     zone = event.pointerType === 'mouse' && !scrolling ? zoneAt(event.clientX) : undefined;
   }
 
@@ -334,8 +408,9 @@
    * the paginator. In scroll mode a tap starts or stops the text moving.
    */
   function onPageClick(event: MouseEvent): void {
-    if (swiped) {
+    if (swiped || pressed) {
       swiped = false;
+      pressed = false;
       return;
     }
     if (event.defaultPrevented || !host) return;
@@ -344,8 +419,28 @@
       return;
     }
     const side = zoneAt(event.clientX);
-    if (side) turn(side === 'next');
-    else fit(!fitted);
+    if (side) return turn(side === 'next');
+    if (tapTimer !== undefined) {
+      clearTimeout(tapTimer);
+      tapTimer = undefined;
+      return toggleFullscreen();
+    }
+    tapTimer = setTimeout(() => {
+      tapTimer = undefined;
+      fit(!fitted);
+    }, DOUBLE_TAP_MS);
+  }
+
+  /** A long press on the text: the voice reads from the sentence under the finger. */
+  function readFrom(clientX: number, clientY: number): void {
+    pressTimer = undefined;
+    pressed = true;
+    if (!voiceState.status?.installed) return openVoiceSheet();
+    const place = ctrl?.listeningStartAt(clientX, clientY);
+    if (!place) return;
+    navigator.vibrate?.(15);
+    if (aloud?.active) aloud.start(place);
+    else listenFrom(place);
   }
 
   /** Space and a tap on the scrolling text: pause or go on with whatever moves, the voice first. */
@@ -400,11 +495,17 @@
   function toggleListen(): void {
     if (aloud?.active) return stopListening();
     if (!voiceState.status?.installed) return openVoiceSheet();
+    listenFrom();
+  }
+
+  /** Reads aloud from the first paragraph on screen, or from a place chosen on it. */
+  function listenFrom(place?: Parameters<ReadAloud['start']>[0]): void {
     if (!ctrl || !session) return;
     // One thing moves the page at a time: the voice takes over from the scrolling.
     if (ctrl.playing) ctrl.pause();
     const out = (speaker ??= new Speaker());
     out.unlock();
+    out.setRate(app.settings.voiceRate);
     const voice = (narrator ??= voiceService().narrator());
     const loaded = voice.load();
     const lang: Lang = /^en/i.test(session.book.meta.language) ? 'en' : 'it';
@@ -435,7 +536,7 @@
     });
     aloud = reading;
     listenError = '';
-    if (!reading.start()) {
+    if (!reading.start(place)) {
       aloud = undefined;
       return;
     }
@@ -499,6 +600,14 @@
     if (pace === app.settings.pace) return;
     ctrl?.setPace(pace);
     changeSettings({ pace }).catch((e: unknown) => (error = errorMessage(e)));
+  }
+
+  /** The listening bar's speed: the next of the steps, heard from the piece under way on. */
+  function changeVoiceRate(): void {
+    const at = VOICE_RATES.indexOf(app.settings.voiceRate);
+    const voiceRate = VOICE_RATES[(at + 1) % VOICE_RATES.length]!;
+    speaker?.setRate(voiceRate);
+    changeSettings({ voiceRate }).catch((e: unknown) => (error = errorMessage(e)));
   }
 
   function goTo(chapter: number, fragment?: string): void {
@@ -936,7 +1045,14 @@
             onclick={onPageClick}
             onpointerdown={onPointerDown}
             onpointerup={onPointerUp}
-            onpointercancel={() => (start = undefined)}
+            onpointercancel={() => {
+              start = undefined;
+              endPress();
+            }}
+            oncontextmenu={(event) => {
+              // A finger held on the page reads from there instead of opening the menu.
+              if (pointerType !== 'mouse') event.preventDefault();
+            }}
             onpointermove={onPointerMove}
             onpointerleave={() => (zone = undefined)}
           ></div>
@@ -993,6 +1109,8 @@
               waiting={aloudState.waiting}
               onToggle={toggleAloud}
               onSkip={(by) => aloud?.skip(by)}
+              rate={app.settings.voiceRate}
+              onRate={changeVoiceRate}
               {sheetOpen}
               onVoice={openVoiceSheet}
               onClose={stopListening}

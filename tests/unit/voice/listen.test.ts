@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { TODAY, encodeWav, type Finish } from '../../../src/voice/audio';
-import { AHEAD_SECONDS, listen } from '../../../src/voice/listen';
+import { AHEAD_SECONDS, KEPT_BEHIND, listen } from '../../../src/voice/listen';
 import type { Ending, Lang } from '../../../src/voice/text';
 import type { VoiceId } from '../../../src/voice/narrator';
 
@@ -122,7 +122,7 @@ describe('listen', () => {
     expect(log.filter((line) => line.startsWith('play'))).toEqual(['play 50']);
   });
 
-  it('makes more once a piece has played and is dropped', async () => {
+  it('makes more once a piece has played', async () => {
     const { say, speaks, playing, tick } = setUp(['a', 'b', 'c', 'd']);
     await say('a', 50);
     await say('b', 50);
@@ -149,7 +149,7 @@ describe('listen', () => {
   });
 
   it('skips forward and back within the chapter', async () => {
-    const { listening, started, say, tick } = setUp(['a', 'b', 'c']);
+    const { listening, started, say, speaks, tick } = setUp(['a', 'b', 'c']);
     await say('a', 1);
     await say('b', 1);
     await say('c', 1);
@@ -163,9 +163,9 @@ describe('listen', () => {
     expect(started).toEqual([0, 1, 2]);
     listening.skip(-1);
     await tick();
-    // A piece skipped past counts as heard and is dropped, so going back makes it again.
-    await say('b', 1);
+    // A piece skipped past counts as heard and is kept, so going back plays it at once.
     expect(started).toEqual([0, 1, 2, 1]);
+    expect(speaks().filter((line) => line === 'speak b it M2')).toHaveLength(1);
   });
 
   it('ends the listening when skipping forward from the last piece, so the next chapter follows', async () => {
@@ -179,15 +179,32 @@ describe('listen', () => {
     await expect(listening.done).resolves.toBeUndefined();
   });
 
-  it('makes again a piece skipped back to after it was dropped', async () => {
-    const { listening, say, speaks, playing, tick } = setUp(['a', 'b']);
+  it('plays at once a piece just heard when skipped back to', async () => {
+    const { listening, say, speaks, started, playing, tick } = setUp(['a', 'b']);
     await say('a', 1);
     await say('b', 1);
     playing.shift()!();
     await tick();
     listening.skip(-1);
     await tick();
+    expect(started).toEqual([0, 1, 0]);
+    expect(speaks().filter((line) => line === 'speak a it M2')).toHaveLength(1);
+  });
+
+  it('makes again a piece heard longer ago than the ones kept', async () => {
+    expect(KEPT_BEHIND).toBe(2);
+    const { listening, say, speaks, started, playing, tick } = setUp(['a', 'b', 'c', 'd']);
+    for (const text of ['a', 'b', 'c']) {
+      await say(text, 1);
+      playing.shift()!();
+      await tick();
+    }
+    for (let i = 0; i < 3; i++) listening.skip(-1);
+    // The voice ends the piece it is making before it turns back.
+    await say('d', 1);
     expect(speaks().filter((line) => line === 'speak a it M2')).toHaveLength(2);
+    await say('a', 1);
+    expect(started.at(-1)).toBe(0);
   });
 
   it('plays nothing made for a piece skipped past', async () => {

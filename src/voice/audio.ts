@@ -150,6 +150,7 @@ export class Speaker {
   private live = false;
   /** Held by the reader, so the browser's complaint that play() was interrupted is expected. */
   private held = false;
+  private rate = 1;
 
   unlock(): void {
     this.load(new Blob([encodeWav(new Float32Array(1), 8000)]));
@@ -160,6 +161,16 @@ export class Speaker {
   private load(sound: Blob): void {
     if (this.audio.src.startsWith('blob:')) URL.revokeObjectURL(this.audio.src);
     this.audio.src = URL.createObjectURL(sound);
+    // A new source sets the rate back to the default one, so both are kept.
+    this.audio.defaultPlaybackRate = this.rate;
+    this.audio.playbackRate = this.rate;
+  }
+
+  /** Hears the voice faster or slower, from the piece under way on; the pitch stays. */
+  setRate(rate: number): void {
+    this.rate = rate;
+    this.audio.defaultPlaybackRate = rate;
+    this.audio.playbackRate = rate;
   }
 
   /** Resolves when the samples have played, or at once when the signal stops them. */
