@@ -1,5 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { DEFAULT_FINISH, Speaker, TODAY, finishPiece, shapeTone } from '../../../src/voice/audio';
+import {
+  DEFAULT_FINISH,
+  Speaker,
+  TODAY,
+  finishPiece,
+  shapeTone,
+  trimSilence,
+} from '../../../src/voice/audio';
 
 const ones = (n: number): Float32Array => new Float32Array(n).fill(1);
 
@@ -21,18 +28,60 @@ describe('the finish of a piece', () => {
     for (let i = 985; i <= 999; i++) expect(out[i]!).toBeLessThan(out[i - 1]!);
   });
 
-  it('reads with the finish chosen by ear on 15 October: 0.3 s after every piece, a 15 ms fade and the warmer tone', () => {
+  it('reads with the finish chosen by ear on 15 October: 0.3 s after every piece, a 15 ms fade and the warmer tone; and the silence trimmed', () => {
     expect(DEFAULT_FINISH).toEqual({
       pauses: { piece: 0.3, paragraph: 0.3, heading: 0.3, chapter: 0.3 },
       fadeMs: 15,
       tone: true,
+      trim: true,
     });
+  });
+
+  it('trims the silence before the pause, so the pause is the one set', () => {
+    const spoken = new Float32Array(3000);
+    spoken.fill(0.5, 1000, 2000);
+    const out = finishPiece(spoken, 1000, 'piece', { ...TODAY, trim: true });
+    expect(out.length).toBe(30 + 1000 + 80 + 300);
   });
 
   it('keeps today’s length: the spoken samples and 0.3 s, whatever follows', () => {
     for (const ends of ['piece', 'paragraph', 'heading', 'chapter'] as const) {
       expect(finishPiece(ones(44100), 44100, ends, TODAY).length).toBe(44100 + 13230);
     }
+  });
+});
+
+describe('the silence around the voice', () => {
+  const voiced = (before: number, voice: number, after: number): Float32Array => {
+    const xs = new Float32Array(before + voice + after);
+    xs.fill(0.2, before, before + voice);
+    return xs;
+  };
+
+  it('cuts the silence at both ends, keeping 30 ms before the voice and 80 ms after', () => {
+    const out = trimSilence(voiced(500, 1000, 700), 1000);
+    expect(out.length).toBe(30 + 1000 + 80);
+    expect(out[29]).toBe(0);
+    expect(out[30]).toBeCloseTo(0.2);
+    expect(out[1029]).toBeCloseTo(0.2);
+    expect(out[1030]).toBe(0);
+  });
+
+  it('keeps a quiet sound above -45 dBFS, and the pauses inside the voice', () => {
+    const xs = voiced(0, 1000, 0);
+    xs.fill(0, 400, 600);
+    xs.fill(0.01, 900, 1000);
+    expect(trimSilence(xs, 1000).length).toBe(1000);
+  });
+
+  it('leaves less margin when the voice starts or ends at the edge', () => {
+    expect(trimSilence(voiced(10, 1000, 20), 1000).length).toBe(1030);
+  });
+
+  it('gives back a piece with no voice as it was', () => {
+    const quiet = new Float32Array(500).fill(0.001);
+    expect(trimSilence(quiet, 1000)).toBe(quiet);
+    expect(trimSilence(new Float32Array(0), 1000)).toHaveLength(0);
   });
 });
 

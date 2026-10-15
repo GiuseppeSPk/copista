@@ -7,6 +7,8 @@ export interface Finish {
   fadeMs: number;
   /** A gentle warmth on the tone, through `shapeTone`. */
   tone: boolean;
+  /** The model's own silence cut from both ends, through `trimSilence`, so the pause is the one set. */
+  trim: boolean;
 }
 
 /** The finish the voice had when the pause was made in the worker: 0.3 s after every piece. */
@@ -14,10 +16,15 @@ export const TODAY: Finish = {
   pauses: { piece: 0.3, paragraph: 0.3, heading: 0.3, chapter: 0.3 },
   fadeMs: 0,
   tone: false,
+  trim: false,
 };
 
-/** The finish the voice reads with, chosen by ear in the blind tests of 15 October: a fade and the warmer tone. */
-export const DEFAULT_FINISH: Finish = { ...TODAY, fadeMs: 15, tone: true };
+/**
+ * The finish the voice reads with: a fade and the warmer tone, chosen by ear in
+ * the blind tests of 15 October, and the silence trimmed, after the Android
+ * trial found the stops between pieces too long.
+ */
+export const DEFAULT_FINISH: Finish = { ...TODAY, fadeMs: 15, tone: true, trim: true };
 
 /** A second-order filter's coefficients, normalised so a0 is 1. */
 type Biquad = [b0: number, b1: number, b2: number, a1: number, a2: number];
@@ -97,6 +104,45 @@ export function shapeTone(samples: Float32Array, rate: number): Float32Array {
   return out;
 }
 
+/** Quieter than this, a stretch of 10 ms counts as silence: -45 dBFS. */
+const SILENCE = 10 ** (-45 / 20);
+/** What is kept of the silence before the voice and after it, in seconds. */
+const KEEP_BEFORE = 0.03;
+const KEEP_AFTER = 0.08;
+
+/**
+ * The samples without the silence the model leaves before the voice and after
+ * it, short margins kept so no breath or final consonant is cut. A piece with
+ * no voice at all comes back as it was.
+ */
+export function trimSilence(samples: Float32Array, rate: number): Float32Array {
+  const window = Math.max(1, Math.round(rate * 0.01));
+  const loud = (from: number): boolean => {
+    let sum = 0;
+    const to = Math.min(samples.length, from + window);
+    for (let i = from; i < to; i++) sum += samples[i]! ** 2;
+    return Math.sqrt(sum / (to - from)) > SILENCE;
+  };
+  let first = -1;
+  for (let i = 0; i < samples.length; i += window) {
+    if (loud(i)) {
+      first = i;
+      break;
+    }
+  }
+  if (first < 0) return samples;
+  let last = first;
+  for (let i = Math.floor((samples.length - 1) / window) * window; i > first; i -= window) {
+    if (loud(i)) {
+      last = i;
+      break;
+    }
+  }
+  const start = Math.max(0, first - Math.round(KEEP_BEFORE * rate));
+  const end = Math.min(samples.length, last + window + Math.round(KEEP_AFTER * rate));
+  return samples.subarray(start, end);
+}
+
 /** The spoken samples, faded out over their last `fadeMs`, then the pause for what follows. */
 export function finishPiece(
   samples: Float32Array,
@@ -104,6 +150,7 @@ export function finishPiece(
   ends: Ending,
   finish: Finish,
 ): Float32Array {
+  if (finish.trim) samples = trimSilence(samples, rate);
   if (finish.tone) samples = shapeTone(samples, rate);
   const out = new Float32Array(samples.length + Math.round(finish.pauses[ends] * rate));
   out.set(samples);

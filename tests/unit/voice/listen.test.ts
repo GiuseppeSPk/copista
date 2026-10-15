@@ -22,11 +22,12 @@ describe('encodeWav', () => {
   });
 });
 
-/** No pause, no fade and no tone, so the samples played are the samples spoken. */
+/** No pause, no fade, no tone and no trim, so the samples played are the samples spoken. */
 const BARE: Finish = {
   pauses: { piece: 0, paragraph: 0, heading: 0, chapter: 0 },
   fadeMs: 0,
   tone: false,
+  trim: false,
 };
 
 /** A narrator whose pieces finish when the test says, and a player that does the same. */
