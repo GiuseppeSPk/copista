@@ -2366,6 +2366,48 @@ button.link:hover:not(:disabled) {
   text-align: center;
 }
 
+/* Four bars that rise and fall like a voice warming up, so the first wait,
+   the longest, reads as work under way. */
+.sound-bars {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 12px;
+  margin-right: 8px;
+  vertical-align: -1px;
+}
+
+.sound-bars i {
+  width: 3px;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--accent);
+  transform-origin: bottom;
+  animation: sound-bar 900ms var(--ease) infinite alternate;
+}
+
+.sound-bars i:nth-child(2) {
+  animation-delay: -300ms;
+}
+
+.sound-bars i:nth-child(3) {
+  animation-delay: -600ms;
+}
+
+.sound-bars i:nth-child(4) {
+  animation-delay: -150ms;
+}
+
+@keyframes sound-bar {
+  from {
+    transform: scaleY(0.25);
+  }
+
+  to {
+    transform: scaleY(1);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .listen-bar .play[aria-busy='true']::after {
     animation: none;
@@ -2376,12 +2418,38 @@ button.link:hover:not(:disabled) {
   .listen-wait {
     animation: none;
   }
+
+  .sound-bars i {
+    animation: none;
+  }
+
+  .sound-bars i:nth-child(odd) {
+    transform: scaleY(0.5);
+  }
 }
 
 /* In full page the bar to leave it sits under the pace. */
 .lectorium.fitted .autoscroll-bar,
 .lectorium.fitted .listen-bar {
   bottom: calc(max(12px, env(safe-area-inset-bottom)) + 52px);
+}
+
+/* On a phone turned on its side two bars one over the other take a third of
+   the screen, so the listening bar goes to the left of the line and the bar
+   to leave full page to its right, and the page gives up the room of one. */
+@media (max-height: 500px) and (min-width: 640px) {
+  .lectorium.fitted .listen-bar {
+    bottom: max(12px, env(safe-area-inset-bottom));
+    margin-inline: 16px auto;
+  }
+
+  .lectorium.fitted:has(.listen-bar) .fit-bar {
+    margin-inline: auto 16px;
+  }
+
+  .lectorium.fitted .sheet.listening {
+    padding-bottom: calc(max(12px, env(safe-area-inset-bottom)) + var(--bar-room));
+  }
 }
 
 /* The last button of a chapter stays clear of the bar over it. */

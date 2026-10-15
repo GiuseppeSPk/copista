@@ -70,8 +70,9 @@
     ><Icon name="close" size={18} /></button
   >
   <span class="listen-wait" role="status"
-    >{#if waiting && !paused}{#if starting}{reader} is getting ready…<small
-          >Hold on a sentence to read from there.</small
+    >{#if waiting && !paused}<span class="sound-bars" aria-hidden="true"
+        ><i></i><i></i><i></i><i></i></span
+      >{#if starting}{reader} is getting ready…<small>Hold on a sentence to read from there.</small
         >{:else}{reader} is catching up…{/if}{/if}</span
   >
 </div>
