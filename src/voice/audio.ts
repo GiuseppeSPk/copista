@@ -61,6 +61,10 @@ export function encodeWav(samples: Float32Array, rate: number): ArrayBuffer {
  */
 export class Speaker {
   private readonly audio = new Audio();
+  /** A piece is under way, though it may be held. */
+  private live = false;
+  /** Held by the reader, so the browser's complaint that play() was interrupted is expected. */
+  private held = false;
 
   unlock(): void {
     this.audio.src = URL.createObjectURL(new Blob([encodeWav(new Float32Array(1), 8000)]));
@@ -72,8 +76,11 @@ export class Speaker {
     const audio = this.audio;
     if (audio.src.startsWith('blob:')) URL.revokeObjectURL(audio.src);
     audio.src = URL.createObjectURL(new Blob([encodeWav(samples, rate)], { type: 'audio/wav' }));
+    this.live = true;
+    this.held = false;
     return new Promise<void>((resolve, reject) => {
       const finish = (error?: Error): void => {
+        this.live = false;
         audio.removeEventListener('ended', ended);
         audio.removeEventListener('error', failed);
         signal.removeEventListener('abort', stopped);
@@ -91,9 +98,20 @@ export class Speaker {
       audio.addEventListener('error', failed);
       signal.addEventListener('abort', stopped);
       audio.play().catch((e: unknown) => {
-        if (!signal.aborted) finish(e instanceof Error ? e : new Error(String(e)));
+        if (!signal.aborted && !this.held) finish(e instanceof Error ? e : new Error(String(e)));
       });
     });
+  }
+
+  pause(): void {
+    this.held = true;
+    this.audio.pause();
+  }
+
+  /** Carries on with the piece held, if there is one. */
+  resume(): void {
+    this.held = false;
+    if (this.live) void this.audio.play().catch(() => undefined);
   }
 
   /** Lets go of the last piece. */

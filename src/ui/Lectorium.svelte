@@ -28,7 +28,7 @@
   import VoiceSheet from './VoiceSheet.svelte';
   import { cancelDownload, measureVoice, voice as voiceState } from './voice.svelte';
   import { voiceService } from '../voice/index';
-  import { Speaker, TODAY, finishPiece } from '../voice/audio';
+  import { Speaker, TODAY } from '../voice/audio';
   import { listen, type Listening } from '../voice/listen';
   import type { Narrator } from '../voice/narrator';
   import { piecesOf, type Lang } from '../voice/text';
@@ -349,21 +349,27 @@
     const voice = (narrator ??= voiceService().narrator());
     const loaded = voice.load();
     const lang: Lang = /^en/i.test(session.book.meta.language) ? 'en' : 'it';
-    const texts = piecesOf(start.doc, lang, start.spineIndex)
-      .filter((piece) => piece.block >= start.block)
-      .map((piece) => piece.text);
+    const pieces = piecesOf(start.doc, lang, start.spineIndex).filter(
+      (piece) => piece.block >= start.block,
+    );
     const current = listen(
       {
-        // The same pause follows every piece today, so what comes next does not matter yet.
-        speak: (text, l, v) =>
-          loaded
-            .then(() => voice.speak(text, l, v))
-            .then((samples) => finishPiece(samples, voice.sampleRate, 'piece', TODAY)),
+        speak: (text, l, v) => loaded.then(() => voice.speak(text, l, v)),
+        // Known once the voice has loaded, before the first piece is made.
+        get sampleRate() {
+          return voice.sampleRate;
+        },
       },
-      texts,
+      pieces,
       lang,
       app.settings.voice,
-      (samples, signal) => out.play(samples, voice.sampleRate, signal),
+      {
+        play: (samples, signal) => out.play(samples, voice.sampleRate, signal),
+        pause: () => out.pause(),
+        resume: () => out.resume(),
+      },
+      TODAY,
+      { onPiece: () => {}, onWaiting: () => {} },
     );
     listening = current;
     current.done
