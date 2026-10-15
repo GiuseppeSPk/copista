@@ -1,7 +1,7 @@
 import { DEFAULT_FINISH, type Finish } from '../../voice/audio';
 import { listen, type Listening, type Player } from '../../voice/listen';
 import type { Narrator, VoiceId } from '../../voice/narrator';
-import { piecesOf, rangeOf, type Lang, type Place } from '../../voice/text';
+import { piecesOf, rampUp, rangeOf, type Lang, type Place } from '../../voice/text';
 import type { ReadingController } from './controller';
 
 /** Where a reading starts: a chapter, a block, and with an offset the sentence there. */
@@ -126,14 +126,16 @@ export class ReadAloud {
       for (let at: From | null = from; at !== null;) {
         const { doc, spineIndex, block, offset } = at;
         // A paragraph that began on the page before is taken up at its first piece on screen.
-        const pieces =
+        const pieces = rampUp(
           offset !== undefined
             ? piecesOf(doc, lang, spineIndex, { block, offset })
             : piecesOf(doc, lang, spineIndex).filter((p) => {
                 if (p.block !== block) return p.block > block;
                 const range = rangeOf(doc, p);
                 return range === null || !reader.beforeScreen(range);
-              });
+              }),
+          lang,
+        );
         if (pieces.length > 0) {
           const listening = listen(
             this.deps.narrator,

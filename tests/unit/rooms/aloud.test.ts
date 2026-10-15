@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ReadAloud, type AloudState } from '../../../src/rooms/lectorium/aloud';
 import { FakeNarrator } from '../../../src/voice/narrator';
-import { piecesOf } from '../../../src/voice/text';
+import { piecesOf, rampUp, type Piece } from '../../../src/voice/text';
 
 function chapter(body: string): Document {
   return new DOMParser().parseFromString(`<html><body>${body}</body></html>`, 'text/html');
@@ -17,11 +17,19 @@ const LONG = chapter(
 );
 const MORE = chapter('<p>The next chapter begins.</p><p>And it ends.</p>');
 
+/** The pieces a chapter is cut into from a block on. */
+function pieces(doc: Document, from = 0): Piece[] {
+  return piecesOf(doc, 'en', 0).filter((piece) => piece.block >= from);
+}
+
+/** What a reading of these pieces says, its first ones cut shorter. */
+function heard(read: Piece[]): string[] {
+  return rampUp(read, 'en').map((piece) => piece.text);
+}
+
 /** What a chapter reads aloud from a block on. */
 function texts(doc: Document, from = 0): string[] {
-  return piecesOf(doc, 'en', 0)
-    .filter((piece) => piece.block >= from)
-    .map((piece) => piece.text);
+  return heard(pieces(doc, from));
 }
 
 /** A reader that holds a list of chapter documents and notes what the reading asked of it. */
@@ -190,13 +198,13 @@ describe('reading aloud', () => {
 
   it('starts at the first piece on screen when a paragraph began on the page before', async () => {
     const { reader, aloud, end } = setUp([LONG]);
-    const [hidden, ...shown] = texts(LONG, 1);
-    expect(texts(LONG, 1).length).toBeGreaterThan(2);
+    const [hidden, ...shown] = pieces(LONG, 1);
+    expect(pieces(LONG, 1).length).toBeGreaterThan(2);
     reader.block = 1;
-    reader.hidden.add(hidden!);
+    reader.hidden.add(hidden!.text);
     aloud.start();
     await end;
-    expect(reader.follows).toEqual([...shown, null]);
+    expect(reader.follows).toEqual([...heard(shown), null]);
   });
 
   it('starts at the sentence chosen, even one before the screen', async () => {

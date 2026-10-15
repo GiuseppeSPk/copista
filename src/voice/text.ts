@@ -8,6 +8,13 @@ export type Lang = 'it' | 'en';
  */
 export const MAX_PIECE = 200;
 
+/**
+ * The longest of the first pieces of a reading, in characters. The voice is
+ * heard once the first piece is made, so it is short, and each one after can
+ * be made while the one before it plays.
+ */
+export const FIRST_PIECES: readonly number[] = [80, 120, 180];
+
 /** What follows a piece: more of its block, a new paragraph, a new heading, or the end of the chapter. */
 export type Ending = 'piece' | 'paragraph' | 'heading' | 'chapter';
 
@@ -122,11 +129,11 @@ function splitAfter(text: string, [start, end]: Span, breaks: RegExp): Span[] {
 }
 
 /** Joins consecutive spans while the joined span stays within the limit. */
-function pack(parts: Span[]): Span[] {
+function pack(parts: Span[], longest = MAX_PIECE): Span[] {
   const out: Span[] = [];
   for (const [start, end] of parts) {
     const last = out[out.length - 1];
-    if (last !== undefined && end - last[0] <= MAX_PIECE) last[1] = end;
+    if (last !== undefined && end - last[0] <= longest) last[1] = end;
     else out.push([start, end]);
   }
   return out;
@@ -136,17 +143,20 @@ function pack(parts: Span[]): Span[] {
 const BREAKS = [/,/g, /\s/g];
 
 /** Cuts a span that is too long at commas, then at spaces, then anywhere. */
-function fit(text: string, span: Span, level = 0): Span[] {
-  if (span[1] - span[0] <= MAX_PIECE) return [span];
+function fit(text: string, span: Span, longest = MAX_PIECE, level = 0): Span[] {
+  if (span[1] - span[0] <= longest) return [span];
   const breaks = BREAKS[level];
   if (breaks === undefined) {
     const cuts: Span[] = [];
-    for (let s = span[0]; s < span[1]; s += MAX_PIECE) {
-      cuts.push([s, Math.min(span[1], s + MAX_PIECE)]);
+    for (let s = span[0]; s < span[1]; s += longest) {
+      cuts.push([s, Math.min(span[1], s + longest)]);
     }
     return cuts;
   }
-  return pack(splitAfter(text, span, breaks).flatMap((part) => fit(text, part, level + 1)));
+  return pack(
+    splitAfter(text, span, breaks).flatMap((part) => fit(text, part, longest, level + 1)),
+    longest,
+  );
 }
 
 function sentences(text: string, lang: Lang): Span[] {
@@ -207,6 +217,46 @@ export function piecesOf(doc: Document, lang: Lang, spineIndex: number, from?: P
   const final = pieces[pieces.length - 1];
   if (final !== undefined) final.ends = 'chapter';
   return pieces;
+}
+
+/** The part of a piece from `start` to `end`, offsets into its text. */
+function partOf(piece: Piece, start: number, end: number, ends: Ending): Piece {
+  return {
+    ...piece,
+    text: piece.text.slice(start, end),
+    start: piece.start + start,
+    end: piece.start + end,
+    ends,
+  };
+}
+
+/**
+ * The pieces of a reading with its first ones cut down to `FIRST_PIECES`, at
+ * the ends of sentences where they can be, then at commas and spaces.
+ */
+export function rampUp(pieces: readonly Piece[], lang: Lang): Piece[] {
+  const out: Piece[] = [];
+  for (const piece of pieces) {
+    const { text } = piece;
+    let rest: Span | undefined = [0, text.length];
+    for (
+      let longest = FIRST_PIECES[out.length];
+      rest !== undefined && longest !== undefined && rest[1] - rest[0] > longest;
+      longest = FIRST_PIECES[out.length]
+    ) {
+      const from: number = rest[0];
+      const tail = text.slice(from);
+      const [start, end] = pack(
+        sentences(tail, lang).flatMap((sentence) => fit(tail, sentence, longest)),
+        longest,
+      )[0]!;
+      out.push(partOf(piece, from + start, from + end, 'piece'));
+      rest = trim(text, [from + end, text.length])[0];
+    }
+    if (rest === undefined) out[out.length - 1]!.ends = piece.ends;
+    else out.push(rest[0] === 0 ? piece : partOf(piece, rest[0], rest[1], piece.ends));
+  }
+  return out;
 }
 
 /** The range a piece covers in a chapter document, or null when its block is gone. */

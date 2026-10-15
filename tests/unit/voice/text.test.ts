@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
+  FIRST_PIECES,
   MAX_PIECE,
   blockText,
   piecesOf,
   placeOf,
+  rampUp,
   rangeOf,
   readableBlocks,
 } from '../../../src/voice/text';
@@ -182,5 +184,52 @@ describe('reading from a point', () => {
   it('starts at the next sentence from a space after a full stop', () => {
     const [first] = piecesOf(doc, 'it', 0, { block: 1, offset: 'Prima frase.'.length });
     expect(first!.text.startsWith('Seconda')).toBe(true);
+  });
+});
+
+describe('the first pieces of a reading', () => {
+  const sentence = (n: number): string => `Frase numero ${n} di una prova abbastanza lunga.`;
+  const long = Array.from({ length: 30 }, (_, i) => sentence(i + 1)).join(' ');
+  const doc = chapter(`<p>${long}</p><p>Un altro paragrafo.</p>`);
+
+  it('makes the first three short and the rest as before, saying the same words in the same order', () => {
+    const pieces = piecesOf(doc, 'it', 0);
+    const ramped = rampUp(pieces, 'it');
+    ramped.slice(0, 3).forEach((piece, i) => {
+      expect(piece.text.length).toBeLessThanOrEqual(FIRST_PIECES[i]!);
+    });
+    expect(ramped[0]!.text.length).toBeLessThan(pieces[0]!.text.length);
+    for (const piece of ramped.slice(3)) expect(piece.text.length).toBeLessThanOrEqual(MAX_PIECE);
+    expect(ramped.map((p) => p.text).join(' ')).toBe(pieces.map((p) => p.text).join(' '));
+  });
+
+  it('cuts at the ends of sentences, and keeps the place of every part in its block', () => {
+    const ramped = rampUp(piecesOf(doc, 'it', 0), 'it');
+    const text = blockText(readableBlocks(doc)[0]!);
+    expect(ramped[0]!.text).toBe(sentence(1));
+    for (const piece of ramped.filter((p) => p.block === 0)) {
+      expect(text.slice(piece.start, piece.end)).toBe(piece.text);
+    }
+  });
+
+  it('keeps how each piece ends: the cut parts go on, the last part ends as the piece did', () => {
+    const ramped = rampUp(piecesOf(doc, 'it', 0), 'it');
+    const ends = ramped.map((p) => p.ends);
+    expect(ends.at(-1)).toBe('chapter');
+    expect(ends.filter((e) => e === 'paragraph')).toHaveLength(1);
+    expect(ramped[ends.indexOf('paragraph')]!.text.endsWith(sentence(30))).toBe(true);
+  });
+
+  it('cuts a long first sentence at a comma', () => {
+    const words = 'una parola, '.repeat(12) + 'e la fine.';
+    const ramped = rampUp(piecesOf(chapter(`<p>${words}</p>`), 'it', 0), 'it');
+    expect(ramped[0]!.text.length).toBeLessThanOrEqual(FIRST_PIECES[0]!);
+    expect(ramped[0]!.text.endsWith(',')).toBe(true);
+    expect(ramped.map((p) => p.text).join(' ')).toBe(words.trim());
+  });
+
+  it('leaves short pieces as they are', () => {
+    const pieces = piecesOf(ITALIAN, 'it', 0);
+    expect(rampUp(pieces, 'it')).toEqual(pieces);
   });
 });
