@@ -1,3 +1,32 @@
+import type { Ending } from './text';
+
+/** How a piece ends: the pause after it, by what comes next, and a fade over its last moment. */
+export interface Finish {
+  /** Seconds of silence after a piece. */
+  pauses: Record<Ending, number>;
+  fadeMs: number;
+}
+
+/** The finish the voice had when the pause was made in the worker: 0.3 s after every piece. */
+export const TODAY: Finish = {
+  pauses: { piece: 0.3, paragraph: 0.3, heading: 0.3, chapter: 0.3 },
+  fadeMs: 0,
+};
+
+/** The spoken samples, faded out over their last `fadeMs`, then the pause for what follows. */
+export function finishPiece(
+  samples: Float32Array,
+  rate: number,
+  ends: Ending,
+  finish: Finish,
+): Float32Array {
+  const out = new Float32Array(samples.length + Math.round(finish.pauses[ends] * rate));
+  out.set(samples);
+  const fade = Math.min(samples.length, Math.round((finish.fadeMs * rate) / 1000));
+  for (let k = 0; k < fade; k++) out[samples.length - 1 - k]! *= k / fade;
+  return out;
+}
+
 /** Samples as a WAV file: 16-bit PCM, one channel. */
 export function encodeWav(samples: Float32Array, rate: number): ArrayBuffer {
   const buffer = new ArrayBuffer(44 + samples.length * 2);

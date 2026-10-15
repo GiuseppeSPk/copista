@@ -23,8 +23,6 @@ const SPEED = 1.1;
 const SEED: Record<VoiceId, number> = { M2: 2, F1: 1 };
 const WARM_UP = 'Buongiorno.';
 const SELF_TEST = 'Buongiorno, oggi leggiamo insieme un racconto.';
-/** Each piece ends with this much silence, left out when timing the self-test. */
-const SILENCE = 0.3;
 
 let ort: OrtModule | null = null;
 let tts: Supertonic | null = null;
@@ -69,7 +67,7 @@ async function selfTest(voice: Supertonic): Promise<6 | 8 | 16> {
   await voice.speak(WARM_UP, 'it', s, 8, SPEED, SEED.M2);
   const start = performance.now();
   const samples = await voice.speak(SELF_TEST, 'it', s, 8, SPEED, SEED.M2);
-  const seconds = samples.length / voice.sampleRate - SILENCE;
+  const seconds = samples.length / voice.sampleRate;
   return pickSteps((performance.now() - start) / 1000 / Math.max(seconds, 0.1));
 }
 

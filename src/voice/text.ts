@@ -4,6 +4,9 @@ export type Lang = 'it' | 'en';
 /** The longest piece the model is given at once, in characters. */
 export const MAX_PIECE = 300;
 
+/** What follows a piece: more of its block, a new paragraph, a new heading, or the end of the chapter. */
+export type Ending = 'piece' | 'paragraph' | 'heading' | 'chapter';
+
 /**
  * A stretch of one block read in one call: consecutive sentences, or part of
  * a long one. `block` indexes `readableBlocks` of the chapter, and `start` and
@@ -15,6 +18,7 @@ export interface Piece {
   block: number;
   start: number;
   end: number;
+  ends: Ending;
 }
 
 const BLOCKS = 'p, h1, h2, h3, h4, h5, h6, li, blockquote, dt, dd, figcaption';
@@ -150,15 +154,21 @@ function sentences(text: string, lang: Lang): Span[] {
 
 /** The pieces of a chapter in reading order. */
 export function piecesOf(doc: Document, lang: Lang, spineIndex: number): Piece[] {
-  return blocksWithText(doc).flatMap(({ reading: { text } }, block) =>
-    pack(sentences(text, lang).flatMap((sentence) => fit(text, sentence))).map(([start, end]) => ({
+  const pieces = blocksWithText(doc).flatMap(({ block: element, reading: { text } }, block) => {
+    const spans = pack(sentences(text, lang).flatMap((sentence) => fit(text, sentence)));
+    const last: Ending = /^h[1-6]$/.test(element.localName) ? 'heading' : 'paragraph';
+    return spans.map(([start, end], i): Piece => ({
       text: text.slice(start, end),
       spineIndex,
       block,
       start,
       end,
-    })),
-  );
+      ends: i === spans.length - 1 ? last : 'piece',
+    }));
+  });
+  const final = pieces[pieces.length - 1];
+  if (final !== undefined) final.ends = 'chapter';
+  return pieces;
 }
 
 /** The range a piece covers in a chapter document, or null when its block is gone. */

@@ -28,7 +28,7 @@
   import VoiceSheet from './VoiceSheet.svelte';
   import { cancelDownload, measureVoice, voice as voiceState } from './voice.svelte';
   import { voiceService } from '../voice/index';
-  import { Speaker } from '../voice/audio';
+  import { Speaker, TODAY, finishPiece } from '../voice/audio';
   import { listen, type Listening } from '../voice/listen';
   import type { Narrator } from '../voice/narrator';
   import { piecesOf, type Lang } from '../voice/text';
@@ -353,7 +353,13 @@
       .filter((piece) => piece.block >= start.block)
       .map((piece) => piece.text);
     const current = listen(
-      { speak: (text, l, v) => loaded.then(() => voice.speak(text, l, v)) },
+      {
+        // The same pause follows every piece today, so what comes next does not matter yet.
+        speak: (text, l, v) =>
+          loaded
+            .then(() => voice.speak(text, l, v))
+            .then((samples) => finishPiece(samples, voice.sampleRate, 'piece', TODAY)),
+      },
       texts,
       lang,
       app.settings.voice,

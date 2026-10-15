@@ -96,6 +96,25 @@ describe('pieces', () => {
     expect(pieces.map((p) => p.text.length)).toEqual([MAX_PIECE, 20]);
   });
 
+  it('says what follows each piece: more of the block, a paragraph, a heading or the end', () => {
+    const sentence = 'Questa è una frase di prova che dura un poco. ';
+    const doc = chapter(`
+      <h2>Capitolo secondo</h2>
+      <p>${sentence.repeat(8)}</p>
+      <p>Un paragrafo breve.</p>
+      <ul><li>Un punto.</li></ul>
+    `);
+    const pieces = piecesOf(doc, 'it', 0);
+    expect(pieces.map((p) => p.block)).toEqual([0, 1, 1, 2, 3]);
+    expect(pieces.map((p) => p.ends)).toEqual([
+      'heading',
+      'piece',
+      'paragraph',
+      'paragraph',
+      'chapter',
+    ]);
+  });
+
   it('gives no pieces for a chapter that is only a picture', () => {
     expect(piecesOf(chapter('<p><img src="cover.jpg"></p>'), 'en', 0)).toEqual([]);
   });
@@ -120,6 +139,8 @@ describe('ranges', () => {
 
   it('gives null when the block is no longer there', () => {
     const doc = chapter('<p>Uno.</p>');
-    expect(rangeOf(doc, { text: 'x', spineIndex: 0, block: 3, start: 0, end: 1 })).toBeNull();
+    expect(
+      rangeOf(doc, { text: 'x', spineIndex: 0, block: 3, start: 0, end: 1, ends: 'chapter' }),
+    ).toBeNull();
   });
 });
