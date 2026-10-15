@@ -5,6 +5,7 @@
     reader,
     paused,
     waiting,
+    starting,
     onToggle,
     onSkip,
     rate,
@@ -18,6 +19,8 @@
     paused: boolean;
     /** The voice is being made and nothing is playing yet. */
     waiting: boolean;
+    /** Nothing has been heard yet since the reading started or moved. */
+    starting: boolean;
     onToggle: () => void;
     onSkip: (by: 1 | -1) => void;
     /** How fast the voice is heard, as a multiple of its own pace. */
@@ -66,5 +69,9 @@
   <button type="button" aria-label="Stop listening" title="Stop listening" onclick={onClose}
     ><Icon name="close" size={18} /></button
   >
-  <span class="sr-only" role="status">{waiting && !paused ? `${reader} is catching up…` : ''}</span>
+  <span class="listen-wait" role="status"
+    >{#if waiting && !paused}{#if starting}{reader} is getting ready…<small
+          >Hold on a sentence to read from there.</small
+        >{:else}{reader} is catching up…{/if}{/if}</span
+  >
 </div>

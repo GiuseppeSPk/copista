@@ -376,6 +376,27 @@ test('two taps in the middle fill the whole screen, and two more give it back', 
   await expect(page.locator('.where')).toContainText(/Page 1 of/);
 });
 
+test('a mouse fills the screen with a double click slower than a finger', async ({
+  page,
+  browserName,
+}) => {
+  test.skip(browserName !== 'chromium', "Playwright's WebKit grants no full screen");
+  await openReader(page);
+  await expect(page.locator('html')).not.toHaveAttribute('data-nav');
+  const full = () => page.evaluate(() => document.fullscreenElement !== null);
+  const box = (await page.locator('.pages').boundingBox())!;
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.up();
+  await page.waitForTimeout(400);
+  await page.mouse.down({ clickCount: 2 });
+  await page.mouse.up({ clickCount: 2 });
+  await expect.poll(full).toBe(true);
+  await page.locator('.pages').dblclick();
+  await expect.poll(full).toBe(false);
+  await expect(page.locator('.reading-bar')).toBeVisible();
+});
+
 test('turns the page with a tap on its sides or a swipe', async ({ page }) => {
   await openReader(page);
   // Raw mouse events skip Playwright's hit check: wait until the screen has stopped moving.
@@ -1284,6 +1305,52 @@ test.describe('Listen', () => {
       // The press is not a tap: the page stays as it was.
       await expect(page.locator('.reading-bar')).toBeVisible();
       await expect(page.locator('.where')).toContainText(/Page 1 of/);
+    });
+
+    test('a ring shows under a press held on the page, and goes when it is let go', async ({
+      page,
+    }) => {
+      await withVoice(page);
+      await openReader(page);
+      await expect(page.locator('html')).not.toHaveAttribute('data-nav');
+      const box = (await page.locator('.pages').boundingBox())!;
+      await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+      await page.mouse.down();
+      await expect(page.locator('.press-ring')).toBeVisible();
+      await page.mouse.up();
+      await expect(page.locator('.press-ring')).toHaveCount(0);
+    });
+
+    test('a finger held until the phone offers its own menu reads from there', async ({ page }) => {
+      await withVoice(page);
+      await openReader(page);
+      await expect(page.locator('html')).not.toHaveAttribute('data-nav');
+      const box = (await page.locator('.pages').boundingBox())!;
+      const point = { clientX: box.x + box.width / 2, clientY: box.y + box.height / 3 };
+      const opened = await page.locator('.pages').evaluate((pages, at) => {
+        const down = { ...at, bubbles: true, isPrimary: true, pointerType: 'touch', button: 0 };
+        pages.dispatchEvent(new PointerEvent('pointerdown', down));
+        const menu = new MouseEvent('contextmenu', { ...at, bubbles: true, cancelable: true });
+        pages.dispatchEvent(menu);
+        return !menu.defaultPrevented;
+      }, point);
+      expect(opened).toBe(false);
+      await expect(listening(page)).toBeVisible();
+    });
+
+    test('says the voice is getting ready until it is first heard', async ({ page }) => {
+      await withVoice(page);
+      // A slower fake, so the wait for the first piece lasts long enough to be seen.
+      await page.addInitScript(() => localStorage.setItem('copista-test-voice-ms', '20'));
+      await openReader(page);
+      await page.getByRole('button', { name: 'Listen', exact: true }).click();
+      const wait = listening(page).locator('.listen-wait');
+      await expect(wait).toBeVisible();
+      await expect(wait).toContainText('is getting ready');
+      await expect(wait).toContainText('Hold on a sentence to read from there.');
+      await expect(listening(page).locator('.play')).toHaveAttribute('aria-busy', 'true');
+      await expect.poll(() => plays(page), { timeout: 20_000 }).toBeGreaterThan(0);
+      await expect(wait).not.toContainText('is getting ready');
     });
 
     test('steps the speed of the voice and keeps it for the next time', async ({ page }) => {

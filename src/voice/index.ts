@@ -27,6 +27,9 @@ export const DOWNLOAD_BYTES = TOTAL_BYTES + ENGINE_BYTES;
  */
 export const TEST_VOICE_KEY = 'copista-test-voice';
 
+/** In development, the milliseconds the fake takes for each character, so a test can see the wait. */
+export const TEST_VOICE_PACE_KEY = 'copista-test-voice-ms';
+
 const real: VoiceService = {
   isInstalled: () => isInstalled(),
   install: (onProgress, signal) => install(onProgress, signal),
@@ -58,7 +61,11 @@ const fake: VoiceService = {
   },
   spaceUsed: async () => (localStorage.getItem(TEST_VOICE_KEY) === 'installed' ? TOTAL_BYTES : 0),
   // Quick, so a test hears a page out in seconds; the pause after each piece still counts.
-  narrator: () => new FakeNarrator({ msPerChar: 1, secondsPerChar: 0.002 }),
+  narrator: () =>
+    new FakeNarrator({
+      msPerChar: Number(localStorage.getItem(TEST_VOICE_PACE_KEY) ?? 1),
+      secondsPerChar: 0.002,
+    }),
 };
 
 /** The voice, or in development the fake when a test asks for it. */

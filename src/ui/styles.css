@@ -1898,6 +1898,45 @@ button.link:hover:not(:disabled) {
   min-height: 0;
 }
 
+/* A finger held on the text: a ring fills while the hold counts, and the voice starts when it is full. */
+.press-ring {
+  position: absolute;
+  z-index: 2;
+  width: 56px;
+  height: 56px;
+  margin: -28px 0 0 -28px;
+  border: 3px solid var(--accent);
+  border-radius: 50%;
+  pointer-events: none;
+  animation: press-fill 350ms linear 150ms both;
+}
+
+@keyframes press-fill {
+  from {
+    opacity: 0;
+    scale: 0.3;
+  }
+  to {
+    opacity: 0.9;
+    scale: 1;
+  }
+}
+
+@keyframes press-show {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 0.9;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .press-ring {
+    animation-name: press-show;
+  }
+}
+
 /* While the book is read aloud, the page ends above the listening bar, so its last line shows. */
 .sheet {
   --bar-room: 54px;
@@ -2274,21 +2313,68 @@ button.link:hover:not(:disabled) {
   }
 }
 
-/* While the voice is being made the play button breathes, so the wait reads as work. */
-.listen-bar .play[aria-busy='true'] {
-  animation: catching-up 1.4s var(--ease) infinite alternate;
+/* While the voice is being made a ring turns round the play button and a line
+   above the bar says so, so the wait reads as work and nobody leaves before
+   the first word. */
+.listen-bar .play {
+  position: relative;
+}
+
+.listen-bar .play[aria-busy='true']::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border: 2px solid transparent;
+  border-top-color: var(--accent);
+  border-right-color: var(--accent);
+  border-radius: 50%;
+  animation: catching-up 0.9s linear infinite;
+  pointer-events: none;
 }
 
 @keyframes catching-up {
   to {
-    opacity: 0.45;
+    transform: rotate(1turn);
   }
 }
 
+.listen-wait {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  translate: -50% 0;
+  padding: 4px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--card);
+  box-shadow: 0 6px 14px -10px rgb(0 0 0 / 0.4);
+  color: var(--ink);
+  white-space: nowrap;
+  pointer-events: none;
+  /* A wait too short to notice shows nothing. */
+  animation: rise 300ms var(--ease) 400ms backwards;
+}
+
+.listen-wait:empty {
+  display: none;
+}
+
+.listen-wait small {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  text-align: center;
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .listen-bar .play[aria-busy='true'] {
+  .listen-bar .play[aria-busy='true']::after {
     animation: none;
-    opacity: 0.6;
+    border-color: var(--accent);
+    border-style: dotted;
+  }
+
+  .listen-wait {
+    animation: none;
   }
 }
 

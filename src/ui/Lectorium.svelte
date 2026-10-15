@@ -359,13 +359,18 @@
   let pressTimer: ReturnType<typeof setTimeout> | undefined;
   let pressed = false;
   let pointerType = '';
+  // A ring grows under the finger while it is held, so the wait shows before the voice starts.
+  let pressRing = $state<{ x: number; y: number } | undefined>();
   // A single tap in the middle waits a moment, in case a second one follows.
   const DOUBLE_TAP_MS = 300;
+  // Windows waits half a second for a second click.
+  const DOUBLE_CLICK_MS = 500;
   let tapTimer: ReturnType<typeof setTimeout> | undefined;
 
   function endPress(): void {
     clearTimeout(pressTimer);
     pressTimer = undefined;
+    pressRing = undefined;
   }
 
   function onPointerDown(event: PointerEvent): void {
@@ -378,6 +383,8 @@
     if (event.button === 0) {
       const { clientX, clientY } = event;
       pressTimer = setTimeout(() => readFrom(clientX, clientY), PRESS_MS);
+      const box = host?.parentElement?.getBoundingClientRect();
+      if (box) pressRing = { x: clientX - box.left, y: clientY - box.top };
     }
   }
 
@@ -420,20 +427,26 @@
     }
     const side = zoneAt(event.clientX);
     if (side) return turn(side === 'next');
-    if (tapTimer !== undefined) {
+    // The system counts a mouse's clicks by its own setting, slower than a finger's taps.
+    if (event.detail > 2) return;
+    if (tapTimer !== undefined || event.detail === 2) {
       clearTimeout(tapTimer);
       tapTimer = undefined;
       return toggleFullscreen();
     }
-    tapTimer = setTimeout(() => {
-      tapTimer = undefined;
-      fit(!fitted);
-    }, DOUBLE_TAP_MS);
+    tapTimer = setTimeout(
+      () => {
+        tapTimer = undefined;
+        fit(!fitted);
+      },
+      pointerType === 'mouse' ? DOUBLE_CLICK_MS : DOUBLE_TAP_MS,
+    );
   }
 
   /** A long press on the text: the voice reads from the sentence under the finger. */
   function readFrom(clientX: number, clientY: number): void {
     pressTimer = undefined;
+    pressRing = undefined;
     pressed = true;
     if (!voiceState.status?.installed) return openVoiceSheet();
     const place = ctrl?.listeningStartAt(clientX, clientY);
@@ -1050,12 +1063,26 @@
               endPress();
             }}
             oncontextmenu={(event) => {
+              if (pointerType === 'mouse') return;
               // A finger held on the page reads from there instead of opening the menu.
-              if (pointerType !== 'mouse') event.preventDefault();
+              // The phone's own long press can come before the timer, or after a cancel.
+              event.preventDefault();
+              if (!pressed) {
+                endPress();
+                readFrom(event.clientX, event.clientY);
+              }
             }}
             onpointermove={onPointerMove}
             onpointerleave={() => (zone = undefined)}
           ></div>
+          {#if pressRing}
+            <span
+              class="press-ring"
+              style:left={`${pressRing.x}px`}
+              style:top={`${pressRing.y}px`}
+              aria-hidden="true"
+            ></span>
+          {/if}
           <span class="turn-hint turn-prev" aria-hidden="true"><Icon name="back" size={22} /></span>
           <span class="turn-hint turn-next" aria-hidden="true"><Icon name="arrow" size={22} /></span
           >
@@ -1107,6 +1134,7 @@
               reader={readerName}
               paused={aloudState.paused}
               waiting={aloudState.waiting}
+              starting={aloudState.piece === ''}
               onToggle={toggleAloud}
               onSkip={(by) => aloud?.skip(by)}
               rate={app.settings.voiceRate}
