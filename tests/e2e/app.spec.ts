@@ -872,7 +872,7 @@ test.describe('Listen', () => {
   }
 
   async function startDownload(page: Page): Promise<void> {
-    await page.getByRole('button', { name: 'Listen' }).click();
+    await page.getByRole('button', { name: 'Listen', exact: true }).click();
     const sheet = page.locator('#voice-sheet');
     await sheet.getByLabel('I accept the licence and its use restrictions').check();
     await sheet.getByRole('button', { name: 'Download the voice' }).click();
@@ -882,7 +882,7 @@ test.describe('Listen', () => {
   test('opens the voice sheet when the voice is not set up', async ({ page }) => {
     await withoutVoice(page);
     await openReader(page);
-    const listen = page.getByRole('button', { name: 'Listen' });
+    const listen = page.getByRole('button', { name: 'Listen', exact: true });
     await expect(listen).toHaveAttribute('aria-expanded', 'false');
     await listen.click();
     await expect(listen).toHaveAttribute('aria-expanded', 'true');
@@ -914,15 +914,15 @@ test.describe('Listen', () => {
     await withoutVoice(page);
     await openReader(page);
     const sheet = page.locator('#voice-sheet');
-    await page.getByRole('button', { name: 'Listen' }).click();
+    await page.getByRole('button', { name: 'Listen', exact: true }).click();
     await sheet.getByRole('button', { name: 'Close' }).click();
     await expect(sheet).toBeHidden();
-    await page.getByRole('button', { name: 'Listen' }).click();
+    await page.getByRole('button', { name: 'Listen', exact: true }).click();
     await expect(sheet).toBeVisible();
     await page.locator('.where').click();
     await expect(sheet).toBeHidden();
     // The sheet and the Look card never show together.
-    await page.getByRole('button', { name: 'Listen' }).click();
+    await page.getByRole('button', { name: 'Listen', exact: true }).click();
     await page.getByRole('button', { name: 'Look' }).click();
     await expect(sheet).toBeHidden();
     await expect(page.locator('#reader-look')).toBeVisible();
@@ -938,7 +938,7 @@ test.describe('Listen', () => {
     await expect(sheet.getByRole('status')).toContainText('The voice is ready.');
     await sheet.getByRole('button', { name: 'Listen from here' }).click();
     await expect(sheet).toBeHidden();
-    await expect(page.getByRole('button', { name: 'Listen' })).toHaveAttribute(
+    await expect(page.getByRole('button', { name: 'Listen', exact: true })).toHaveAttribute(
       'aria-pressed',
       'true',
     );
@@ -954,7 +954,7 @@ test.describe('Listen', () => {
       .poll(() => page.evaluate(() => localStorage.getItem('copista-test-voice')))
       .toBe('installed');
     // With the voice in, Listen stops opening the sheet and reads.
-    const listen = page.getByRole('button', { name: 'Listen' });
+    const listen = page.getByRole('button', { name: 'Listen', exact: true });
     await expect(listen).toHaveAttribute('aria-pressed', 'false');
     await expect(listen).not.toHaveAttribute('aria-expanded');
     await expect(page.locator('#voice-sheet')).toBeHidden();
@@ -1016,7 +1016,7 @@ test.describe('Listen', () => {
     expect(await page.evaluate(() => localStorage.getItem('copista-test-voice'))).toBe('absent');
     await page.goBack();
     await expect(page.locator('.where')).toContainText(/Page 1 of \d+/);
-    await page.getByRole('button', { name: 'Listen' }).click();
+    await page.getByRole('button', { name: 'Listen', exact: true }).click();
     await expect(
       page.locator('#voice-sheet').getByRole('button', { name: 'Download the voice' }),
     ).toBeVisible();
@@ -1029,7 +1029,7 @@ test.describe('Listen', () => {
     test.skip(browserName === 'webkit', 'this WebKit build has no audio');
     await withVoice(page);
     await openReader(page);
-    const button = page.getByRole('button', { name: 'Listen' });
+    const button = page.getByRole('button', { name: 'Listen', exact: true });
     await button.click();
     await expect(button).toHaveAttribute('aria-pressed', 'true');
     // The first play unlocks the audio during the press; the next ones are the pieces.
@@ -1040,6 +1040,166 @@ test.describe('Listen', () => {
     await page.waitForTimeout(1500);
     expect(await plays(page)).toBe(stopped);
     await expect(page.getByRole('alert')).toHaveCount(0);
+  });
+
+  /** The stretch marked as being read, and whether it is on screen; null where nothing is marked. */
+  const marked = (page: Page): Promise<{ text: string; onScreen: boolean } | null> =>
+    page.locator('iframe[title="Book page"]').evaluate((frame: HTMLIFrameElement) => {
+      const view = frame.contentWindow as unknown as {
+        CSS: { highlights?: Map<string, Set<Range>> };
+      };
+      const range = [...(view.CSS.highlights?.get('copista-reading') ?? [])][0];
+      if (range === undefined) return null;
+      const rect = range.getClientRects()[0] ?? range.getBoundingClientRect();
+      return { text: range.toString(), onScreen: rect.right > 0 && rect.left < frame.clientWidth };
+    });
+
+  const listening = (page: Page) => page.getByRole('region', { name: 'Listening' });
+
+  test.describe('the listening bar', () => {
+    // Playwright's WebKit on Windows plays no audio at all: play() fails as not supported.
+    test.skip(({ browserName }) => browserName === 'webkit', 'this WebKit build has no audio');
+
+    test('shows the bar while reading, and Stop listening hides it', async ({ page }) => {
+      await withVoice(page);
+      await openReader(page);
+      const button = page.getByRole('button', { name: 'Listen', exact: true });
+      await expect(listening(page)).toHaveCount(0);
+      await button.click();
+      const bar = listening(page);
+      await expect(bar).toBeVisible();
+      await expect(button).toHaveAttribute('aria-pressed', 'true');
+      await expect(bar.getByRole('button', { name: /^The Lect/ })).toContainText('Beta');
+      await bar.getByRole('button', { name: 'Pause' }).click();
+      await expect(bar.getByRole('button', { name: 'Play' })).toBeVisible();
+      const paused = await plays(page);
+      await page.waitForTimeout(1000);
+      expect(await plays(page)).toBe(paused);
+      await bar.getByRole('button', { name: 'Play' }).click();
+      await expect(bar.getByRole('button', { name: 'Pause' })).toBeVisible();
+      await expect(bar.getByRole('button', { name: 'Previous' })).toBeVisible();
+      await expect(bar.getByRole('button', { name: 'Next' })).toBeVisible();
+      await bar.getByRole('button', { name: 'Stop listening' }).click();
+      await expect(listening(page)).toHaveCount(0);
+      await expect(button).toHaveAttribute('aria-pressed', 'false');
+      await expect(page.getByRole('alert')).toHaveCount(0);
+    });
+
+    test('highlights the piece and turns the page to follow it', async ({ page, browserName }) => {
+      await withVoice(page);
+      await openReader(page);
+      await page.getByRole('button', { name: 'Listen', exact: true }).click();
+      if (browserName === 'chromium') {
+        await expect.poll(() => marked(page)).toMatchObject({ onScreen: true });
+      }
+      await expect(page.locator('.where')).toContainText(/Page 2 of/, { timeout: 20_000 });
+      if (browserName === 'chromium') {
+        await expect.poll(() => marked(page)).toMatchObject({ onScreen: true });
+      }
+    });
+
+    test('turning the page by hand restarts the reading there', async ({ page, browserName }) => {
+      await withVoice(page);
+      await openReader(page);
+      await page.getByRole('button', { name: 'Listen', exact: true }).click();
+      await expect.poll(() => plays(page)).toBeGreaterThanOrEqual(2);
+      await page.keyboard.press('ArrowRight');
+      const where = page.locator('.where');
+      await expect(where).toContainText(/Page 2 of/);
+      // The reading under way would turn back to page 1 for its next piece.
+      for (let i = 0; i < 6; i++) {
+        await page.waitForTimeout(250);
+        await expect(where).not.toContainText(/Page 1 of/);
+      }
+      if (browserName === 'chromium') {
+        await expect.poll(() => marked(page)).toMatchObject({ onScreen: true });
+      }
+      await expect(listening(page)).toBeVisible();
+    });
+
+    test('reading continues into the next chapter', async ({ page }) => {
+      await withVoice(page);
+      await openReader(page);
+      // On a wide screen the contents sit beside the page.
+      await page.getByRole('button', { name: 'Part 2' }).click();
+      const where = page.locator('.where');
+      await expect(where).toContainText('chapter 2 of 3');
+      await page.keyboard.press('ArrowLeft');
+      await expect(where).toContainText('chapter 1 of 3');
+      await page.getByRole('button', { name: 'Listen', exact: true }).click();
+      await expect(where).toContainText('chapter 2 of 3', { timeout: 20_000 });
+      await expect(listening(page)).toBeVisible();
+      await expect(page.getByRole('alert')).toHaveCount(0);
+    });
+
+    test('listening and autoscroll exclude each other', async ({ page }) => {
+      await withVoice(page);
+      await openReader(page);
+      const listen = page.getByRole('button', { name: 'Listen', exact: true });
+      const autoscroll = page.getByRole('button', { name: 'Autoscroll' });
+      await listen.click();
+      await expect(listening(page)).toBeVisible();
+      await autoscroll.click();
+      await expect(listening(page)).toHaveCount(0);
+      await expect(listen).toHaveAttribute('aria-pressed', 'false');
+      await expect(
+        page.locator('.autoscroll-bar').getByRole('button', { name: 'Pause' }),
+      ).toBeVisible();
+
+      await listen.click();
+      await expect(listening(page)).toBeVisible();
+      // One floating bar at a time: the scrolling stopped and its bar gave way.
+      await expect(page.locator('.autoscroll-bar')).toBeHidden();
+      await listening(page).getByRole('button', { name: 'Stop listening' }).click();
+      await expect(
+        page.locator('.autoscroll-bar').getByRole('button', { name: 'Play' }),
+      ).toBeVisible();
+    });
+
+    test('removing the voice stops the reading', async ({ page }) => {
+      await withVoice(page);
+      await openReader(page);
+      await page.getByRole('button', { name: 'Listen', exact: true }).click();
+      await listening(page)
+        .getByRole('button', { name: /^The Lect/ })
+        .click();
+      const sheet = page.locator('#voice-sheet');
+      await sheet.getByRole('button', { name: 'Remove the voice' }).click();
+      await expect(sheet.getByRole('status')).toContainText('has been removed');
+      await expect(listening(page)).toHaveCount(0);
+      // With no voice left, Listen goes back to setting one up.
+      const listen = page.getByRole('button', { name: 'Listen', exact: true });
+      await expect(listen).toHaveAttribute('title', /set up the voice/);
+      await expect(listen).not.toHaveAttribute('aria-pressed', 'true');
+      await expect(page.getByRole('alert')).toHaveCount(0);
+    });
+
+    test.describe('on a 320 px phone', () => {
+      test.use({ viewport: { width: 320, height: 640 } });
+
+      test('the bar fits a 320 px phone in the three looks', async ({ page }) => {
+        await withVoice(page);
+        await openReader(page);
+        await page.getByRole('button', { name: 'Listen', exact: true }).click();
+        await expect(listening(page).getByRole('button', { name: /^The Lect/ })).toBeVisible();
+        for (const look of ['Light', 'Sepia', 'Dark']) {
+          await page.getByRole('button', { name: 'Look', exact: true }).click();
+          await page.getByRole('button', { name: look, exact: true }).click();
+          await page.keyboard.press('Escape');
+          const bar = listening(page);
+          await expect(bar).toBeVisible();
+          const box = (await bar.boundingBox())!;
+          expect(box.height).toBeLessThanOrEqual(56);
+          for (const part of await bar.getByRole('button').all()) {
+            const b = (await part.boundingBox())!;
+            expect(b.x).toBeGreaterThanOrEqual(0);
+            expect(b.x + b.width).toBeLessThanOrEqual(320);
+            const clipped = await part.evaluate((e) => e.scrollWidth - e.clientWidth);
+            expect(clipped).toBeLessThanOrEqual(0);
+          }
+        }
+      });
+    });
   });
 
   test.describe('on a small phone', () => {
@@ -1256,7 +1416,7 @@ test('has no serious accessibility problems in any room, in either theme', async
   await openReader(page);
   const screens: [string, () => Promise<void>][] = [
     ['Lectorium', async () => {}],
-    ['Voice sheet', () => page.getByRole('button', { name: 'Listen' }).click()],
+    ['Voice sheet', () => page.getByRole('button', { name: 'Listen', exact: true }).click()],
     ['Bibliotheca', () => openRoom(page, 'Bibliotheca')],
     ['Scriptorium', () => openRoom(page, 'Scriptorium')],
     ['Archivum', () => openRoom(page, 'Archivum')],
@@ -1273,7 +1433,7 @@ test('has no serious accessibility problems in any room, in either theme', async
       'Voice sheet, dark',
       async () => {
         await page.getByRole('link', { name: 'Read a book' }).first().click();
-        await page.getByRole('button', { name: 'Listen' }).click();
+        await page.getByRole('button', { name: 'Listen', exact: true }).click();
       },
     ],
   ];

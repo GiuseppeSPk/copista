@@ -11,6 +11,10 @@ const PROSE = chapter(
   '<h1>One</h1><p>The first paragraph. It has two sentences.</p><p>The second paragraph.</p><p>The third paragraph.</p>',
 );
 const PICTURE = chapter('<p><img src="a.png" alt=""></p>');
+/** A paragraph long enough to be read in two pieces, as one that runs over a page. */
+const LONG = chapter(
+  `<h1>Two</h1><p>${'The paragraph begins on one page and goes on, '.repeat(5)}until here. ${'It ends on the next page, '.repeat(9)}at last.</p><p>The last paragraph.</p>`,
+);
 const MORE = chapter('<p>The next chapter begins.</p><p>And it ends.</p>');
 
 /** What a chapter reads aloud from a block on. */
@@ -25,6 +29,8 @@ class Reader {
   index = 0;
   block = 0;
   pauses = 0;
+  /** The texts that lie before the screen, on the page before or above it. */
+  readonly hidden = new Set<string>();
   /** The text of each range followed, or null when the mark was taken off. */
   readonly follows: (string | null)[] = [];
   onFollow: (count: number) => void = () => {};
@@ -33,6 +39,9 @@ class Reader {
 
   listeningStart() {
     return { doc: this.docs[this.index]!, spineIndex: this.index, block: this.block };
+  }
+  beforeScreen(range: Range): boolean {
+    return this.hidden.has(range.toString());
   }
   follow(range: Range | null): void {
     this.follows.push(range === null ? null : range.toString());
@@ -113,6 +122,17 @@ describe('reading aloud', () => {
     expect(reader.follows).toEqual([texts(PROSE)[0], null, ...texts(PROSE, 2), null]);
     // The bar stays up across the restart: the reading stopped only at the end.
     expect(states.indexOf(null)).toBe(states.length - 1);
+  });
+
+  it('starts at the first piece on screen when a paragraph began on the page before', async () => {
+    const { reader, aloud, end } = setUp([LONG]);
+    const [hidden, ...shown] = texts(LONG, 1);
+    expect(texts(LONG, 1).length).toBeGreaterThan(2);
+    reader.block = 1;
+    reader.hidden.add(hidden!);
+    aloud.start();
+    await end;
+    expect(reader.follows).toEqual([...shown, null]);
   });
 
   it('stops cleanly', async () => {

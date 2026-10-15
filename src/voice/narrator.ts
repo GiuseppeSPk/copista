@@ -107,9 +107,12 @@ export class FakeNarrator implements Narrator {
   readonly backend = 'fake';
   readonly sampleRate: number;
   private readonly msPerChar: number;
+  /** How long each character lasts once spoken. */
+  private readonly secondsPerChar: number;
 
-  constructor(options: { msPerChar?: number; sampleRate?: number } = {}) {
+  constructor(options: { msPerChar?: number; secondsPerChar?: number; sampleRate?: number } = {}) {
     this.msPerChar = options.msPerChar ?? 2;
+    this.secondsPerChar = options.secondsPerChar ?? 0.06;
     this.sampleRate = options.sampleRate ?? 44100;
   }
 
@@ -117,7 +120,7 @@ export class FakeNarrator implements Narrator {
 
   async speak(text: string): Promise<Float32Array> {
     await new Promise((resolve) => setTimeout(resolve, text.length * this.msPerChar));
-    return new Float32Array(Math.round(text.length * 0.06 * this.sampleRate));
+    return new Float32Array(Math.round(text.length * this.secondsPerChar * this.sampleRate));
   }
 
   destroy(): void {}

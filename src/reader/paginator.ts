@@ -18,6 +18,8 @@ export interface ChapterView {
   highlight(range: Range | null): void;
   /** Brings a stretch of the chapter on screen; true when the view moved. */
   reveal(range: Range): boolean;
+  /** Whether a stretch of the chapter starts before the screen, on an earlier page or above it. */
+  before(range: Range): boolean;
   destroy(): void;
 }
 
@@ -210,6 +212,13 @@ export class Paginator implements ChapterView {
     if (page === this.currentPage) return false;
     this.turnTo(page);
     return true;
+  }
+
+  before(range: Range): boolean {
+    if (this.frame === null) return false;
+    return (
+      this.pageAt(range.getClientRects()[0] ?? range.getBoundingClientRect()) < this.currentPage
+    );
   }
 
   /** Replaces the shown chapter; the old one stays visible until the new one is laid out. */

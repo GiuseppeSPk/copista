@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount, tick } from 'svelte';
+  import { onMount, tick, untrack } from 'svelte';
   import type { Settings } from '../rooms/archivum';
   import {
     addBookmark,
@@ -26,12 +26,14 @@
   import Icon from './Icon.svelte';
   import { errorMessage } from './text';
   import VoiceSheet from './VoiceSheet.svelte';
-  import { cancelDownload, measureVoice, voice as voiceState } from './voice.svelte';
+  import ListenBar from './ListenBar.svelte';
+  import { cancelDownload, measureVoice, READERS, voice as voiceState } from './voice.svelte';
   import { voiceService } from '../voice/index';
-  import { Speaker, TODAY } from '../voice/audio';
-  import { listen, type Listening } from '../voice/listen';
+  import { Speaker } from '../voice/audio';
   import type { Narrator } from '../voice/narrator';
-  import { piecesOf, type Lang } from '../voice/text';
+  import { mediaSession, type LockScreen } from '../voice/session';
+  import type { Lang } from '../voice/text';
+  import { ReadAloud, type AloudState } from '../rooms/lectorium/aloud';
 
   let { bookId }: { bookId?: string | undefined } = $props();
 
@@ -60,7 +62,10 @@
   let sheetOpen = $state(false);
   let listenButton: HTMLButtonElement | undefined = $state();
   let sheetBox: HTMLDivElement | undefined = $state();
-  let listening = $state.raw<Listening>();
+  let aloud: ReadAloud | undefined;
+  // What the listening bar shows; null when nothing is being read.
+  let aloudState = $state.raw<AloudState | null>(null);
+  let lock: LockScreen | undefined;
   let listenError = $state('');
   let narrator: Narrator | undefined;
   let speaker: Speaker | undefined;
@@ -77,6 +82,26 @@
   // Anything that takes the reader's eyes off the text stops it moving.
   $effect(() => {
     if (panelOpen || lookOpen || sheetOpen || error) ctrl?.pause();
+  });
+
+  // The voice reading; a derived value, so another setting saved leaves the reading alone.
+  const voiceId = $derived(app.settings.voice);
+  const readerName = $derived(READERS.find((r) => r.id === voiceId)?.name ?? 'The Lector');
+
+  // Another reader chosen takes up the reading from the page on screen.
+  $effect(() => {
+    void voiceId;
+    untrack(() => aloud?.restart());
+  });
+
+  // A voice taken off this device stops the reading that uses it.
+  $effect(() => {
+    if (aloudState && !voiceState.status?.installed) untrack(stopListening);
+  });
+
+  // The lock screen and the system's media controls show whether the reading plays.
+  $effect(() => {
+    if (aloudState) lock?.playing(!aloudState.paused);
   });
 
   const scrolling = $derived(app.settings.mode === 'scroll');
@@ -139,7 +164,15 @@
         session = opened;
         marks = opened.bookmarks;
         notes = opened.notes;
-        ctrl = new ReadingController(host, opened, look(), refreshWhere, (p) => (playing = p));
+        ctrl = new ReadingController(
+          host,
+          opened,
+          look(),
+          refreshWhere,
+          (p) => (playing = p),
+          // The reader turned the page or went elsewhere: the reading follows.
+          () => aloud?.restart(),
+        );
         await ctrl.open();
         host.focus();
         hint();
@@ -232,7 +265,9 @@
   function onWindowPointerDown(event: PointerEvent): void {
     const target = event.target as Node;
     if (lookOpen && !lookBox?.contains(target)) lookOpen = false;
-    if (sheetOpen && !sheetBox?.contains(target) && !listenButton?.contains(target)) {
+    // The buttons that open the voice sheet toggle it themselves on click.
+    const opener = (target as Element).closest?.('[aria-controls="voice-sheet"]');
+    if (sheetOpen && !sheetBox?.contains(target) && !listenButton?.contains(target) && !opener) {
       sheetOpen = false;
     }
   }
@@ -307,14 +342,22 @@
     else fit(!fitted);
   }
 
+  /** Space and a tap on the scrolling text: pause or go on with whatever moves, the voice first. */
   function togglePlay(): void {
+    if (aloud?.active) return toggleAloud();
     if (!ctrl) return;
     if (ctrl.playing) ctrl.pause();
     else ctrl.play();
   }
 
+  function toggleAloud(): void {
+    if (aloudState?.paused) aloud?.resume();
+    else aloud?.pause();
+  }
+
   /** The toolbar's Autoscroll: from pages it switches to one scrolling column and starts at once. */
   async function autoscroll(): Promise<void> {
+    stopListening();
     lookOpen = false;
     sheetOpen = false;
     if (!scrolling) await restyle({ mode: 'scroll' });
@@ -322,63 +365,77 @@
   }
 
   function stopListening(): void {
-    listening?.stop();
-    listening = undefined;
+    aloud?.stop();
+    aloud = undefined;
+    lock?.release();
+    lock = undefined;
+  }
+
+  function openVoiceSheet(): void {
+    lookOpen = false;
+    sheetOpen = !sheetOpen;
   }
 
   /**
-   * The toolbar's Listen: reads aloud from the first paragraph on screen to the
-   * end of the chapter, or stops.
+   * The toolbar's Listen: reads the book aloud from the first paragraph on
+   * screen, chapter after chapter, or stops. Without the voice it opens the
+   * sheet that sets it up.
    */
   function toggleListen(): void {
-    if (listening) return stopListening();
-    if (!voiceState.status?.installed) {
-      sheetOpen = !sheetOpen;
-      if (sheetOpen) lookOpen = false;
-      return;
-    }
-    const start = ctrl?.listeningStart();
-    if (!start || !session) return;
-    lookOpen = false;
-    sheetOpen = false;
-    voiceState.ready = false;
-    voiceState.message = undefined;
-    listenError = '';
+    if (aloud?.active) return stopListening();
+    if (!voiceState.status?.installed) return openVoiceSheet();
+    if (!ctrl || !session) return;
+    // One thing moves the page at a time: the voice takes over from the scrolling.
+    if (ctrl.playing) ctrl.pause();
     const out = (speaker ??= new Speaker());
     out.unlock();
     const voice = (narrator ??= voiceService().narrator());
     const loaded = voice.load();
     const lang: Lang = /^en/i.test(session.book.meta.language) ? 'en' : 'it';
-    const pieces = piecesOf(start.doc, lang, start.spineIndex).filter(
-      (piece) => piece.block >= start.block,
-    );
-    const current = listen(
-      {
+    const reading = new ReadAloud({
+      reader: ctrl,
+      narrator: {
         speak: (text, l, v) => loaded.then(() => voice.speak(text, l, v)),
         // Known once the voice has loaded, before the first piece is made.
         get sampleRate() {
           return voice.sampleRate;
         },
       },
-      pieces,
-      lang,
-      app.settings.voice,
-      {
+      player: {
         play: (samples, signal) => out.play(samples, voice.sampleRate, signal),
         pause: () => out.pause(),
         resume: () => out.resume(),
       },
-      TODAY,
-      { onPiece: () => {}, onWaiting: () => {} },
+      lang,
+      voice: () => app.settings.voice,
+      onState: (state) => {
+        if (aloud !== reading) return;
+        aloudState = state;
+        if (state === null) stopListening();
+      },
+      onError: (e) => {
+        if (aloud === reading) listenError = errorMessage(e);
+      },
+    });
+    aloud = reading;
+    listenError = '';
+    if (!reading.start()) {
+      aloud = undefined;
+      return;
+    }
+    lookOpen = false;
+    sheetOpen = false;
+    voiceState.ready = false;
+    voiceState.message = undefined;
+    lock = mediaSession(
+      { title: session.book.meta.title, artist: session.book.meta.authors.join(', ') },
+      {
+        play: () => reading.resume(),
+        pause: () => reading.pause(),
+        previous: () => reading.skip(-1),
+        next: () => reading.skip(1),
+      },
     );
-    listening = current;
-    current.done
-      .catch((e: unknown) => {
-        if (listening === current) listenError = errorMessage(e);
-      })
-      .finally(() => {
-        if (listening === current) listening = undefined;
-      });
   }
 
   // A turn of the wheel or a swipe of two fingers on a touchpad turns one page.
@@ -651,10 +708,10 @@
             bind:this={listenButton}
             onclick={toggleListen}
             disabled={!session}
-            aria-pressed={listening !== undefined}
-            title="Read the chapter aloud from this page"
+            aria-pressed={aloudState !== null}
+            title={aloudState ? 'Stop listening' : 'Read the book aloud from this page'}
           >
-            <Icon name={listening ? 'pause' : 'listen'} size={18} />
+            <Icon name="listen" size={18} />
             <span class="tool-label">Listen</span>
           </button>
         {:else}
@@ -918,7 +975,17 @@
             </div>
           {/if}
 
-          {#if scrolling && session}
+          {#if aloudState}
+            <ListenBar
+              reader={readerName}
+              paused={aloudState.paused}
+              waiting={aloudState.waiting}
+              onToggle={toggleAloud}
+              onSkip={(by) => aloud?.skip(by)}
+              onVoice={openVoiceSheet}
+              onClose={stopListening}
+            />
+          {:else if scrolling && session}
             <div class="autoscroll-bar" class:playing role="group" aria-label="Scrolling by itself">
               <button
                 type="button"

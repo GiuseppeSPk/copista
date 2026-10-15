@@ -53,6 +53,9 @@ vi.mock('../../../src/reader/paginator', async (importOriginal) => {
     highlight(range: Range | null): void {
       seen.calls.push(range === null ? 'highlight none' : 'highlight');
     }
+    before(): boolean {
+      return false;
+    }
     reveal(): boolean {
       seen.calls.push('reveal');
       this.page = 2;

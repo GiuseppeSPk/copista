@@ -2129,8 +2129,10 @@ button.link:hover:not(:disabled) {
   border-radius: 999px;
 }
 
-/* The text that moves by itself: its pace and the button that starts it. */
-.autoscroll-bar {
+/* The text that moves by itself: its pace and the button that starts it.
+   The listening bar shares its look, and only one of the two shows at a time. */
+.autoscroll-bar,
+.listen-bar {
   position: absolute;
   bottom: max(12px, env(safe-area-inset-bottom));
   left: 0;
@@ -2152,16 +2154,20 @@ button.link:hover:not(:disabled) {
 }
 
 /* While the text moves, the bar steps back; a finger or a pointer on it brings it forward. */
-.autoscroll-bar.playing {
+.autoscroll-bar.playing,
+.listen-bar.playing {
   opacity: 0.5;
 }
 
 .autoscroll-bar.playing:hover,
-.autoscroll-bar.playing:focus-within {
+.autoscroll-bar.playing:focus-within,
+.listen-bar.playing:hover,
+.listen-bar.playing:focus-within {
   opacity: 1;
 }
 
-.autoscroll-bar button {
+.autoscroll-bar button,
+.listen-bar button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -2187,8 +2193,50 @@ button.link:hover:not(:disabled) {
   white-space: nowrap;
 }
 
+/* The reader's name opens the voice sheet; it is never cut. */
+.listen-bar .reader {
+  flex-shrink: 0;
+  padding-inline: 12px;
+  white-space: nowrap;
+}
+
+/* On the narrowest phones the bar draws in, so the name and its Beta stay whole. */
+@media (max-width: 360px) {
+  .listen-bar {
+    gap: 2px;
+  }
+
+  .listen-bar button {
+    padding-inline: 4px;
+  }
+
+  .listen-bar .reader {
+    padding-inline: 8px;
+    font-size: 12px;
+  }
+}
+
+/* While the voice is being made the play button breathes, so the wait reads as work. */
+.listen-bar .play[aria-busy='true'] {
+  animation: catching-up 1.4s var(--ease) infinite alternate;
+}
+
+@keyframes catching-up {
+  to {
+    opacity: 0.45;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .listen-bar .play[aria-busy='true'] {
+    animation: none;
+    opacity: 0.6;
+  }
+}
+
 /* In full page the bar to leave it sits under the pace. */
-.lectorium.fitted .autoscroll-bar {
+.lectorium.fitted .autoscroll-bar,
+.lectorium.fitted .listen-bar {
   bottom: calc(max(12px, env(safe-area-inset-bottom)) + 52px);
 }
 

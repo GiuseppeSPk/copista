@@ -14,7 +14,10 @@ export interface AloudState {
 }
 
 export interface AloudDeps {
-  reader: Pick<ReadingController, 'listeningStart' | 'follow' | 'continueReading' | 'pause'>;
+  reader: Pick<
+    ReadingController,
+    'listeningStart' | 'beforeScreen' | 'follow' | 'continueReading' | 'pause'
+  >;
   narrator: Pick<Narrator, 'speak' | 'sampleRate'>;
   player: Player;
   lang: Lang;
@@ -108,7 +111,12 @@ export class ReadAloud {
     try {
       for (let at: typeof from | null = from; at !== null;) {
         const { doc, spineIndex, block } = at;
-        const pieces = piecesOf(doc, lang, spineIndex).filter((p) => p.block >= block);
+        // A paragraph that began on the page before is taken up at its first piece on screen.
+        const pieces = piecesOf(doc, lang, spineIndex).filter((p) => {
+          if (p.block !== block) return p.block > block;
+          const range = rangeOf(doc, p);
+          return range === null || !reader.beforeScreen(range);
+        });
         if (pieces.length > 0) {
           const listening = listen(
             this.deps.narrator,

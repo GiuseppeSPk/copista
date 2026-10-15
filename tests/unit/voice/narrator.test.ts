@@ -86,6 +86,11 @@ describe('FakeNarrator', () => {
     const narrator = new FakeNarrator({ msPerChar: 0, sampleRate: 1000 });
     expect(await narrator.speak('Ciao a tutti.')).toHaveLength(13 * 0.06 * 1000);
   });
+
+  it('can speak faster, for a test that listens to whole pages', async () => {
+    const narrator = new FakeNarrator({ msPerChar: 0, secondsPerChar: 0.002, sampleRate: 1000 });
+    expect(await narrator.speak('Ciao a tutti.')).toHaveLength(26);
+  });
 });
 
 describe('isDeviceLost', () => {

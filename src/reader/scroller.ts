@@ -147,6 +147,21 @@ export class Scroller implements ChapterView {
     if (this.frame !== null) markReading(this.frame.doc, range);
   }
 
+  before(range: Range): boolean {
+    if (this.frame === null) return false;
+    return this.offsetOnScreen(range) < 0;
+  }
+
+  /** How far down the screen the top of a range lies, in pixels; negative above it. */
+  private offsetOnScreen(range: Range): number {
+    if (this.frame === null) return 0;
+    return (
+      this.frame.element.getBoundingClientRect().top +
+      range.getBoundingClientRect().top -
+      (this.host.getBoundingClientRect().top + this.host.clientTop)
+    );
+  }
+
   /**
    * Leaves the range where it is while its top lies between an eighth and two
    * thirds of the way down the screen; otherwise glides it to a third, or jumps
@@ -155,10 +170,7 @@ export class Scroller implements ChapterView {
   reveal(range: Range): boolean {
     if (this.frame === null) return false;
     const height = this.host.clientHeight;
-    const y =
-      this.frame.element.getBoundingClientRect().top +
-      range.getBoundingClientRect().top -
-      (this.host.getBoundingClientRect().top + this.host.clientTop);
+    const y = this.offsetOnScreen(range);
     if (y >= height / 8 && y <= (2 * height) / 3) return false;
     const maxScroll = Math.max(0, this.host.scrollHeight - height);
     const from = this.host.scrollTop;

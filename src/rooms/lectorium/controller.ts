@@ -161,6 +161,11 @@ export class ReadingController {
     }
   }
 
+  /** Whether a stretch of the chapter shown starts before the screen. */
+  beforeScreen(range: Range): boolean {
+    return !this.destroyed && this.view.before(range);
+  }
+
   /** Opens the next chapter for the reading aloud; false at the end of the book. */
   continueReading(): Promise<boolean> {
     return this.run(() => this.openNextChapter());

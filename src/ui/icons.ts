@@ -26,6 +26,8 @@ export const PATHS = {
   minus: 'M5 12h14',
   play: 'M7.5 4.5v15L19 12z',
   pause: 'M8 5v14M16 5v14',
+  previous: 'M6 5v14M18 5.5 9 12l9 6.5z',
+  next: 'M18 5v14M6 5.5 15 12l-9 6.5z',
   text: 'M4 7V5h10v2M9 5v14M7 19h4M14 12v-1.5h6V12M17 10.5V19M15.5 19h3',
 } as const;
 

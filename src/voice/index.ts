@@ -57,7 +57,8 @@ const fake: VoiceService = {
     localStorage.setItem(TEST_VOICE_KEY, 'absent');
   },
   spaceUsed: async () => (localStorage.getItem(TEST_VOICE_KEY) === 'installed' ? TOTAL_BYTES : 0),
-  narrator: () => new FakeNarrator(),
+  // Quick, so a test hears a page out in seconds; the pause after each piece still counts.
+  narrator: () => new FakeNarrator({ msPerChar: 1, secondsPerChar: 0.002 }),
 };
 
 /** The voice, or in development the fake when a test asks for it. */
