@@ -2300,11 +2300,22 @@ button.link:hover:not(:disabled) {
   }
 }
 
-/* A wide system font, as on some Android phones and on Linux, still leaves the bar inside the screen. */
+/* On the narrowest phones the bar may reach over the page's margins, centred on
+   the page as the page is on the screen, so a wide system font, as on some
+   Android phones and on Linux, leaves every button whole. */
+@media (max-width: 360px) {
+  .listen-bar {
+    left: 50%;
+    right: auto;
+    max-width: calc(100vw - 8px);
+    margin-inline: 0;
+    transform: translateX(-50%);
+  }
+}
+
 @media (max-width: 340px) and (pointer: coarse) {
   .listen-bar {
     gap: 1px;
-    max-width: calc(100% - 8px);
   }
 
   .listen-bar button,
