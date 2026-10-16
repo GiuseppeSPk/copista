@@ -14,10 +14,17 @@ import type { VoiceId } from '../rooms/archivum';
 import { changeSettings } from './state.svelte';
 import { errorMessage } from './text';
 
-/** The two readers, each with a recorded sample: Collodi for the Lector, Manzoni for the Lectrix. */
-export const READERS: { id: VoiceId; name: string; sample: string; from: string }[] = [
-  { id: 'M2', name: 'The Lector', sample: 'voice/lector', from: 'Pinocchio, Collodi' },
-  { id: 'F1', name: 'The Lectrix', sample: 'voice/lectrix', from: 'I promessi sposi, Manzoni' },
+/**
+ * The two readers, each with a recorded sample. Both read the same lines,
+ * written for Copista in plain present-day Italian so the voices can be
+ * compared: "Mi ricordo ancora l'odore di quella cucina: caffè, pane tostato e
+ * la radio sempre accesa. Mia nonna canticchiava senza sapere le parole, e io
+ * facevo finta di leggere il giornale, con le gambe che penzolavano dalla
+ * sedia."
+ */
+export const READERS: { id: VoiceId; name: string; sample: string }[] = [
+  { id: 'M2', name: 'The Lector', sample: 'voice/lector' },
+  { id: 'F1', name: 'The Lectrix', sample: 'voice/lectrix' },
 ];
 
 export const voice = $state<{

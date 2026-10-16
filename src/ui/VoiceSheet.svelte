@@ -42,10 +42,11 @@
   </div>
 
   <h3>Hear them first</h3>
+  <p class="note">Both read the same few lines, so you can compare them.</p>
   <ul class="samples">
     {#each READERS as reader (reader.id)}
       <li>
-        <span class="sample-name">{reader.name} <small>reads {reader.from}</small></span>
+        <span class="sample-name">{reader.name}</span>
         <!-- Opus in WebM for most browsers, AAC for older Safari. -->
         <audio controls preload="none">
           <source src="{reader.sample}.webm" type="audio/webm" />

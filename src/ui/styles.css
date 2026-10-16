@@ -1441,11 +1441,6 @@ button.link:hover:not(:disabled) {
   font-weight: 600;
 }
 
-.sample-name small {
-  color: var(--muted);
-  font-weight: 400;
-}
-
 .samples audio {
   width: 100%;
 }

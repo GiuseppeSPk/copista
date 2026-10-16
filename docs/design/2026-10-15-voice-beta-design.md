@@ -73,7 +73,7 @@ beside it. Its contents are the Auditorium's, in the same order and with the sam
 they still fit:
 
 - one sentence of introduction;
-- the two samples, the Lector (Collodi) and the Lectrix (Manzoni);
+- the two samples, the Lector and the Lectrix reading the same lines;
 - not set up yet:
   - "Works best on recent phones and computers.";
   - the download size, the host, and that it then reads offline;
@@ -186,6 +186,10 @@ recorded again with the final settings.
   stay true now that the defaults have moved.
 - The two samples were recorded again through the app's own voice code, with these settings,
   at 16 steps.
+- After the Android trial of 16 October the samples were recorded once more, the silence
+  trimmed, both voices on the same few lines of plain present-day Italian written for Copista
+  instead of Collodi and Manzoni, whose old words suit the lab better than a first hearing.
+  The lines, a memory of a grandmother's kitchen, were chosen by ear from seven candidates.
 
 ## 8. Units
 
