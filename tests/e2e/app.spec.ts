@@ -7,6 +7,16 @@ import { epubZip, nav, opf, xhtml } from '../fixtures/epub-builder';
 const LONG_BOOK = 'tests/fixtures/generated/long-book.epub';
 const BASIC_DOCX = 'tests/fixtures/generated/basic.docx';
 
+/**
+ * The name a download is offered under. Playwright's WebKit on Linux turns the
+ * spaces of a suggested name into underscores, though the page asked for
+ * spaces, so there the same name is expected with them.
+ */
+function offeredAs(name: string): string {
+  const webkitOnLinux = test.info().project.name === 'webkit' && process.platform === 'linux';
+  return webkitOnLinux ? name.replaceAll(' ', '_') : name;
+}
+
 /** Every request the page makes outside its own origin. */
 function watchForeignRequests(page: Page, origin: string): string[] {
   const foreign: string[] = [];
@@ -505,7 +515,7 @@ test.describe('Scriptorium', () => {
       await page.getByLabel('Choose files').setInputFiles(LONG_BOOK);
       const download = page.waitForEvent('download');
       await page.getByRole('button', { name: label, exact: true }).click();
-      expect((await download).suggestedFilename()).toBe(`Long Book${extension}`);
+      expect((await download).suggestedFilename()).toBe(offeredAs(`Long Book${extension}`));
       await expect(page.getByRole('status')).toContainText(`Saved “Long Book${extension}”.`);
       const check = page.getByRole('region', { name: 'Checked against the original' });
       await expect(check.getByRole('definition').first()).toContainText(/^\s*All [\d,]+/);
@@ -629,7 +639,7 @@ test.describe('Scriptorium', () => {
     await page.getByLabel('Author').fill('A. Writer');
     const download = page.waitForEvent('download');
     await page.getByRole('button', { name: 'EPUB', exact: true }).click();
-    expect((await download).suggestedFilename()).toBe('My Notes.epub');
+    expect((await download).suggestedFilename()).toBe(offeredAs('My Notes.epub'));
   });
 
   test('converts plain text to EPUB without a title', async ({ page }) => {
@@ -748,7 +758,7 @@ test.describe('Scriptorium', () => {
     const all = page.waitForEvent('download');
     await page.getByRole('button', { name: 'Download all (.zip)' }).click();
     const zip = await all;
-    expect(zip.suggestedFilename()).toBe('Copista copies (Word).zip');
+    expect(zip.suggestedFilename()).toBe(offeredAs('Copista copies (Word).zip'));
     const entries = unzipSync(new Uint8Array(readFileSync((await zip.path())!)));
     // The Markdown file takes its title from its only top heading.
     expect(Object.keys(entries).sort()).toEqual(['One.docx', 'b.docx', 'c.docx']);
@@ -831,7 +841,7 @@ test.describe('Scriptorium', () => {
     await expect(page.getByRole('button', { name: 'EPUB', exact: true })).toHaveCount(0);
     const download = page.waitForEvent('download');
     await page.getByRole('button', { name: 'Text', exact: true }).click();
-    expect((await download).suggestedFilename()).toBe('Long Book.txt');
+    expect((await download).suggestedFilename()).toBe(offeredAs('Long Book.txt'));
     // The copy is read from the book already on the shelf, not a second one.
     await page.getByRole('button', { name: 'Read it here' }).click();
     await expect(page).toHaveURL(`/#/read/${encodeURIComponent(book!)}`);

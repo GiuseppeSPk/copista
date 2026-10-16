@@ -2300,11 +2300,17 @@ button.link:hover:not(:disabled) {
   }
 }
 
+/* A wide system font, as on some Android phones and on Linux, still leaves the bar inside the screen. */
 @media (max-width: 340px) and (pointer: coarse) {
+  .listen-bar {
+    gap: 1px;
+    max-width: calc(100% - 8px);
+  }
+
   .listen-bar button,
   .listen-bar .rate {
-    min-width: 40px;
-    min-height: 40px;
+    min-width: 38px;
+    min-height: 38px;
   }
 }
 
