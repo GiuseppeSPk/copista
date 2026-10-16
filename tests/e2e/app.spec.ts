@@ -1948,3 +1948,86 @@ test.describe('the month’s draw', () => {
     });
   });
 });
+
+test.describe('the offer to install the app', () => {
+  test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+
+  test.beforeEach(({ browserName }) => {
+    test.skip(browserName === 'webkit', 'Only Chromium browsers offer to install a page this way.');
+  });
+
+  /** Fires the event Chrome on Android sends when a page can be installed, answered with `outcome`. */
+  async function offerInstall(page: Page, outcome: 'accepted' | 'dismissed'): Promise<void> {
+    await page.evaluate((outcome) => {
+      const event = Object.assign(new Event('beforeinstallprompt', { cancelable: true }), {
+        prompt: async () => {
+          (window as unknown as { prompted: boolean }).prompted = true;
+        },
+        userChoice: Promise.resolve({ outcome }),
+      });
+      window.dispatchEvent(event);
+    }, outcome);
+  }
+
+  const offer = (page: Page) => page.getByRole('complementary', { name: 'Install Copista' });
+
+  async function openHall(page: Page): Promise<void> {
+    await page.goto('/');
+    await expect(page.getByRole('heading', { level: 1, name: 'Copista' })).toBeVisible();
+  }
+
+  test('rises after a few seconds above the rooms and opens the browser’s dialog', async ({
+    page,
+  }) => {
+    await page.clock.install();
+    await openHall(page);
+    await offerInstall(page, 'accepted');
+    await expect(offer(page)).toBeHidden();
+    await page.clock.runFor(6500);
+    await expect(offer(page)).toBeVisible();
+    // Measured where it comes to rest, not on its way up.
+    await offer(page).evaluate((el) => el.getAnimations().forEach((a) => a.finish()));
+    const card = (await offer(page).boundingBox())!;
+    const bar = (await page.getByRole('navigation', { name: 'Rooms' }).boundingBox())!;
+    expect(card.y + card.height).toBeLessThanOrEqual(bar.y);
+    await offer(page).getByRole('button', { name: 'Install' }).click();
+    await expect(offer(page)).toBeHidden();
+    expect(await page.evaluate(() => (window as unknown as { prompted?: boolean }).prompted)).toBe(
+      true,
+    );
+  });
+
+  test('stays away after “Not now”', async ({ page }) => {
+    await page.clock.install();
+    await openHall(page);
+    await offerInstall(page, 'dismissed');
+    await page.clock.runFor(6500);
+    await offer(page).getByRole('button', { name: 'Not now' }).click();
+    await expect(offer(page)).toBeHidden();
+    await openHall(page);
+    await page.reload();
+    await expect(page.getByRole('heading', { level: 1, name: 'Copista' })).toBeVisible();
+    await offerInstall(page, 'dismissed');
+    await page.clock.runFor(6500);
+    await expect(offer(page)).toBeHidden();
+  });
+
+  test('never covers an open book', async ({ page }) => {
+    await openReader(page);
+    await offerInstall(page, 'accepted');
+    await page.waitForTimeout(6500);
+    await expect(offer(page)).toBeHidden();
+    await openRoom(page, 'Bibliotheca');
+    await expect(offer(page)).toBeVisible();
+  });
+
+  test('is not offered on a computer', async ({ browser }) => {
+    const page = await browser.newPage({ hasTouch: false });
+    await page.clock.install();
+    await openHall(page);
+    await offerInstall(page, 'accepted');
+    await page.clock.runFor(6500);
+    await expect(offer(page)).toBeHidden();
+    await page.close();
+  });
+});

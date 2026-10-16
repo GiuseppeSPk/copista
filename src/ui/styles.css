@@ -4040,6 +4040,78 @@ kbd {
   letter-spacing: 0.12em;
 }
 
+/* The offer to install the app, a card that rises at the foot of the screen. */
+.install-offer {
+  position: fixed;
+  bottom: calc(12px + env(safe-area-inset-bottom));
+  left: 50%;
+  z-index: 7;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 4px 12px;
+  width: min(26rem, calc(100% - 24px));
+  padding: 12px 14px;
+  border: 1px solid var(--frame-strong);
+  border-radius: 12px;
+  background: var(--card);
+  box-shadow: 0 12px 32px -10px var(--shadow);
+  transform: translateX(-50%);
+  animation: offer-in 320ms var(--ease) backwards;
+}
+
+.install-mark {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  background: #110f0d;
+  color: #f2c14e;
+}
+
+.install-offer p {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+.install-offer p span {
+  color: var(--muted);
+}
+
+.install-actions {
+  display: flex;
+  grid-column: 1 / -1;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 16px;
+}
+
+.install-actions button {
+  min-height: 44px;
+}
+
+.install-actions button.link {
+  padding: 4px 8px;
+  color: var(--muted);
+}
+
+@keyframes offer-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 16px);
+  }
+}
+
+@media (max-width: 700px) {
+  .install-offer {
+    bottom: calc(var(--nav-h) + 12px + env(safe-area-inset-bottom));
+  }
+}
+
 /* Shown while a file is dragged over the page. */
 .drop-veil {
   position: fixed;
