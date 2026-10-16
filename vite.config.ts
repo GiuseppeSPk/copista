@@ -24,12 +24,18 @@ export default defineConfig({
         start_url: '.',
         scope: '.',
         display: 'standalone',
-        background_color: '#f6f4ef',
-        theme_color: '#a3241c',
+        // The icon, the splash screen and the bar above the app wear the dark theme: lamp gold on near-black.
+        background_color: '#110f0d',
+        theme_color: '#110f0d',
         icons: [
           { src: 'icon-192.png', sizes: '192x192', type: 'image/png' },
           { src: 'icon-512.png', sizes: '512x512', type: 'image/png' },
-          { src: 'icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+          {
+            src: 'icon-maskable-512.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'maskable',
+          },
           { src: 'icon.svg', sizes: 'any', type: 'image/svg+xml' },
         ],
       },

@@ -1,17 +1,19 @@
-// Renders public/icon.svg to the PNG sizes the web app manifest and iOS need.
+// Renders public/icon.svg to the PNG sizes the web app manifest and iOS need, and
+// public/icon-maskable.svg, whose mark sits inside the circle Android may cut the icon to.
 import { readFileSync } from 'node:fs';
 import { chromium } from '@playwright/test';
 
-const SIZES: [string, number][] = [
-  ['public/icon-192.png', 192],
-  ['public/icon-512.png', 512],
-  ['public/apple-touch-icon.png', 180],
+const SIZES: [string, string, number][] = [
+  ['public/icon.svg', 'public/icon-192.png', 192],
+  ['public/icon.svg', 'public/icon-512.png', 512],
+  ['public/icon.svg', 'public/apple-touch-icon.png', 180],
+  ['public/icon-maskable.svg', 'public/icon-maskable-512.png', 512],
 ];
 
-const svg = readFileSync('public/icon.svg', 'utf8');
 const browser = await chromium.launch();
 try {
-  for (const [path, size] of SIZES) {
+  for (const [source, path, size] of SIZES) {
+    const svg = readFileSync(source, 'utf8');
     const page = await browser.newPage({ viewport: { width: size, height: size } });
     await page.setContent(
       `<style>html,body{margin:0}svg{display:block;width:${size}px;height:${size}px}</style>${svg}`,
