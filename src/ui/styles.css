@@ -1422,6 +1422,21 @@ button.link:hover:not(:disabled) {
 }
 
 /* The voice sheet: hear the two readers, then set up the voice. */
+.sample-langs {
+  display: flex;
+  gap: 8px;
+  margin: 0 0 12px;
+}
+
+.sample-langs button {
+  min-width: 88px;
+}
+
+.sample-langs button[aria-pressed='true'] {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 .samples {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr));

@@ -949,9 +949,12 @@ test.describe('Listen', () => {
     await expect(sheet.getByRole('heading', { name: /^The Lector/ })).toContainText('Beta');
     await expect(sheet.getByText('It may stumble over a name or a number')).toBeVisible();
     await expect(sheet.locator('audio')).toHaveCount(2);
-    for (const name of ['lector', 'lectrix']) {
-      for (const extension of ['webm', 'm4a']) {
-        expect((await page.request.get(`/voice/${name}.${extension}`)).status()).toBe(200);
+    for (const lang of ['it', 'en']) {
+      for (const name of ['lector', 'lectrix']) {
+        for (const extension of ['webm', 'm4a']) {
+          const sample = await page.request.get(`/voice/${lang}/${name}.${extension}`);
+          expect(sample.status()).toBe(200);
+        }
       }
     }
     for (const file of ['openrail-m.txt', 'notices.txt']) {
@@ -965,6 +968,70 @@ test.describe('Listen', () => {
     await page.keyboard.press('Escape');
     await expect(sheet).toBeHidden();
     await expect(listen).toBeFocused();
+  });
+
+  test('plays the samples in the language of the book, and in the other on a press', async ({
+    page,
+  }) => {
+    await withoutVoice(page);
+    const sources = (lang: string): string[] =>
+      ['lector', 'lectrix'].flatMap((name) => [`${lang}/${name}.webm`, `${lang}/${name}.m4a`]);
+    const heard = async (): Promise<string[]> =>
+      (await page
+        .locator('#voice-sheet audio source')
+        .evaluateAll((all) =>
+          all.map((s) => (s as HTMLSourceElement).src.replace(/.*\/voice\//, '')),
+        )) as string[];
+    const sheetIn = async (): Promise<void> => {
+      await page.getByRole('button', { name: 'Listen', exact: true }).click();
+      await expect(page.locator('#voice-sheet')).toBeVisible();
+    };
+    const group = page.getByRole('group', { name: 'Language of the samples' });
+    const italiano = group.getByRole('button', { name: 'Italiano' });
+    const english = group.getByRole('button', { name: 'English' });
+
+    // An English book: the samples are heard in English first.
+    await openReader(page);
+    await sheetIn();
+    await expect(english).toHaveAttribute('aria-pressed', 'true');
+    await expect(italiano).toHaveAttribute('aria-pressed', 'false');
+    expect(await heard()).toEqual(sources('en'));
+    await italiano.click();
+    await expect(italiano).toHaveAttribute('aria-pressed', 'true');
+    expect(await heard()).toEqual(sources('it'));
+
+    // An Italian book: in Italian first, the language the voice reads it in.
+    await page.goto('/#/lectorium');
+    await page.getByLabel('Add EPUB books').setInputFiles({
+      name: 'libro.epub',
+      mimeType: 'application/epub+zip',
+      buffer: Buffer.from(
+        epubZip({
+          'OEBPS/content.opf': opf({
+            title: 'Libro',
+            language: 'it',
+            items: [
+              {
+                id: 'nav',
+                href: 'nav.xhtml',
+                mediaType: 'application/xhtml+xml',
+                properties: 'nav',
+              },
+              { id: 'c1', href: 'c1.xhtml', mediaType: 'application/xhtml+xml' },
+            ],
+            spine: ['c1'],
+          }),
+          'OEBPS/nav.xhtml': nav([{ label: 'Uno', href: 'c1.xhtml' }]),
+          'OEBPS/c1.xhtml': xhtml('Uno', '<p>C’era una volta un pezzo di legno.</p>'),
+        }),
+      ),
+    });
+    await page.getByRole('link', { name: 'Libro' }).click();
+    await sheetIn();
+    await expect(italiano).toHaveAttribute('aria-pressed', 'true');
+    expect(await heard()).toEqual(sources('it'));
+    await english.click();
+    expect(await heard()).toEqual(sources('en'));
   });
 
   test('closes the voice sheet on a press outside it, and with its close button', async ({

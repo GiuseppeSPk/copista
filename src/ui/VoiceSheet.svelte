@@ -3,8 +3,10 @@
   import Icon from './Icon.svelte';
   import { app } from './state.svelte';
   import { megabytes } from './text';
+  import type { Lang } from '../voice/text';
   import {
     READERS,
+    SAMPLE_LANGS,
     cancelDownload,
     chooseReader,
     downloadVoice,
@@ -12,9 +14,13 @@
     voice,
   } from './voice.svelte';
 
-  let { onListen, onClose }: { onListen: () => void; onClose: () => void } = $props();
+  let { lang, onListen, onClose }: { lang: Lang; onListen: () => void; onClose: () => void } =
+    $props();
 
   let listenHere: HTMLButtonElement | undefined = $state();
+  // The samples are first heard in the open book's language, until the reader picks the other.
+  let chosen: Lang | undefined = $state();
+  const heard = $derived(chosen ?? lang);
 
   // The Download button is gone once the voice is in, so its focus moves on to the next thing to
   // do, which also brings it into view.
@@ -43,15 +49,28 @@
 
   <h3>Hear them first</h3>
   <p class="note">Both read the same few lines, so you can compare them.</p>
+  <div class="sample-langs" role="group" aria-label="Language of the samples">
+    {#each SAMPLE_LANGS as { lang: value, name } (value)}
+      <button
+        type="button"
+        lang={value}
+        aria-pressed={heard === value}
+        onclick={() => (chosen = value)}>{name}</button
+      >
+    {/each}
+  </div>
   <ul class="samples">
     {#each READERS as reader (reader.id)}
       <li>
         <span class="sample-name">{reader.name}</span>
-        <!-- Opus in WebM for most browsers, AAC for older Safari. -->
-        <audio controls preload="none">
-          <source src="{reader.sample}.webm" type="audio/webm" />
-          <source src="{reader.sample}.m4a" type="audio/mp4" />
-        </audio>
+        <!-- A new element for the other language, since a source changed in place is not loaded.
+             Opus in WebM for most browsers, AAC for older Safari. -->
+        {#key heard}
+          <audio controls preload="none" lang={heard}>
+            <source src="voice/{heard}/{reader.sample}.webm" type="audio/webm" />
+            <source src="voice/{heard}/{reader.sample}.m4a" type="audio/mp4" />
+          </audio>
+        {/key}
       </li>
     {/each}
   </ul>

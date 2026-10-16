@@ -11,20 +11,30 @@ import {
   type VoiceStatus,
 } from '../rooms/voice';
 import type { VoiceId } from '../rooms/archivum';
+import type { Lang } from '../voice/text';
 import { changeSettings } from './state.svelte';
 import { errorMessage } from './text';
 
 /**
- * The two readers, each with a recorded sample. Both read the same lines,
- * written for Copista in plain present-day Italian so the voices can be
- * compared: "Mi ricordo ancora l'odore di quella cucina: caffè, pane tostato e
- * la radio sempre accesa. Mia nonna canticchiava senza sapere le parole, e io
- * facevo finta di leggere il giornale, con le gambe che penzolavano dalla
- * sedia."
+ * The two readers, each with a recorded sample in each language, under
+ * voice/<lang>/. Both read the same lines, written for Copista so the voices
+ * can be compared: in Italian, "Mi ricordo ancora l'odore di quella cucina:
+ * caffè, pane tostato e la radio sempre accesa. Mia nonna canticchiava senza
+ * sapere le parole, e io facevo finta di leggere il giornale, con le gambe che
+ * penzolavano dalla sedia."; in English, "I still remember the smell of that
+ * kitchen: coffee, toast, and the radio always on. My grandmother hummed along
+ * without knowing the words, and I pretended to read the newspaper, my legs
+ * dangling from the chair."
  */
 export const READERS: { id: VoiceId; name: string; sample: string }[] = [
-  { id: 'M2', name: 'The Lector', sample: 'voice/lector' },
-  { id: 'F1', name: 'The Lectrix', sample: 'voice/lectrix' },
+  { id: 'M2', name: 'The Lector', sample: 'lector' },
+  { id: 'F1', name: 'The Lectrix', sample: 'lectrix' },
+];
+
+/** The languages the samples are recorded in, each named in its own words. */
+export const SAMPLE_LANGS: { lang: Lang; name: string }[] = [
+  { lang: 'it', name: 'Italiano' },
+  { lang: 'en', name: 'English' },
 ];
 
 export const voice = $state<{

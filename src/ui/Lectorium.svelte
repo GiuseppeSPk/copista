@@ -89,6 +89,8 @@
   // The voice reading; a derived value, so another setting saved leaves the reading alone.
   const voiceId = $derived(app.settings.voice);
   const readerName = $derived(READERS.find((r) => r.id === voiceId)?.name ?? 'The Lector');
+  // The voice reads English books in English and every other book in Italian.
+  const bookLang: Lang = $derived(session && /^en/i.test(session.book.meta.language) ? 'en' : 'it');
 
   // Another reader chosen takes up the reading from the page on screen.
   $effect(() => {
@@ -522,7 +524,7 @@
     out.setRate(app.settings.voiceRate);
     const voice = (narrator ??= voiceService().narrator());
     const loaded = voice.load();
-    const lang: Lang = /^en/i.test(session.book.meta.language) ? 'en' : 'it';
+    const lang = bookLang;
     const reading = new ReadAloud({
       reader: ctrl,
       narrator: {
@@ -942,7 +944,7 @@
       </div>
       {#if sheetOpen}
         <div class="voice-sheet-box" bind:this={sheetBox}>
-          <VoiceSheet onListen={toggleListen} onClose={closeVoiceSheet} />
+          <VoiceSheet lang={bookLang} onListen={toggleListen} onClose={closeVoiceSheet} />
         </div>
       {/if}
     </div>
