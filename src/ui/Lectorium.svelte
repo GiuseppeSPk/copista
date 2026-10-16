@@ -29,7 +29,7 @@
   import ListenBar from './ListenBar.svelte';
   import { cancelDownload, measureVoice, READERS, voice as voiceState } from './voice.svelte';
   import { voiceService } from '../voice/index';
-  import { Speaker } from '../voice/audio';
+  import { voiceOutput, type Output } from '../voice/stream';
   import type { Narrator } from '../voice/narrator';
   import { mediaSession, type LockScreen } from '../voice/session';
   import type { Lang } from '../voice/text';
@@ -70,7 +70,7 @@
   let lock: LockScreen | undefined;
   let listenError = $state('');
   let narrator: Narrator | undefined;
-  let speaker: Speaker | undefined;
+  let speaker: Output | undefined;
 
   // The window behind a fitted page shows no scrollbar. Only the scrollbar is
   // hidden: flipping the root's overflow while the page is still being laid out
@@ -481,6 +481,7 @@
   function stopListening(): void {
     aloud?.stop();
     aloud = undefined;
+    speaker?.release();
     lock?.release();
     lock = undefined;
   }
@@ -516,7 +517,7 @@
     if (!ctrl || !session) return;
     // One thing moves the page at a time: the voice takes over from the scrolling.
     if (ctrl.playing) ctrl.pause();
-    const out = (speaker ??= new Speaker());
+    const out = (speaker ??= voiceOutput());
     out.unlock();
     out.setRate(app.settings.voiceRate);
     const voice = (narrator ??= voiceService().narrator());

@@ -898,20 +898,28 @@ test.describe('Listen', () => {
     await page.addInitScript(() => {
       localStorage.setItem('copista-test-voice', 'installed');
       const played: string[] = [];
-      (window as unknown as { played: string[] }).played = played;
+      const players: HTMLMediaElement[] = [];
+      Object.assign(window, { played, players });
       const play = HTMLMediaElement.prototype.play;
-      const rates: number[] = [];
-      (window as unknown as { rates: number[] }).rates = rates;
       HTMLMediaElement.prototype.play = function (this: HTMLMediaElement) {
         played.push(this.src);
-        rates.push(this.playbackRate);
+        if (!players.includes(this)) players.push(this);
         return play.call(this);
       };
     });
   }
 
-  const plays = (page: Page): Promise<number> =>
-    page.evaluate(() => (window as unknown as { played: string[] }).played.length);
+  /** The sound the voice plays through last: how far it has played, whether it plays, how fast. */
+  const sound = (page: Page): Promise<{ at: number; playing: boolean; rate: number }> =>
+    page.evaluate(() => {
+      const players = (window as unknown as { players: HTMLMediaElement[] }).players;
+      const last = players.at(-1);
+      return {
+        at: last?.currentTime ?? 0,
+        playing: players.some((p) => !p.paused),
+        rate: last?.playbackRate ?? 1,
+      };
+    });
 
   /** Leaves the fake voice to be set up, and counts the pieces the page starts playing. */
   async function withoutVoice(page: Page): Promise<void> {
@@ -1083,13 +1091,38 @@ test.describe('Listen', () => {
     const button = page.getByRole('button', { name: 'Listen', exact: true });
     await button.click();
     await expect(button).toHaveAttribute('aria-pressed', 'true');
-    // The first play unlocks the audio during the press; the next ones are the pieces.
-    await expect.poll(() => plays(page)).toBeGreaterThanOrEqual(2);
+    await expect.poll(async () => (await sound(page)).at).toBeGreaterThan(0.2);
     await button.click();
     await expect(button).toHaveAttribute('aria-pressed', 'false');
-    const stopped = await plays(page);
-    await page.waitForTimeout(1500);
-    expect(await plays(page)).toBe(stopped);
+    // Nothing plays on, not even the silence between the pieces.
+    for (let i = 0; i < 6; i++) {
+      expect((await sound(page)).playing).toBe(false);
+      await page.waitForTimeout(250);
+    }
+    await expect(page.getByRole('alert')).toHaveCount(0);
+  });
+
+  test('reads piece after piece on one sound that never changes, as a locked phone needs', async ({
+    page,
+    browserName,
+  }) => {
+    test.skip(browserName !== 'chromium', 'WebKit has no Media Source and plays piece by piece');
+    await withVoice(page);
+    await openReader(page);
+    await page.getByRole('button', { name: 'Listen', exact: true }).click();
+    // Three pieces in a row, each one marked after the one before was heard.
+    const seen = new Set<string>();
+    await expect
+      .poll(async () => {
+        const mark = await marked(page);
+        if (mark) seen.add(mark.text);
+        return seen.size;
+      })
+      .toBeGreaterThanOrEqual(3);
+    const played = await page.evaluate(() => (window as unknown as { played: string[] }).played);
+    expect(new Set(played).size).toBe(1);
+    expect(played[0]).toMatch(/^blob:/);
+    expect((await sound(page)).playing).toBe(true);
     await expect(page.getByRole('alert')).toHaveCount(0);
   });
 
@@ -1107,6 +1140,20 @@ test.describe('Listen', () => {
 
   const listening = (page: Page) => page.getByRole('region', { name: 'Listening' });
 
+  /** Waits for the mark to move on to new pieces, each one marked once the one before was heard. */
+  async function movesOn(page: Page, pieces: number): Promise<void> {
+    const seen = new Set([(await marked(page))?.text]);
+    await expect
+      .poll(
+        async () => {
+          seen.add((await marked(page))?.text);
+          return seen.size - 1;
+        },
+        { timeout: 20_000 },
+      )
+      .toBeGreaterThanOrEqual(pieces);
+  }
+
   test.describe('the listening bar', () => {
     // Playwright's WebKit on Windows plays no audio at all: play() fails as not supported.
     test.skip(({ browserName }) => browserName === 'webkit', 'this WebKit build has no audio');
@@ -1123,9 +1170,10 @@ test.describe('Listen', () => {
       await expect(bar.getByRole('button', { name: /^The Lect/ })).toContainText('Beta');
       await bar.getByRole('button', { name: 'Pause' }).click();
       await expect(bar.getByRole('button', { name: 'Play' })).toBeVisible();
-      const paused = await plays(page);
+      const paused = await sound(page);
+      expect(paused.playing).toBe(false);
       await page.waitForTimeout(1000);
-      expect(await plays(page)).toBe(paused);
+      expect(await sound(page)).toEqual(paused);
       await bar.getByRole('button', { name: 'Play' }).click();
       await expect(bar.getByRole('button', { name: 'Pause' })).toBeVisible();
       await expect(bar.getByRole('button', { name: 'Previous' })).toBeVisible();
@@ -1153,7 +1201,7 @@ test.describe('Listen', () => {
       await withVoice(page);
       await openReader(page);
       await page.getByRole('button', { name: 'Listen', exact: true }).click();
-      await expect.poll(() => plays(page)).toBeGreaterThanOrEqual(2);
+      await expect.poll(async () => (await sound(page)).at).toBeGreaterThan(0.2);
       await page.keyboard.press('ArrowRight');
       const where = page.locator('.where');
       await expect(where).toContainText(/Page 2 of/);
@@ -1177,11 +1225,10 @@ test.describe('Listen', () => {
       await openReader(page);
       await page.getByRole('button', { name: 'Listen', exact: true }).click();
       await expect(page.locator('.where')).toContainText(/Page 2 of/, { timeout: 20_000 });
-      const before = await plays(page);
       await page.setViewportSize({ width: 700, height: 600 });
       await expect.poll(() => marked(page)).toMatchObject({ onScreen: true });
       // The reading goes on where it was rather than starting again.
-      await expect.poll(() => plays(page)).toBeGreaterThan(before);
+      await movesOn(page, 1);
       await expect(listening(page)).toBeVisible();
       await expect(page.getByRole('alert')).toHaveCount(0);
     });
@@ -1359,7 +1406,7 @@ test.describe('Listen', () => {
       await expect(wait).toContainText('is getting ready');
       await expect(wait).toContainText('Hold on a sentence to read from there.');
       await expect(listening(page).locator('.play')).toHaveAttribute('aria-busy', 'true');
-      await expect.poll(() => plays(page), { timeout: 20_000 }).toBeGreaterThan(0);
+      await expect.poll(async () => (await sound(page)).at, { timeout: 20_000 }).toBeGreaterThan(0);
       await expect(wait).not.toContainText('is getting ready');
     });
 
@@ -1371,16 +1418,13 @@ test.describe('Listen', () => {
       await expect(rate).toHaveText('1×');
       await rate.click();
       await expect(rate).toHaveText('1.25×');
-      const before = await plays(page);
-      await expect.poll(() => plays(page), { timeout: 20_000 }).toBeGreaterThan(before);
-      const rates = () => page.evaluate(() => (window as unknown as { rates: number[] }).rates);
-      expect((await rates()).at(-1)).toBe(1.25);
+      await expect.poll(async () => (await sound(page)).rate).toBe(1.25);
       await page.reload();
       await expect(page.locator('.where')).toContainText(/Page 1 of/);
       await page.getByRole('button', { name: 'Listen', exact: true }).click();
       await expect(rate).toHaveText('1.25×');
-      await expect.poll(async () => (await rates()).length).toBeGreaterThan(0);
-      expect((await rates()).at(-1)).toBe(1.25);
+      await expect.poll(async () => (await sound(page)).at, { timeout: 20_000 }).toBeGreaterThan(0);
+      expect((await sound(page)).rate).toBe(1.25);
     });
 
     test.describe('on a phone turned on its side', () => {
@@ -1394,11 +1438,10 @@ test.describe('Listen', () => {
         await withVoice(page);
         await openReader(page);
         await page.getByRole('button', { name: 'Listen', exact: true }).click();
-        await expect.poll(() => plays(page), { timeout: 20_000 }).toBeGreaterThan(1);
+        await movesOn(page, 1);
         await page.setViewportSize({ width: 844, height: 390 });
-        const before = await plays(page);
         await expect.poll(() => marked(page)).toMatchObject({ onScreen: true });
-        await expect.poll(() => plays(page), { timeout: 20_000 }).toBeGreaterThan(before + 1);
+        await movesOn(page, 2);
         await expect(listening(page)).toBeVisible();
         const bar = (await listening(page).boundingBox())!;
         const frame = (await page.locator('iframe[title="Book page"]').boundingBox())!;
