@@ -53,7 +53,7 @@
   <h2>In this browser</h2>
   <dl class="facts">
     <dt>Books kept</dt>
-    <dd>{app.shelf.length}</dd>
+    <dd translate="no">{app.shelf.length}</dd>
     <dt>Space used</dt>
     <dd>
       {#if usage}
@@ -131,6 +131,7 @@
   </p>
 
   <div role="status" class="notices">
-    {#if message}<p class={message.tone}>{message.text}</p>{/if}
+    <!-- A new message is a new paragraph, so a page the browser translates shows it too. -->
+    {#if message}{#key message}<p class={message.tone}>{message.text}</p>{/key}{/if}
   </div>
 </section>

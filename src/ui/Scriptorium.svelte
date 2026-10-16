@@ -468,7 +468,7 @@
           >
             <option value="">Choose a book…</option>
             {#each app.shelf as book (book.id)}
-              <option value={book.id}>
+              <option value={book.id} translate="no">
                 {book.title}{book.authors.length ? ` — ${book.authors.join(', ')}` : ''}
               </option>
             {/each}
@@ -588,13 +588,16 @@
       <h2 id="leg-done">Done</h2>
       <div role="status" class="notices">
         {#if busy}
-          <p class="working">
-            <Inking />{batch && working >= 0
-              ? `Converting ${working + 1} of ${batch.rows.length}…`
-              : 'Converting…'}
-          </p>
+          <!-- Each step is a new paragraph, so a page the browser translates shows it too. -->
+          {#key working}
+            <p class="working">
+              <Inking />{batch && working >= 0
+                ? `Converting ${working + 1} of ${batch.rows.length}…`
+                : 'Converting…'}
+            </p>
+          {/key}
         {/if}
-        {#if message}<p class={message.tone}>{message.text}</p>{/if}
+        {#if message}{#key message}<p class={message.tone}>{message.text}</p>{/key}{/if}
         {#if !busy && !message}<p class="hint">
             Your file is saved where your browser keeps downloads.
           </p>{/if}

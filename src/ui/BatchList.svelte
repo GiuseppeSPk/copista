@@ -29,7 +29,7 @@
   {#each rows as row (row.key)}
     <li class:failed={row.state === 'failed'}>
       <div class="batch-head">
-        <strong class="batch-name">{row.copy?.fileName ?? row.name}</strong>
+        <strong class="batch-name" translate="no">{row.copy?.fileName ?? row.name}</strong>
         {#if row.state === 'waiting'}
           <span class="hint">Waiting</span>
         {:else if row.state === 'working'}

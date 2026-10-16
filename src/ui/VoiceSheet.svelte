@@ -137,7 +137,9 @@
       <div class="download">
         <progress max={voice.progress.total} value={voice.progress.done} aria-label="Download"
         ></progress>
-        <span>{megabytes(voice.progress.done)} of {megabytes(voice.progress.total)}</span>
+        {#key voice.progress.done}
+          <span>{megabytes(voice.progress.done)} of {megabytes(voice.progress.total)}</span>
+        {/key}
         <button type="button" onclick={cancelDownload}>Cancel</button>
       </div>
     {:else}
@@ -150,7 +152,10 @@
   {/if}
 
   <div role="status" class="notices">
-    {#if voice.message}<p class={voice.message.tone}>{voice.message.text}</p>{/if}
+    <!-- A new message is a new paragraph, so a page the browser translates shows it too. -->
+    {#if voice.message}{#key voice.message}<p class={voice.message.tone}>
+          {voice.message.text}
+        </p>{/key}{/if}
   </div>
 
   <!-- Where Download was, under the news that the voice is in. -->

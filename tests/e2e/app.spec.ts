@@ -103,6 +103,38 @@ test('turns a page and resumes there after a reload', async ({ page }) => {
   await expect(page.locator('.where')).toContainText(/Page 2 of \d+/);
 });
 
+test('keeps its words up to date on a page the browser translates', async ({ page }) => {
+  // As Google Translate does: each word of the app, once shown, is swapped for a translation
+  // in <font> elements of its own, and the words it took away are never seen again.
+  await page.addInitScript(() => {
+    const swap = (root: Node): void => {
+      const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+      const found: Text[] = root.nodeType === Node.TEXT_NODE ? [root as Text] : [];
+      for (let n = walker.nextNode(); n; n = walker.nextNode()) found.push(n as Text);
+      for (const text of found) {
+        const parent = text.parentElement;
+        if (!text.data.trim() || !parent || parent.closest('script,style,font,[translate="no"]'))
+          continue;
+        const font = document.createElement('font');
+        font.textContent = text.data;
+        text.replaceWith(font);
+      }
+    };
+    addEventListener('DOMContentLoaded', () =>
+      new MutationObserver((records) => {
+        for (const r of records) for (const n of r.addedNodes) if (n.isConnected) swap(n);
+      }).observe(document.body, { childList: true, subtree: true }),
+    );
+  });
+  await openReader(page);
+  await expect(page.locator('.where font').first()).toBeAttached();
+  await page.getByRole('button', { name: 'Next' }).click();
+  await expect(page.locator('.where')).toContainText(/Page 2 of \d+/);
+  await page.keyboard.press('ArrowRight');
+  await expect(page.locator('.where')).toContainText(/Page 3 of \d+/);
+  await expect(page.getByRole('heading', { level: 1, name: 'Long Book' })).toBeVisible();
+});
+
 test('turns one page for each turn of the wheel or swipe of two fingers', async ({ page }) => {
   await openReader(page);
   const box = (await page.locator('.pages').boundingBox())!;

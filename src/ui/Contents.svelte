@@ -11,7 +11,12 @@
 <ol class="contents">
   {#each entries as entry, i (i)}
     <li>
-      <button type="button" class="link" onclick={() => onpick(entry.chapter, entry.fragment)}>
+      <button
+        type="button"
+        class="link"
+        translate="no"
+        onclick={() => onpick(entry.chapter, entry.fragment)}
+      >
         {entry.label}
       </button>
       {#if entry.children.length > 0}

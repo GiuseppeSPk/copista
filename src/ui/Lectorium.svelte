@@ -742,7 +742,11 @@
   {#if !bookId}
     <RoomHero room="lectorium" />
     <div class="pick-head">
-      <h2 class="pick-title">{app.shelf.length > 0 ? 'Choose a book' : 'Your shelf'}</h2>
+      <!-- Words that change are made anew, here and below: a page the browser translates has its
+           words swapped for others, and a change made to the old ones would never be seen. -->
+      {#key app.shelf.length > 0}
+        <h2 class="pick-title">{app.shelf.length > 0 ? 'Choose a book' : 'Your shelf'}</h2>
+      {/key}
       <label class="button primary">
         <Icon name="plus" size={18} />
         Add EPUB books
@@ -773,7 +777,7 @@
     {/if}
     <div role="status" class="notices">
       {#if app.noticeRoom === 'lectorium'}
-        {#each app.libraryNotices as notice, i (i)}
+        {#each app.libraryNotices as notice (notice)}
           <p class={notice.tone}>{notice.text}</p>
           {#if notice.details?.length}
             <ul class="details">
@@ -800,7 +804,12 @@
       </a>
       <div class="reading-title">
         <span class="room-tag" aria-hidden="true">Lectorium</span>
-        <h1 id="lectorium-title">{book?.meta.title ?? 'Opening…'}</h1>
+        <!-- The book's own words, here and on its pages, are never the browser's to translate. -->
+        {#key book}
+          <h1 id="lectorium-title" translate={book ? 'no' : undefined}>
+            {book?.meta.title ?? 'Opening…'}
+          </h1>
+        {/key}
       </div>
       <div class="toolbar">
         <button
@@ -893,7 +902,7 @@
                 onclick={() => restyle({ fontSizePercent: app.settings.fontSizePercent - 10 })}
                 >A−</button
               >
-              <span class="size">{app.settings.fontSizePercent}%</span>
+              <span class="size" translate="no">{app.settings.fontSizePercent}%</span>
               <button
                 type="button"
                 aria-label="Larger text"
@@ -996,7 +1005,9 @@
                       jump({ spineIndex: m.spineIndex, fraction: m.fraction });
                     }}
                   >
-                    {m.snippet || `Chapter ${m.spineIndex + 1}`}
+                    <span translate={m.snippet ? 'no' : undefined}
+                      >{m.snippet || `Chapter ${m.spineIndex + 1}`}</span
+                    >
                     <small>{book ? Math.round(progressPercent(book, m)) : 0}%</small>
                   </button>
                   <button
@@ -1025,7 +1036,7 @@
                       jump({ spineIndex: note.spineIndex, fraction: note.fraction });
                     }}
                   >
-                    <span class="note-line">{firstLine(note.text)}</span>
+                    <span class="note-line" translate="no">{firstLine(note.text)}</span>
                     <small>{book ? Math.round(progressPercent(book, note)) : 0}%</small>
                   </button>
                   <button
@@ -1107,7 +1118,11 @@
                       onclick={() => fold(note.id)}
                     >
                       <Icon name="note" size={14} />
-                      <span class="note-line">{isFolded ? firstLine(note.text) : 'Note'}</span>
+                      {#key isFolded}
+                        <span class="note-line" translate={isFolded ? 'no' : undefined}
+                          >{isFolded ? firstLine(note.text) : 'Note'}</span
+                        >
+                      {/key}
                     </button>
                     <button
                       type="button"
@@ -1156,7 +1171,9 @@
                 disabled={app.settings.pace <= (PACES[0] ?? 0)}
                 onclick={() => changePace(-1)}><Icon name="minus" size={18} /></button
               >
-              <span class="pace">{app.settings.pace} words/min</span>
+              {#key app.settings.pace}
+                <span class="pace">{app.settings.pace} words/min</span>
+              {/key}
               <button
                 type="button"
                 aria-label="Faster"
@@ -1167,7 +1184,8 @@
               >
               <button type="button" class="play" aria-keyshortcuts="Space" onclick={togglePlay}>
                 <Icon name={playing ? 'pause' : 'play'} size={18} />
-                {playing ? 'Pause' : 'Play'}
+                <!-- The button itself stays, keeping the focus a key press gave it. -->
+                {#key playing}<span>{playing ? 'Pause' : 'Play'}</span>{/key}
               </button>
             </div>
           {/if}
@@ -1175,9 +1193,9 @@
           {#if fitted}
             <div class="fit-bar">
               {#if session && where.pages > 0 && !scrolling}
-                <span class="fit-where">{where.page + 1} / {where.pages}</span>
+                <span class="fit-where" translate="no">{where.page + 1} / {where.pages}</span>
               {:else if session && scrolling}
-                <span class="fit-where">{Math.round(where.percent)}%</span>
+                <span class="fit-where" translate="no">{Math.round(where.percent)}%</span>
               {/if}
               <button type="button" onclick={() => fit(false)} aria-keyshortcuts="Escape">
                 <Icon name="close" size={16} />
@@ -1190,20 +1208,27 @@
           <button type="button" onclick={() => turn(false)} disabled={!session}>
             <Icon name="back" size={18} /> <span class="nav-label">Previous</span>
           </button>
+          <!-- The live region stays and what it says is made anew, so a change is still heard. -->
           <p class="where" aria-live="polite">
-            {#if session && scrolling}
-              <span class="of-chapters"
-                >{`Chapter ${where.chapter + 1} of ${book?.chapters.length} · `}</span
-              >{`${Math.round(where.percent)}%`}{#if chapterTitle}<span class="chapter"
-                  ><span class="sep">{' · '}</span>{chapterTitle}</span
-                >{/if}
-            {:else if session && where.pages > 0}
-              Page {where.page + 1} of {where.pages}<span class="of-chapters"
-                >{` · chapter ${where.chapter + 1} of ${book?.chapters.length}`}</span
-              >{` · ${Math.round(where.percent)}%`}{#if chapterTitle}<span class="chapter"
-                  ><span class="sep">{' · '}</span>{chapterTitle}</span
-                >{/if}
-            {/if}
+            {#key `${where.page} ${where.pages} ${where.chapter} ${Math.round(where.percent)} ${scrolling}`}
+              <span>
+                {#if session && scrolling}
+                  <span class="of-chapters"
+                    >{`Chapter ${where.chapter + 1} of ${book?.chapters.length} · `}</span
+                  >{`${Math.round(where.percent)}%`}{#if chapterTitle}<span class="chapter"
+                      ><span class="sep">{' · '}</span><span translate="no">{chapterTitle}</span
+                      ></span
+                    >{/if}
+                {:else if session && where.pages > 0}
+                  Page {where.page + 1} of {where.pages}<span class="of-chapters"
+                    >{` · chapter ${where.chapter + 1} of ${book?.chapters.length}`}</span
+                  >{` · ${Math.round(where.percent)}%`}{#if chapterTitle}<span class="chapter"
+                      ><span class="sep">{' · '}</span><span translate="no">{chapterTitle}</span
+                      ></span
+                    >{/if}
+                {/if}
+              </span>
+            {/key}
           </p>
           <button type="button" onclick={() => turn(true)} disabled={!session}>
             <span class="nav-label">Next</span>

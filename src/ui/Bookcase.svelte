@@ -62,6 +62,7 @@
       >
         <a
           class="spine"
+          translate="no"
           data-binding={spine.binding}
           aria-current={book.id === current ? 'true' : undefined}
           href={hashOf({ room: 'lectorium', bookId: book.id })}

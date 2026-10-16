@@ -24,6 +24,7 @@ describe('buildSrcdoc', () => {
     );
     expect(html).toContain('<meta charset="utf-8">');
     expect(html).toContain('data-theme="sepia"');
+    expect(html).toContain('translate="no"');
     expect(html).toContain('font-size: 120%');
     expect(html).toContain(`src="${img}"`);
     expect(html).toContain('data-copista-href="OEBPS/text/ch3.xhtml#end"');

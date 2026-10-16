@@ -127,7 +127,7 @@
 
   <div role="status" class="notices">
     {#if busy}<p>Adding…</p>{/if}
-    {#each app.libraryNotices as notice, i (i)}
+    {#each app.libraryNotices as notice (notice)}
       <p class={notice.tone}>{notice.text}</p>
       {#if notice.details?.length}
         <ul class="details">
@@ -192,10 +192,16 @@
             {/each}
           </select>
         </label>
+        <!-- The words are made anew in the live region that stays, so a page the browser
+             translates shows the new count too. -->
         <p class="hint" aria-live="polite">
-          {query.trim()
-            ? `${shown.length} of ${app.shelf.length} books`
-            : `${app.shelf.length} books`}
+          {#key `${query.trim() !== ''} ${shown.length} ${app.shelf.length}`}
+            <span>
+              {query.trim()
+                ? `${shown.length} of ${app.shelf.length} books`
+                : `${app.shelf.length} books`}
+            </span>
+          {/key}
         </p>
       </div>
     {/if}
@@ -217,12 +223,14 @@
               {#if covers.get(book.id)}
                 <img src={covers.get(book.id)} alt="" />
               {:else}
-                <span>{book.title}</span>
+                <span translate="no">{book.title}</span>
               {/if}
             </a>
             <div class="about">
-              <h2>{book.title}</h2>
-              <p class="authors">{book.authors.join(', ') || 'Unknown author'}</p>
+              <h2 translate="no">{book.title}</h2>
+              <p class="authors" translate={book.authors.length ? 'no' : undefined}>
+                {book.authors.join(', ') || 'Unknown author'}
+              </p>
             </div>
             <div class="actions">
               <button

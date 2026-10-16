@@ -127,7 +127,7 @@
         <span class="door-title" id="door-lectorium">Continue reading</span>
         <span class="continue">
           <Cover book={lastBook} />
-          <span class="continue-text">
+          <span class="continue-text" translate="no">
             <span class="continue-title">{lastBook.title}</span>
             {#if lastBook.authors.length > 0}
               <span class="continue-by">{lastBook.authors.join(', ')}</span>

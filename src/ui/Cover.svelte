@@ -17,6 +17,6 @@
   {#if url}
     <img src={url} alt="" />
   {:else}
-    <span>{book.title}</span>
+    <span translate="no">{book.title}</span>
   {/if}
 </span>

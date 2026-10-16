@@ -51,7 +51,10 @@
           target="_blank"
           rel="noopener noreferrer"
         >
-          {searching ? 'Search' : 'Visit'}<span class="sr-only"> {catalogue.name}</span>
+          <!-- Made anew, so a page the browser translates shows the other word too. -->
+          {#key searching}<span>{searching ? 'Search' : 'Visit'}</span>{/key}<span class="sr-only">
+            {catalogue.name}</span
+          >
           <Icon name="external" size={16} />
         </a>
       </li>

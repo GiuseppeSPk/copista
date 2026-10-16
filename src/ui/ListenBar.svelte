@@ -56,7 +56,7 @@
     class="rate"
     aria-label={`Speed ${rate} times`}
     title="Read faster or slower"
-    onclick={onRate}>{rate}×</button
+    onclick={onRate}><span translate="no">{rate}×</span></button
   >
   <button
     type="button"
@@ -64,7 +64,8 @@
     aria-controls="voice-sheet"
     aria-expanded={sheetOpen}
     title="Change the voice"
-    onclick={(event) => onVoice(event.currentTarget)}>{reader}<span class="beta">Beta</span></button
+    onclick={(event) => onVoice(event.currentTarget)}
+    >{#key reader}<span>{reader}</span>{/key}<span class="beta">Beta</span></button
   >
   <button type="button" aria-label="Stop listening" title="Stop listening" onclick={onClose}
     ><Icon name="close" size={18} /></button

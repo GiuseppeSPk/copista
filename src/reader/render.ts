@@ -97,9 +97,11 @@ export function buildSrcdoc(
     chapter.inlineCss.trim() === ''
       ? []
       : [`<style>${styleText(urls.css(chapter.inlineCss))}</style>`];
+  // The book is read as it was written: a browser translating the app leaves its pages alone,
+  // as the voice, the notes and the search all work on the words the book has.
   return [
     '<!doctype html>',
-    `<html${lang} data-theme="${look.theme}">`,
+    `<html${lang} translate="no" data-theme="${look.theme}">`,
     '<head>',
     '<meta charset="utf-8">',
     `<meta http-equiv="Content-Security-Policy" content="${CSP}">`,
