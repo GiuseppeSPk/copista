@@ -1119,6 +1119,32 @@ test.describe('Listen', () => {
     await expect(page.locator('#voice-sheet')).toBeHidden();
   });
 
+  test('tests the device after the download, and keeps Listen off where it fails', async ({
+    page,
+  }) => {
+    await withoutVoice(page);
+    await page.addInitScript(() => localStorage.setItem('copista-test-voice-unfit', 'stalled'));
+    await openReader(page);
+    await startDownload(page);
+    const sheet = page.locator('#voice-sheet');
+    await expect(sheet.getByRole('status')).toContainText('This device is not fast enough');
+    await expect(sheet.getByRole('button', { name: 'Listen from here' })).toBeHidden();
+    await expect(sheet.getByRole('button', { name: 'Remove the voice' })).toBeVisible();
+    await expect(sheet.getByRole('button', { name: 'Test again' })).toBeVisible();
+    await page.keyboard.press('Escape');
+    // Listen opens the sheet again instead of reading.
+    const listen = page.getByRole('button', { name: 'Listen', exact: true });
+    await listen.click();
+    await expect(sheet).toBeVisible();
+    await expect(listen).not.toHaveAttribute('aria-pressed');
+
+    // A device that passes when tested again reads.
+    await page.evaluate(() => localStorage.removeItem('copista-test-voice-unfit'));
+    await sheet.getByRole('button', { name: 'Test again' }).click();
+    await expect(sheet.getByRole('status')).toContainText('The voice is ready.');
+    await expect(sheet.getByRole('button', { name: 'Listen from here' })).toBeVisible();
+  });
+
   test('stops a download when asked', async ({ page }) => {
     await withoutVoice(page);
     await openReader(page);

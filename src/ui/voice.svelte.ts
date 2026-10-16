@@ -5,6 +5,8 @@
  */
 import {
   DOWNLOAD_BYTES,
+  VoiceUnfitError,
+  checkVoice,
   installVoice,
   removeVoice,
   voiceStatus,
@@ -44,13 +46,25 @@ export const voice = $state<{
   /** Just downloaded here, so the sheet offers to start listening. */
   ready: boolean;
   progress: { done: number; total: number } | null;
+  /** The fitness test is under way. */
+  checking: boolean;
+  /** The test found the page not isolated yet, which a reload fixes. */
+  reload: boolean;
   message: { tone: 'ok' | 'error'; text: string } | undefined;
-}>({ status: null, accepted: false, ready: false, progress: null, message: undefined });
+}>({
+  status: null,
+  accepted: false,
+  ready: false,
+  progress: null,
+  checking: false,
+  reload: false,
+  message: undefined,
+});
 
 let controller: AbortController | undefined;
 
 export async function measureVoice(): Promise<void> {
-  voice.status = await voiceStatus().catch(() => ({ installed: false, bytes: 0 }));
+  voice.status = await voiceStatus().catch(() => ({ installed: false, bytes: 0, fit: null }));
 }
 
 export async function downloadVoice(): Promise<void> {
@@ -63,16 +77,43 @@ export async function downloadVoice(): Promise<void> {
       voice.progress = { done, total };
     }, current.signal);
     await measureVoice();
-    voice.ready = true;
-    voice.message = { tone: 'ok', text: 'The voice is ready.' };
   } catch (e) {
     voice.message =
       e instanceof DOMException && e.name === 'AbortError'
         ? { tone: 'ok', text: 'Download stopped. Next time it picks up where it left off.' }
         : { tone: 'error', text: errorMessage(e) };
+    return;
   } finally {
     voice.progress = null;
     controller = undefined;
+  }
+  await testVoice();
+}
+
+/**
+ * Tests whether this device can read aloud, right after the download or when
+ * the reader asks to test again, so a device that cannot is told before it
+ * tries, instead of stalling and freezing.
+ */
+export async function testVoice(again = false): Promise<void> {
+  if (voice.checking) return;
+  voice.checking = true;
+  voice.ready = false;
+  voice.reload = false;
+  voice.message = {
+    tone: 'ok',
+    text: 'Checking that this device can read aloud. It takes up to a minute, and the device may be slow meanwhile.',
+  };
+  try {
+    await checkVoice(again);
+    voice.ready = true;
+    voice.message = { tone: 'ok', text: 'The voice is ready.' };
+  } catch (e) {
+    voice.reload = e instanceof VoiceUnfitError && e.reason === 'isolation';
+    voice.message = { tone: 'error', text: errorMessage(e) };
+  } finally {
+    voice.checking = false;
+    await measureVoice();
   }
 }
 
@@ -86,6 +127,7 @@ export async function removeVoiceHere(): Promise<void> {
     await measureVoice();
     voice.accepted = false;
     voice.ready = false;
+    voice.reload = false;
     voice.message = { tone: 'ok', text: 'The voice has been removed from this device.' };
   } catch (e) {
     voice.message = { tone: 'error', text: errorMessage(e) };

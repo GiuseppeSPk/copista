@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { VoiceUnfitError, type Verdict } from '../../../src/voice/fitness';
 import {
   FakeNarrator,
   WorkerNarrator,
@@ -92,7 +93,84 @@ describe('WorkerNarrator', () => {
   });
 });
 
+describe('WorkerNarrator testing the device', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  /** A narrator whose workers are kept, with a budget of one second for the test. */
+  function watched() {
+    const workers: FakeWorker[] = [];
+    const kept: [string, Verdict][] = [];
+    const narrator = new WorkerNarrator(
+      () => {
+        const worker = new FakeWorker();
+        workers.push(worker);
+        return worker;
+      },
+      async (backend, verdict) => void kept.push([backend, verdict]),
+      1000,
+    );
+    return { narrator, workers, kept };
+  }
+
+  it('lets a test that ends in time be', async () => {
+    vi.useFakeTimers();
+    const { narrator, workers, kept } = watched();
+    const loading = narrator.load();
+    const { id } = workers[0]!.sent[0]!;
+    workers[0]!.reply({ id, type: 'testing', backend: 'webgpu' });
+    await vi.advanceTimersByTimeAsync(900);
+    workers[0]!.reply({ id, type: 'ready', sampleRate: 44100, backend: 'webgpu', steps: 8 });
+    await loading;
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(workers[0]!.terminated).toBe(false);
+    expect(kept).toEqual([]);
+  });
+
+  it('stops a test that freezes, marks the backend and goes on in a new worker', async () => {
+    vi.useFakeTimers();
+    const { narrator, workers, kept } = watched();
+    const loading = narrator.load();
+    workers[0]!.reply({ id: workers[0]!.sent[0]!.id, type: 'testing', backend: 'webgpu' });
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(workers[0]!.terminated).toBe(true);
+    expect(kept).toEqual([['webgpu', { unfit: 'stalled' }]]);
+    expect(workers).toHaveLength(2);
+    const { id } = workers[1]!.sent[0]!;
+    workers[1]!.reply({ id, type: 'ready', sampleRate: 44100, backend: 'wasm', steps: 6 });
+    await loading;
+    expect(narrator.backend).toBe('wasm');
+  });
+
+  it('gives up once a second test freezes too', async () => {
+    vi.useFakeTimers();
+    const { narrator, workers, kept } = watched();
+    const loading = narrator.load();
+    const failed = expect(loading).rejects.toBeInstanceOf(VoiceUnfitError);
+    workers[0]!.reply({ id: workers[0]!.sent[0]!.id, type: 'testing', backend: 'webgpu' });
+    await vi.advanceTimersByTimeAsync(1000);
+    workers[1]!.reply({ id: workers[1]!.sent[0]!.id, type: 'testing', backend: 'wasm' });
+    await vi.advanceTimersByTimeAsync(1000);
+    await failed;
+    expect(kept.map(([backend]) => backend)).toEqual(['webgpu', 'wasm']);
+  });
+
+  it('passes on the reason the worker found the device unfit', async () => {
+    const { narrator, workers } = watched();
+    const loading = narrator.load();
+    workers[0]!.reply({ id: workers[0]!.sent[0]!.id, type: 'unfit', reason: 'noise' });
+    await expect(loading).rejects.toMatchObject({ reason: 'noise' });
+  });
+});
+
 describe('FakeNarrator', () => {
+  it('fails its test when asked to, as an unfit device does', async () => {
+    await expect(new FakeNarrator({ unfit: 'slow' }).load()).rejects.toBeInstanceOf(
+      VoiceUnfitError,
+    );
+  });
+
   it('gives silence as long as the text takes to say', async () => {
     const narrator = new FakeNarrator({ msPerChar: 0, sampleRate: 1000 });
     expect(await narrator.speak('Ciao a tutti.')).toHaveLength(13 * 0.06 * 1000);

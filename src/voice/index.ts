@@ -2,8 +2,19 @@
  * The voice as the rest of the app sees it: set up, removed, measured, and
  * a narrator to read with.
  */
+import type { Unfit } from './fitness';
 import { FakeNarrator, WorkerNarrator, voiceWorker, type Narrator } from './narrator';
-import { TOTAL_BYTES, install, isInstalled, remove, spaceUsed } from './store';
+import {
+  TOTAL_BYTES,
+  forgetProfile,
+  getProfile,
+  install,
+  isFit,
+  isInstalled,
+  remove,
+  saveVerdict,
+  spaceUsed,
+} from './store';
 
 export interface VoiceService {
   isInstalled(): Promise<boolean>;
@@ -12,6 +23,10 @@ export interface VoiceService {
   /** The bytes the voice takes on this device. */
   spaceUsed(): Promise<number>;
   narrator(): Narrator;
+  /** Whether the device passed the fitness test, failed it, or has not taken it (null). */
+  isFit(): Promise<boolean | null>;
+  /** Forgets the test's results, so the next load tests the device again. */
+  forgetFitness(): Promise<void>;
 }
 
 /** The onnxruntime-web files the voice loads from this site on first use (1.30.0). */
@@ -27,6 +42,9 @@ export const DOWNLOAD_BYTES = TOTAL_BYTES + ENGINE_BYTES;
  */
 export const TEST_VOICE_KEY = 'copista-test-voice';
 
+/** In development, why the fake fails its fitness test, when a test wants it to. */
+export const TEST_VOICE_UNFIT_KEY = 'copista-test-voice-unfit';
+
 /** In development, the milliseconds the fake takes for each character, so a test can see the wait. */
 export const TEST_VOICE_PACE_KEY = 'copista-test-voice-ms';
 
@@ -35,7 +53,9 @@ const real: VoiceService = {
   install: (onProgress, signal) => install(onProgress, signal),
   remove,
   spaceUsed,
-  narrator: () => new WorkerNarrator(voiceWorker),
+  narrator: () => new WorkerNarrator(voiceWorker, saveVerdict),
+  isFit: async () => isFit(await getProfile()),
+  forgetFitness: forgetProfile,
 };
 
 function wait(ms: number, signal?: AbortSignal): Promise<void> {
@@ -65,7 +85,10 @@ const fake: VoiceService = {
     new FakeNarrator({
       msPerChar: Number(localStorage.getItem(TEST_VOICE_PACE_KEY) ?? 1),
       secondsPerChar: 0.002,
+      unfit: (localStorage.getItem(TEST_VOICE_UNFIT_KEY) as Unfit | null) ?? undefined,
     }),
+  isFit: async () => localStorage.getItem(TEST_VOICE_UNFIT_KEY) === null,
+  forgetFitness: async () => {},
 };
 
 /** The voice, or in development the fake when a test asks for it. */

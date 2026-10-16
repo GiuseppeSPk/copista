@@ -1,6 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { installVoice, removeVoice, voiceStatus } from '../../../src/rooms/voice/index';
-import { TEST_VOICE_KEY, voiceService } from '../../../src/voice/index';
+import {
+  VoiceUnfitError,
+  checkVoice,
+  installVoice,
+  removeVoice,
+  voiceStatus,
+} from '../../../src/rooms/voice/index';
+import { TEST_VOICE_KEY, TEST_VOICE_UNFIT_KEY, voiceService } from '../../../src/voice/index';
 
 beforeEach(() => {
   localStorage.setItem(TEST_VOICE_KEY, 'absent');
@@ -12,7 +18,7 @@ afterEach(() => {
 
 describe('voice', () => {
   it('reports the voice absent, then installed, then removed', async () => {
-    expect(await voiceStatus()).toEqual({ installed: false, bytes: 0 });
+    expect(await voiceStatus()).toEqual({ installed: false, bytes: 0, fit: null });
 
     const progress: [number, number][] = [];
     await installVoice((done, total) => progress.push([done, total]));
@@ -23,7 +29,7 @@ describe('voice', () => {
     expect(status.bytes).toBeGreaterThan(0);
 
     await removeVoice();
-    expect(await voiceStatus()).toEqual({ installed: false, bytes: 0 });
+    expect(await voiceStatus()).toEqual({ installed: false, bytes: 0, fit: null });
   });
 
   it('stops the test install when it is cancelled', async () => {
@@ -35,5 +41,15 @@ describe('voice', () => {
 
   it('gives the test voice a narrator that needs no model', () => {
     expect(voiceService().narrator().backend).toBe('fake');
+  });
+
+  it('tests the device: the test voice passes, and fails when a test asks it to', async () => {
+    await installVoice(() => {});
+    await expect(checkVoice()).resolves.toBeUndefined();
+    expect((await voiceStatus()).fit).toBe(true);
+
+    localStorage.setItem(TEST_VOICE_UNFIT_KEY, 'slow');
+    await expect(checkVoice(true)).rejects.toBeInstanceOf(VoiceUnfitError);
+    expect((await voiceStatus()).fit).toBe(false);
   });
 });

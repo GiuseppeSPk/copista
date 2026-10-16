@@ -5,13 +5,14 @@ import {
   VOICE_CACHE,
   VoiceDownloadError,
   fileUrl,
+  forgetProfile,
   getProfile,
   install,
+  isFit,
   isInstalled,
-  pickSteps,
   readFile,
   remove,
-  saveProfile,
+  saveVerdict,
   spaceUsed,
   type VoiceFile,
 } from '../../../src/voice/store';
@@ -28,6 +29,7 @@ class FakeCaches {
         store.get(typeof key === 'string' ? key : key.url)?.clone(),
       put: async (url: string, response: Response) => void store.set(url, response),
       keys: async () => [...store.keys()].map((url) => new Request(url)),
+      delete: async (url: string) => store.delete(url),
     };
   }
 
@@ -161,32 +163,52 @@ describe('reading and removing', () => {
   it('does not create the cache just by looking', async () => {
     expect(await isInstalled(files)).toBe(false);
     expect(await spaceUsed()).toBe(0);
-    expect(await getProfile()).toBeNull();
+    expect(await getProfile()).toEqual({});
     await expect(readFile(files[0]!.path)).rejects.toBeInstanceOf(VoiceDownloadError);
     expect(await caches.has(VOICE_CACHE)).toBe(false);
   });
 
   it('removes the files and the profile together', async () => {
     await install(() => {}, undefined, files);
-    await saveProfile({ backend: 'wasm', steps: 6 });
-    expect(await getProfile()).toEqual({ backend: 'wasm', steps: 6 });
+    await saveVerdict('wasm', { steps: 6 });
+    expect(await getProfile()).toEqual({ wasm: { steps: 6 } });
     expect(await spaceUsed()).toBeGreaterThan(0);
     await remove();
     expect(await spaceUsed()).toBe(0);
-    expect(await getProfile()).toBeNull();
+    expect(await getProfile()).toEqual({});
   });
 
-  it('keeps a profile of 16 steps', async () => {
-    await saveProfile({ backend: 'webgpu', steps: 16 });
-    expect(await getProfile()).toEqual({ backend: 'webgpu', steps: 16 });
+  it("keeps each backend's verdict beside the other's", async () => {
+    await saveVerdict('webgpu', { unfit: 'stalled' });
+    await saveVerdict('wasm', { steps: 16 });
+    expect(await getProfile()).toEqual({ webgpu: { unfit: 'stalled' }, wasm: { steps: 16 } });
+  });
+
+  it('forgets the verdicts and keeps the files, so the device is tested again', async () => {
+    await install(() => {}, undefined, files);
+    await saveVerdict('webgpu', { unfit: 'noise' });
+    await forgetProfile();
+    expect(await getProfile()).toEqual({});
+    expect(await isInstalled(files)).toBe(true);
+  });
+
+  it('ignores a verdict it cannot read', async () => {
+    const cache = await caches.open(VOICE_CACHE);
+    await cache.put(
+      fileUrl('copista-profile-3.json'),
+      new Response(JSON.stringify({ webgpu: { steps: 7 }, wasm: { unfit: 'tired' } })),
+    );
+    expect(await getProfile()).toEqual({});
   });
 });
 
-describe('pickSteps', () => {
-  it('uses 16 steps when the device has room for twice the work, else 8, else 6', () => {
-    expect(pickSteps(0.39)).toBe(16);
-    expect(pickSteps(0.4)).toBe(8);
-    expect(pickSteps(0.79)).toBe(8);
-    expect(pickSteps(0.8)).toBe(6);
+describe('isFit', () => {
+  it('is yes once a backend passed, no once wasm failed, and unknown before', () => {
+    expect(isFit({})).toBeNull();
+    expect(isFit({ webgpu: { steps: 8 } })).toBe(true);
+    expect(isFit({ webgpu: { unfit: 'noise' } })).toBeNull();
+    expect(isFit({ webgpu: { unfit: 'noise' }, wasm: { steps: 6 } })).toBe(true);
+    expect(isFit({ webgpu: { unfit: 'stalled' }, wasm: { unfit: 'slow' } })).toBe(false);
+    expect(isFit({ wasm: { unfit: 'slow' } })).toBe(false);
   });
 });
