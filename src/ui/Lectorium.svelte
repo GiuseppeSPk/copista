@@ -805,9 +805,9 @@
       <div class="reading-title">
         <span class="room-tag" aria-hidden="true">Lectorium</span>
         <!-- The book's own words, here and on its pages, are never the browser's to translate. -->
-        {#key book}
+        {#key book ?? error}
           <h1 id="lectorium-title" translate={book ? 'no' : undefined}>
-            {book?.meta.title ?? 'Opening…'}
+            {book?.meta.title ?? (error ? 'The book did not open' : 'Opening…')}
           </h1>
         {/key}
       </div>

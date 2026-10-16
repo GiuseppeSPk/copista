@@ -517,6 +517,7 @@ test('shows a message for a file that is not an EPUB', async ({ page }) => {
 test('reports an unknown book in the reader', async ({ page }) => {
   await page.goto('/#/read/nothing-here');
   await expect(page.getByRole('alert')).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('The book did not open');
   await expect(page.getByRole('link', { name: 'Back to the library' })).toBeVisible();
   // The room's tab does not lead back to a book that is not there.
   await page.getByRole('link', { name: 'Back to the library' }).click();

@@ -59,7 +59,9 @@ export async function downloadVoice(): Promise<void> {
   voice.progress = { done: 0, total: DOWNLOAD_BYTES };
   voice.message = undefined;
   try {
-    await installVoice((done, total) => (voice.progress = { done, total }), current.signal);
+    await installVoice((done, total) => {
+      voice.progress = { done, total };
+    }, current.signal);
     await measureVoice();
     voice.ready = true;
     voice.message = { tone: 'ok', text: 'The voice is ready.' };
