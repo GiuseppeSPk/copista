@@ -8,6 +8,7 @@
     type ShelfOrder,
   } from '../rooms/bibliotheca/find';
   import Catalogues from './Catalogues.svelte';
+  import { confirmAction } from './confirm.svelte';
   import { BOOK_FILES } from './files';
   import Icon from './Icon.svelte';
   import RoomHero from './RoomHero.svelte';
@@ -71,7 +72,8 @@
   }
 
   async function remove(id: string, title: string): Promise<void> {
-    if (!confirm(`Remove “${title}” with its bookmarks and notes from this browser?`)) return;
+    const question = `Remove “${title}” with its bookmarks and notes from this browser?`;
+    if (!(await confirmAction(question, 'Remove'))) return;
     removeError = '';
     try {
       await removeBook(id);

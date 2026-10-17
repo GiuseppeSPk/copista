@@ -497,10 +497,19 @@ test('shows the page colours as squares and colours the page with the one chosen
   );
 });
 
-test('removes a book', async ({ page }) => {
+test('removes a book once asked in the page, and keeps it on Cancel', async ({ page }) => {
   await addBook(page);
-  page.once('dialog', (dialog) => void dialog.accept());
   await page.getByRole('button', { name: 'Remove Long Book' }).click();
+  const ask = page.getByRole('dialog', { name: 'Remove' });
+  await expect(ask).toContainText('Remove “Long Book”');
+  await ask.getByRole('button', { name: 'Cancel' }).click();
+  await expect(ask).toBeHidden();
+  await expect(page.getByRole('button', { name: 'Remove Long Book' })).toBeVisible();
+  await page.getByRole('button', { name: 'Remove Long Book' }).click();
+  await page
+    .getByRole('dialog', { name: 'Remove' })
+    .getByRole('button', { name: 'Remove' })
+    .click();
   await expect(page.getByText('No books yet.')).toBeVisible();
 });
 
@@ -887,8 +896,11 @@ test('deletes all data from the Archivum', async ({ page }) => {
   await addBook(page);
   await openRoom(page, 'Archivum');
   await expect(page.getByText('Sent anywhere')).toBeVisible();
-  page.once('dialog', (dialog) => void dialog.accept());
   await page.getByRole('button', { name: 'Delete all my data' }).click();
+  await page
+    .getByRole('dialog', { name: 'Delete everything' })
+    .getByRole('button', { name: 'Delete everything' })
+    .click();
   await expect(page.getByRole('status')).toContainText('has been deleted');
   await openRoom(page, 'Bibliotheca');
   await expect(page.getByText('No books yet.')).toBeVisible();

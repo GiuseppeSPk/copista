@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { confirmAction } from './confirm.svelte';
   import { onMount } from 'svelte';
   import { deleteAllData, storageUsage, type Settings } from '../rooms/archivum';
   import Icon from './Icon.svelte';
@@ -27,13 +28,11 @@
   }
 
   async function eraseAll(): Promise<void> {
-    if (
-      !confirm(
-        'Delete every book, reading position, bookmark, note and setting kept by Copista in this browser? This cannot be undone.',
-      )
-    ) {
-      return;
-    }
+    const yes = await confirmAction(
+      'Delete every book, reading position, bookmark, note and setting kept by Copista in this browser? This cannot be undone.',
+      'Delete everything',
+    );
+    if (!yes) return;
     try {
       await deleteAllData();
       forgetTheme();

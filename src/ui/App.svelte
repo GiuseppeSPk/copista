@@ -4,6 +4,7 @@
   import Bibliotheca from './Bibliotheca.svelte';
   import Home from './Home.svelte';
   import Icon from './Icon.svelte';
+  import ConfirmDialog from './ConfirmDialog.svelte';
   import InstallOffer from './InstallOffer.svelte';
   import Lectorium from './Lectorium.svelte';
   import Mark from './Mark.svelte';
@@ -286,6 +287,8 @@
 {#if ready}
   <InstallOffer />
 {/if}
+
+<ConfirmDialog />
 
 {#if dragDepth > 0}
   <div class="drop-veil" aria-hidden="true">{dropText}</div>

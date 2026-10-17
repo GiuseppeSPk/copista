@@ -1171,6 +1171,34 @@ button.link:hover:not(:disabled) {
   overflow-wrap: anywhere;
 }
 
+/* The question asked before something that cannot be undone. */
+.confirm {
+  width: min(440px, calc(100vw - 32px));
+  padding: 20px;
+  border: 1px solid var(--line-strong);
+  border-radius: 12px;
+  background: var(--card);
+  color: var(--ink);
+  box-shadow: 0 24px 60px var(--shadow);
+}
+
+.confirm::backdrop {
+  background: rgb(20 16 12 / 0.55);
+}
+
+.confirm p {
+  margin: 0 0 20px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.confirm-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
 /* The print preview: the pages as they will print, beside the choices that shape them. */
 .print-preview {
   width: min(1180px, 94vw);
@@ -1969,7 +1997,8 @@ button.link:hover:not(:disabled) {
 
 .pages {
   position: relative;
-  min-height: 300px;
+  /* Less on a short screen, such as an iPhone under Safari's bars, so the page count stays clear. */
+  min-height: min(300px, 45dvh);
   overflow: hidden;
   border: 1px solid var(--frame);
   border-radius: 10px;
@@ -4868,5 +4897,15 @@ button:active:not(:disabled),
   .demo-spine.new,
   .demo-file {
     animation: none;
+  }
+}
+
+/* Safari on an iPhone zooms the page into any field whose text is under 16px, and leaves it zoomed. */
+@media (pointer: coarse) {
+  select,
+  input[type='text'],
+  input[type='search'],
+  .page-note textarea {
+    font-size: 16px;
   }
 }
