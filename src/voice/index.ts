@@ -2,7 +2,7 @@
  * The voice as the rest of the app sees it: set up, removed, measured, and
  * a narrator to read with.
  */
-import { FakeNarrator, WorkerNarrator, voiceWorker, type Narrator } from './narrator';
+import { FakeNarrator, WorkerNarrator, gpuAllowed, voiceWorker, type Narrator } from './narrator';
 import { TOTAL_BYTES, install, isInstalled, remove, spaceUsed } from './store';
 
 export interface VoiceService {
@@ -35,7 +35,7 @@ const real: VoiceService = {
   install: (onProgress, signal) => install(onProgress, signal),
   remove,
   spaceUsed,
-  narrator: () => new WorkerNarrator(voiceWorker),
+  narrator: () => new WorkerNarrator(voiceWorker, gpuAllowed()),
 };
 
 function wait(ms: number, signal?: AbortSignal): Promise<void> {

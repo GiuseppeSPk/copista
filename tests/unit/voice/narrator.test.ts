@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   FakeNarrator,
   WorkerNarrator,
+  gpuAllowed,
   isDeviceLost,
   type WorkerLike,
   type WorkerReply,
@@ -59,6 +60,15 @@ describe('WorkerNarrator', () => {
     expect(narrator.backend).toBe('webgpu');
   });
 
+  it('tells the worker whether it may use the graphics chip', () => {
+    const { worker, narrator } = setUp();
+    void narrator.load();
+    expect(worker.sent[0]).toMatchObject({ type: 'load', gpu: true });
+    const phone = new FakeWorker();
+    void new WorkerNarrator(() => phone, false).load();
+    expect(phone.sent[0]).toMatchObject({ type: 'load', gpu: false });
+  });
+
   it('gives each request its own answer, in whatever order they come', async () => {
     const { worker, narrator, made } = setUp();
     const first = narrator.speak('Uno.', 'it', 'M2');
@@ -101,6 +111,31 @@ describe('FakeNarrator', () => {
   it('can speak faster, for a test that listens to whole pages', async () => {
     const narrator = new FakeNarrator({ msPerChar: 0, secondsPerChar: 0.002, sampleRate: 1000 });
     expect(await narrator.speak('Ciao a tutti.')).toHaveLength(26);
+  });
+});
+
+describe('gpuAllowed', () => {
+  const WINDOWS =
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/141.0 Safari/537.36';
+  const MAC =
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Version/26.0 Safari/605.1.15';
+  const IPHONE =
+    'Mozilla/5.0 (iPhone; CPU iPhone OS 26_0 like Mac OS X) AppleWebKit/605.1.15 Version/26.0 Mobile/15E148 Safari/604.1';
+  const TAB_S7 =
+    'Mozilla/5.0 (Linux; Android 13; SM-T870) AppleWebKit/537.36 Chrome/141.0 Safari/537.36';
+
+  it('lets a computer use it, a touch laptop too', () => {
+    expect(gpuAllowed(WINDOWS, 0, false)).toBe(true);
+    expect(gpuAllowed(WINDOWS, 10, false)).toBe(true);
+    expect(gpuAllowed(MAC, 0, false)).toBe(true);
+  });
+
+  it('keeps phones and tablets on the processor, an iPad that says it is a Mac too', () => {
+    expect(gpuAllowed(IPHONE, 5, true)).toBe(false);
+    expect(gpuAllowed(TAB_S7, 10, true)).toBe(false);
+    expect(gpuAllowed(MAC, 5, true)).toBe(false);
+    expect(gpuAllowed(MAC, 5, false)).toBe(false);
+    expect(gpuAllowed(WINDOWS, 10, true)).toBe(false);
   });
 });
 

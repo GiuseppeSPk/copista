@@ -33,7 +33,7 @@ const SELF_TEST = 'Buongiorno, oggi leggiamo insieme un racconto.';
 let ort: OrtModule | null = null;
 let tts: Supertonic | null = null;
 let profile: Profile | null = null;
-/** Set once WebGPU fails: this worker stays on wasm from then on. */
+/** Set once WebGPU fails, or when the page asks for wasm: this worker stays on wasm from then on. */
 let wasmOnly = false;
 const styles = new Map<VoiceId, Style>();
 
@@ -166,6 +166,7 @@ async function probe(model: ArrayBuffer): Promise<Float32Array> {
 async function handle(message: WorkerRequest): Promise<WorkerReply> {
   switch (message.type) {
     case 'load':
+      if (!message.gpu) wasmOnly = true;
       await load();
       return {
         id: message.id,

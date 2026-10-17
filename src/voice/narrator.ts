@@ -42,7 +42,7 @@ export interface Narrator {
 
 /** Messages to the worker. */
 export type WorkerRequest =
-  | { id: number; type: 'load' }
+  | { id: number; type: 'load'; gpu: boolean }
   | { id: number; type: 'speak'; text: string; lang: Lang; voice: VoiceId; tuning?: Tuning }
   | { id: number; type: 'probe'; model: ArrayBuffer };
 
@@ -57,6 +57,22 @@ export interface WorkerLike {
   postMessage(message: WorkerRequest, transfer?: Transferable[]): void;
   onmessage: ((event: MessageEvent<WorkerReply>) => void) | null;
   terminate(): void;
+}
+
+/**
+ * Whether the voice may run on the graphics chip: on a computer only. On a
+ * Galaxy Tab S7 that work froze the page with a buzz, and on an iPhone it
+ * crashed the page; Firefox on the same tablet, on the processor, read well.
+ */
+export function gpuAllowed(
+  userAgent: string = navigator.userAgent,
+  touchPoints: number = navigator.maxTouchPoints ?? 0,
+  coarse: boolean = globalThis.matchMedia?.('(pointer: coarse)').matches ?? false,
+): boolean {
+  if (/Android|iPhone|iPad|iPod|Mobile/i.test(userAgent)) return false;
+  // An iPad says it is a Mac: only its touch screen tells it apart.
+  if (/Macintosh/.test(userAgent) && touchPoints > 1) return false;
+  return !coarse;
 }
 
 /** Whether an error says the WebGPU device was lost. */
@@ -78,10 +94,13 @@ export class WorkerNarrator implements Narrator {
   private nextId = 1;
   private readonly pending = new Map<number, Pending>();
 
-  constructor(private readonly makeWorker: () => WorkerLike) {}
+  constructor(
+    private readonly makeWorker: () => WorkerLike,
+    private readonly gpu = true,
+  ) {}
 
   async load(): Promise<void> {
-    const reply = await this.request({ id: 0, type: 'load' });
+    const reply = await this.request({ id: 0, type: 'load', gpu: this.gpu });
     if (reply.type === 'ready') {
       this.sampleRate = reply.sampleRate;
       this.backend = reply.backend;
