@@ -1,11 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import {
+  MODEL_ORDER,
+  Supertonic,
   TextIds,
   frameNoise,
   latentSize,
   noise,
   parseStyle,
   preprocessText,
+  type ModelName,
+  type OrtModule,
+  type TtsConfig,
 } from '../../../src/voice/supertonic';
 
 // Expected strings computed once with the original helper's UnicodeProcessor.
@@ -131,5 +136,64 @@ describe('parseStyle', () => {
 
   it('refuses a file that is not a voice style', () => {
     expect(() => parseStyle({ style_ttl: { dims: [1, 2, 3], data: [[[1]]] } })).toThrow();
+  });
+});
+
+describe('Supertonic.create', () => {
+  const cfg = {
+    ae: { sample_rate: 44100, base_chunk_size: 512 },
+    ttl: { chunk_compress_factor: 6, latent_dim: 24 },
+  } as TtsConfig;
+
+  /** An engine that logs each read, each session made and each one released. */
+  function fake(failOn?: ModelName) {
+    const log: string[] = [];
+    const options: unknown[] = [];
+    const ort = {
+      InferenceSession: {
+        create: async (bytes: Uint8Array, opts: unknown) => {
+          const model = new TextDecoder().decode(bytes);
+          options.push(opts);
+          if (model === failOn) throw new Error(`cannot open ${model}`);
+          log.push(`made ${model}`);
+          return { release: async () => void log.push(`released ${model}`) };
+        },
+      },
+    } as unknown as OrtModule;
+    const read = async (model: ModelName) => {
+      log.push(`read ${model}`);
+      return new TextEncoder().encode(model);
+    };
+    return { ort, read, log, options };
+  }
+
+  it('reads each model only once the one before is open, largest first', async () => {
+    const { ort, read, log } = fake();
+    await Supertonic.create(ort, read, cfg, [], { backend: 'wasm' });
+    expect(log).toEqual(MODEL_ORDER.flatMap((m) => [`read ${m}`, `made ${m}`]));
+    expect(MODEL_ORDER[0]).toBe('vectorEstimator');
+  });
+
+  it('turns graph optimisation off on wasm, where it doubled the memory, and keeps it on WebGPU', async () => {
+    const wasm = fake();
+    await Supertonic.create(wasm.ort, wasm.read, cfg, [], { backend: 'wasm' });
+    expect(wasm.options).toHaveLength(4);
+    for (const o of wasm.options)
+      expect(o).toEqual({ executionProviders: ['wasm'], graphOptimizationLevel: 'disabled' });
+    const gpu = fake();
+    await Supertonic.create(gpu.ort, gpu.read, cfg, [], { backend: 'webgpu' });
+    for (const o of gpu.options)
+      expect(o).toEqual({ executionProviders: ['webgpu'], graphOptimizationLevel: 'all' });
+  });
+
+  it('releases the sessions already made when one fails to open', async () => {
+    const { ort, read, log } = fake('textEncoder');
+    await expect(Supertonic.create(ort, read, cfg, [], { backend: 'wasm' })).rejects.toThrow(
+      'cannot open textEncoder',
+    );
+    expect(log.filter((l) => l.startsWith('released')).sort()).toEqual([
+      'released vectorEstimator',
+      'released vocoder',
+    ]);
   });
 });

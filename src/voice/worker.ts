@@ -13,7 +13,14 @@ import {
   type WorkerRequest,
 } from './narrator';
 import { getProfile, pickSteps, readFile, saveProfile, type Profile } from './store';
-import { Supertonic, parseStyle, type OrtModule, type Style, type TtsConfig } from './supertonic';
+import {
+  Supertonic,
+  parseStyle,
+  type ModelName,
+  type OrtModule,
+  type Style,
+  type TtsConfig,
+} from './supertonic';
 import type { Lang } from './text';
 
 /** The worker's global scope, as far as it is used here (the app is typed with the DOM). */
@@ -47,6 +54,13 @@ async function loadOrt(): Promise<OrtModule> {
   return (ort = module);
 }
 
+const MODEL_FILES: Record<ModelName, string> = {
+  durationPredictor: 'duration_predictor',
+  textEncoder: 'text_encoder',
+  vectorEstimator: 'vector_estimator',
+  vocoder: 'vocoder',
+};
+
 async function bytes(path: string): Promise<Uint8Array> {
   return new Uint8Array(await readFile(path));
 }
@@ -78,15 +92,15 @@ async function selfTest(voice: Supertonic): Promise<6 | 8 | 16> {
 }
 
 async function open(backend: 'webgpu' | 'wasm'): Promise<void> {
-  const models = {
-    durationPredictor: await bytes('onnx/duration_predictor.onnx'),
-    textEncoder: await bytes('onnx/text_encoder.onnx'),
-    vectorEstimator: await bytes('onnx/vector_estimator.onnx'),
-    vocoder: await bytes('onnx/vocoder.onnx'),
-  };
   const cfg = (await json('onnx/tts.json')) as TtsConfig;
   const indexer = (await json('onnx/unicode_indexer.json')) as number[];
-  const voice = await Supertonic.create(await loadOrt(), models, cfg, indexer, { backend });
+  const voice = await Supertonic.create(
+    await loadOrt(),
+    (model) => bytes(`onnx/${MODEL_FILES[model]}.onnx`),
+    cfg,
+    indexer,
+    { backend },
+  );
   try {
     const stored = await getProfile();
     if (stored === null || stored.backend !== backend) {

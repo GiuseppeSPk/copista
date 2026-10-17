@@ -31,13 +31,19 @@ import type { Lang } from './text';
 
 export type OrtModule = typeof Ort;
 
-/** The four models, as the bytes of their files. */
-export interface ModelBytes {
-  durationPredictor: Uint8Array;
-  textEncoder: Uint8Array;
-  vectorEstimator: Uint8Array;
-  vocoder: Uint8Array;
-}
+/** The four models. */
+export type ModelName = 'durationPredictor' | 'textEncoder' | 'vectorEstimator' | 'vocoder';
+
+/**
+ * Opened one at a time and largest first, so only one file's bytes are held
+ * while its session is made, and the largest is made while memory is emptiest.
+ */
+export const MODEL_ORDER: readonly ModelName[] = [
+  'vectorEstimator',
+  'vocoder',
+  'textEncoder',
+  'durationPredictor',
+];
 
 /** The part of `tts.json` the voice needs. */
 export interface TtsConfig {
@@ -272,7 +278,7 @@ export class Supertonic {
 
   private constructor(
     private readonly ort: OrtModule,
-    private readonly sessions: Record<keyof ModelBytes, Ort.InferenceSession>,
+    private readonly sessions: Record<ModelName, Ort.InferenceSession>,
     private readonly cfg: TtsConfig,
     private readonly ids: TextIds,
   ) {
@@ -281,23 +287,33 @@ export class Supertonic {
 
   static async create(
     ort: OrtModule,
-    models: ModelBytes,
+    read: (model: ModelName) => Promise<Uint8Array>,
     cfg: TtsConfig,
     indexer: number[],
     options: { backend: 'webgpu' | 'wasm' },
   ): Promise<Supertonic> {
     const sessionOptions: Ort.InferenceSession.SessionOptions = {
       executionProviders: [options.backend],
-      graphOptimizationLevel: 'all',
+      // On wasm the optimiser folds each fp16 weight and its cast into an fp32
+      // copy, which doubled the memory the voice takes, to about 1 GB, and froze
+      // a phone with little of it; without it the voice sounds the same, at the
+      // same speed on a computer.
+      graphOptimizationLevel: options.backend === 'wasm' ? 'disabled' : 'all',
     };
-    const open = (bytes: Uint8Array) => ort.InferenceSession.create(bytes, sessionOptions);
-    const sessions = {
-      durationPredictor: await open(models.durationPredictor),
-      textEncoder: await open(models.textEncoder),
-      vectorEstimator: await open(models.vectorEstimator),
-      vocoder: await open(models.vocoder),
-    };
-    return new Supertonic(ort, sessions, cfg, new TextIds(indexer));
+    const sessions: Partial<Record<ModelName, Ort.InferenceSession>> = {};
+    try {
+      for (const model of MODEL_ORDER)
+        sessions[model] = await ort.InferenceSession.create(await read(model), sessionOptions);
+    } catch (error) {
+      await Promise.all(Object.values(sessions).map((s) => s.release()));
+      throw error;
+    }
+    return new Supertonic(
+      ort,
+      sessions as Record<ModelName, Ort.InferenceSession>,
+      cfg,
+      new TextIds(indexer),
+    );
   }
 
   /** Reads one piece aloud: its samples, then a short pause. */
