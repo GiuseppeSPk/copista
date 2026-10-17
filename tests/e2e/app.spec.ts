@@ -2186,3 +2186,19 @@ test.describe('the offer to install the app', () => {
     await page.close();
   });
 });
+
+test('says so, and names the browser, when the app cannot start', async ({ page }) => {
+  // An older browser, such as an e-reader's, cannot run the app's code and left the page blank.
+  await page.route('**/src/main.ts', (route) => route.abort());
+  await page.goto('/');
+  const alert = page.getByRole('alert');
+  await expect(alert).toContainText('Copista does not run in this browser');
+  await expect(alert).toContainText(await page.evaluate(() => navigator.userAgent));
+});
+
+test('says nothing of the kind when the app starts', async ({ page }) => {
+  await page.goto('/');
+  await page.waitForLoadState('load');
+  await expect(page.getByRole('link', { name: 'Copista, all rooms' })).toBeVisible();
+  await expect(page.getByText('Copista does not run in this browser')).toHaveCount(0);
+});
