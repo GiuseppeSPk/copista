@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DrmProtectedError, NotAnEpubError } from '../../../src/core/errors';
-import { errorMessage, megabytes, warningMessage } from '../../../src/ui/text';
+import { describeEngine, errorMessage, megabytes, warningMessage } from '../../../src/ui/text';
 
 describe('errorMessage', () => {
   it('passes on the engine messages, which are written for the reader', () => {
@@ -41,5 +41,18 @@ describe('megabytes', () => {
   it('shows one decimal', () => {
     expect(megabytes(1048576 * 2.25)).toBe('2.3 MB');
     expect(megabytes(0)).toBe('0.0 MB');
+  });
+});
+
+describe('describeEngine', () => {
+  it('names where the voice runs, and how fast once it has read', () => {
+    const wasm = { backend: 'wasm' as const, threads: 4, steps: 8, made: 0, took: 0 };
+    expect(describeEngine(wasm)).toBe('Processor, 4 threads, 8 steps');
+    expect(describeEngine({ ...wasm, threads: 1, made: 10, took: 13 })).toBe(
+      'Processor, 1 thread, 8 steps. One second of speech takes 1.30 s to make.',
+    );
+    expect(describeEngine({ ...wasm, backend: 'webgpu', steps: 16 })).toBe(
+      'Graphics chip, 16 steps',
+    );
   });
 });

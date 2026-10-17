@@ -108,6 +108,8 @@ async function open(backend: 'webgpu' | 'wasm'): Promise<void> {
       await saveProfile(profile);
     } else {
       profile = stored;
+      // The first pieces made after loading take longer; made here, the reader's do not.
+      await voice.speak(SELF_TEST, 'it', await style('M2'), profile.steps, SPEED, SEED.M2);
     }
   } catch (error) {
     await voice.release();
@@ -188,6 +190,7 @@ async function handle(message: WorkerRequest): Promise<WorkerReply> {
         sampleRate: tts!.sampleRate,
         backend: profile!.backend,
         steps: profile!.steps,
+        threads: ort!.env.wasm.numThreads ?? 1,
       };
     case 'speak':
       return {

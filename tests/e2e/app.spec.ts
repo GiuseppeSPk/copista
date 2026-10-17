@@ -1522,6 +1522,34 @@ test.describe('Listen', () => {
       await expect(wait).not.toContainText('is getting ready');
     });
 
+    test('lets the reader read on while the voice warms up, then waits for Play', async ({
+      page,
+    }) => {
+      await withVoice(page);
+      // A fake that takes longer to load than a wait worth starting at once.
+      await page.addInitScript(() => localStorage.setItem('copista-test-voice-load-ms', '3500'));
+      await openReader(page);
+      await page.getByRole('button', { name: 'Listen', exact: true }).click();
+      const wait = listening(page).locator('.listen-wait');
+      await expect(wait).toContainText('is warming up');
+      await expect(wait).toContainText('Read on meanwhile');
+      await page.keyboard.press('ArrowRight');
+      await expect(page.locator('.where')).toContainText(/Page 2 of \d+/);
+      await expect(wait).toContainText('is ready: Play reads from this page.', { timeout: 10_000 });
+      const play = listening(page).getByRole('button', { name: 'Play' });
+      await expect(play).toHaveClass(/ready/);
+      expect((await sound(page)).at).toBe(0);
+      await expect(page.locator('.where')).toContainText(/Page 2 of \d+/);
+      await play.click();
+      await expect.poll(async () => (await sound(page)).at, { timeout: 20_000 }).toBeGreaterThan(0);
+      await expect(wait).not.toContainText('is ready');
+      await expect(page.locator('.where')).toContainText(/Page 2 of \d+/);
+      await listening(page)
+        .getByRole('button', { name: /^The Lect/ })
+        .click();
+      await expect(page.locator('#voice-sheet')).toContainText('Processor, 1 thread, 8 steps.');
+    });
+
     test('steps the speed of the voice and keeps it for the next time', async ({ page }) => {
       await withVoice(page);
       await openReader(page);

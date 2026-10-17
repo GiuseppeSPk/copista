@@ -4,6 +4,9 @@ import type { Narrator, VoiceId } from '../../voice/narrator';
 import { piecesOf, rampUp, rangeOf, type Lang, type Place } from '../../voice/text';
 import type { ReadingController } from './controller';
 
+/** The bar's state as a reading starts, before anything is heard. */
+const IDLE: AloudState = { piece: '', waiting: true, paused: false, warming: false, ready: false };
+
 /** Where a reading starts: a chapter, a block, and with an offset the sentence there. */
 type From = { doc: Document; spineIndex: number; block: number; offset?: number };
 
@@ -14,7 +17,14 @@ export interface AloudState {
   /** The voice is being made and nothing is playing yet. */
   waiting: boolean;
   paused: boolean;
+  /** The voice is loading and warming up, while the reader reads on. */
+  warming: boolean;
+  /** The voice warmed up while the reader read on, and waits for Play to start from the page on screen. */
+  ready: boolean;
 }
+
+/** A voice warmed up within this long starts reading at once, before the reader has read on. */
+export const QUICK_WARM_MS = 3000;
 
 export interface AloudDeps {
   reader: Pick<
@@ -31,6 +41,8 @@ export interface AloudDeps {
   lang: Lang;
   /** The voice chosen now; read again at each chapter and restart. */
   voice: () => VoiceId;
+  /** Loads the voice and warms it up; settles at once when it is warm already. */
+  warm?: () => Promise<void>;
   finish?: Finish;
   /** Called with null once the reading has stopped. */
   onState(state: AloudState | null): void;
@@ -46,7 +58,9 @@ export class ReadAloud {
   /** Counts the readings started, so a reading that was stopped can tell. */
   private run = 0;
   private running = false;
-  private state: AloudState = { piece: '', waiting: true, paused: false };
+  /** The voice is warming up, or warm and waiting for Play: nothing has been read yet. */
+  private unstarted = false;
+  private state: AloudState = IDLE;
 
   constructor(private readonly deps: AloudDeps) {}
 
@@ -65,23 +79,26 @@ export class ReadAloud {
     if (this.running) this.halt();
     this.deps.reader.pause();
     this.running = true;
-    this.show({ piece: '', waiting: true, paused: false });
-    void this.read(++this.run, from);
+    const run = ++this.run;
+    const { warm } = this.deps;
+    if (warm === undefined) {
+      this.show(IDLE);
+      void this.read(run, from);
+    } else {
+      this.unstarted = true;
+      this.show({ ...IDLE, warming: true });
+      void this.warmUp(run, warm, at);
+    }
     return true;
   }
 
   /** The reader moved: start again from the first block on screen, still paused if paused. */
   restart(): void {
-    if (!this.running) return;
+    // Before the voice has read anything, the start is taken from the screen when it does.
+    if (!this.running || this.unstarted) return;
     this.halt();
     this.show({ ...this.state, piece: '', waiting: true });
-    const run = ++this.run;
-    // Asked behind the moves in flight, so a chapter still opening is the one taken.
-    void this.deps.reader.listeningStartQueued().then((from) => {
-      if (run !== this.run) return;
-      if (from === null) this.stop();
-      else void this.read(run, from);
-    });
+    this.readFromScreen(++this.run);
   }
 
   pause(): void {
@@ -92,6 +109,12 @@ export class ReadAloud {
 
   resume(): void {
     if (!this.running || !this.state.paused) return;
+    if (this.state.ready) {
+      this.unstarted = false;
+      this.show({ ...IDLE });
+      this.readFromScreen(this.run);
+      return;
+    }
     this.listening?.resume();
     this.show({ ...this.state, paused: false });
   }
@@ -104,7 +127,49 @@ export class ReadAloud {
     if (!this.running) return;
     this.halt();
     this.running = false;
+    this.unstarted = false;
     this.deps.onState(null);
+  }
+
+  /**
+   * Waits for the voice to warm up while the reader reads on. A quick one starts
+   * at once; after a long one, the reader has moved on, so it waits for Play
+   * and starts from the page on screen then, as it does when paused meanwhile.
+   */
+  private async warmUp(
+    run: number,
+    warm: () => Promise<void>,
+    at: ({ doc: Document; spineIndex: number } & Place) | undefined,
+  ): Promise<void> {
+    const began = Date.now();
+    try {
+      await warm();
+    } catch (error) {
+      if (run !== this.run) return;
+      this.deps.onError(error);
+      this.stop();
+      return;
+    }
+    if (run !== this.run) return;
+    const slow = Date.now() - began >= QUICK_WARM_MS;
+    // A place chosen on the page is read from once the voice is warm.
+    if (at === undefined && (slow || this.state.paused)) {
+      this.show({ ...IDLE, waiting: false, paused: true, ready: true });
+      return;
+    }
+    this.unstarted = false;
+    this.show(IDLE);
+    if (at !== undefined) void this.read(run, at);
+    else this.readFromScreen(run);
+  }
+
+  /** Reads from the first block on screen, asked behind the moves in flight, so a chapter still opening is the one taken. */
+  private readFromScreen(run: number): void {
+    void this.deps.reader.listeningStartQueued().then((from) => {
+      if (run !== this.run) return;
+      if (from === null) this.stop();
+      else void this.read(run, from);
+    });
   }
 
   /** Ends the reading under way and takes the mark off the page. */

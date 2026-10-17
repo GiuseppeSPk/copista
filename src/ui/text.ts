@@ -36,3 +36,24 @@ export function errorMessage(error: unknown): string {
 export function megabytes(bytes: number): string {
   return `${(bytes / 1048576).toFixed(1)} MB`;
 }
+
+/** How the voice runs on this device, once loaded, and how fast it has made what it read. */
+export interface Engine {
+  backend: 'webgpu' | 'wasm' | 'fake';
+  threads: number;
+  steps: number;
+  /** The seconds of speech made so far, and the seconds it took to make them. */
+  made: number;
+  took: number;
+}
+
+/** The engine in a line, so a reader who hears gaps can say how the voice runs on the device. */
+export function describeEngine(engine: Engine): string {
+  const on =
+    engine.backend === 'webgpu'
+      ? 'Graphics chip'
+      : `Processor, ${engine.threads} ${engine.threads === 1 ? 'thread' : 'threads'}`;
+  const line = `${on}, ${engine.steps} steps`;
+  if (engine.made === 0) return line;
+  return `${line}. One second of speech takes ${(engine.took / engine.made).toFixed(2)} s to make.`;
+}

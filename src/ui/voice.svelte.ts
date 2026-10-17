@@ -13,7 +13,7 @@ import {
 import type { VoiceId } from '../rooms/archivum';
 import type { Lang } from '../voice/text';
 import { changeSettings } from './state.svelte';
-import { errorMessage } from './text';
+import { errorMessage, type Engine } from './text';
 
 /**
  * The two readers, each with a recorded sample in each language, under
@@ -45,7 +45,16 @@ export const voice = $state<{
   ready: boolean;
   progress: { done: number; total: number } | null;
   message: { tone: 'ok' | 'error'; text: string } | undefined;
-}>({ status: null, accepted: false, ready: false, progress: null, message: undefined });
+  /** How the voice runs here, once it has loaded in the open book. */
+  engine: Engine | null;
+}>({
+  status: null,
+  accepted: false,
+  ready: false,
+  progress: null,
+  message: undefined,
+  engine: null,
+});
 
 let controller: AbortController | undefined;
 

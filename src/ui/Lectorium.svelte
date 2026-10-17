@@ -70,6 +70,9 @@
   let lock: LockScreen | undefined;
   let listenError = $state('');
   let narrator: Narrator | undefined;
+  /** The narrator loading and warming up, and whether it has. */
+  let warming: Promise<void> | undefined;
+  let warm = false;
   let speaker: Output | undefined;
 
   // The window behind a fitted page shows no scrollbar. Only the scrollbar is
@@ -105,6 +108,9 @@
       if (aloudState) stopListening();
       narrator?.destroy();
       narrator = undefined;
+      warming = undefined;
+      warm = false;
+      voiceState.engine = null;
     });
   });
 
@@ -204,6 +210,7 @@
       stopListening();
       cancelDownload();
       narrator?.destroy();
+      voiceState.engine = null;
       speaker?.release();
       ctrl?.destroy();
       ctrl = undefined;
@@ -514,6 +521,23 @@
     listenFrom();
   }
 
+  /** Loads the voice and warms it up, once for the open book; a failure lets the next Listen try again. */
+  function warmUp(voice: Narrator): Promise<void> {
+    const loading = voice.load().then(
+      () => {
+        if (narrator !== voice) return;
+        warm = true;
+        const { backend, threads, steps } = voice;
+        voiceState.engine = { backend, threads, steps, made: 0, took: 0 };
+      },
+      (error: unknown) => {
+        if (warming === loading) warming = undefined;
+        throw error;
+      },
+    );
+    return loading;
+  }
+
   /** Reads aloud from the first paragraph on screen, or from a place chosen on it. */
   function listenFrom(place?: Parameters<ReadAloud['start']>[0]): void {
     if (!ctrl || !session) return;
@@ -523,12 +547,22 @@
     out.unlock();
     out.setRate(app.settings.voiceRate);
     const voice = (narrator ??= voiceService().narrator());
-    const loaded = voice.load();
+    const loaded = (warming ??= warmUp(voice));
     const lang = bookLang;
     const reading = new ReadAloud({
       reader: ctrl,
       narrator: {
-        speak: (text, l, v) => loaded.then(() => voice.speak(text, l, v)),
+        speak: async (text, l, v) => {
+          await loaded;
+          const began = performance.now();
+          const samples = await voice.speak(text, l, v);
+          const engine = voiceState.engine;
+          if (narrator === voice && engine) {
+            engine.made += samples.length / voice.sampleRate;
+            engine.took += (performance.now() - began) / 1000;
+          }
+          return samples;
+        },
         // Known once the voice has loaded, before the first piece is made.
         get sampleRate() {
           return voice.sampleRate;
@@ -541,8 +575,11 @@
       },
       lang,
       voice: () => app.settings.voice,
+      ...(!warm && { warm: () => loaded }),
       onState: (state) => {
         if (aloud !== reading) return;
+        // The phone buzzes once when the voice has warmed up and waits for Play.
+        if (state?.ready && !aloudState?.ready) navigator.vibrate?.(15);
         aloudState = state;
         if (state === null) stopListening();
       },
@@ -1153,6 +1190,8 @@
               paused={aloudState.paused}
               waiting={aloudState.waiting}
               starting={aloudState.piece === ''}
+              warming={aloudState.warming}
+              ready={aloudState.ready}
               onToggle={toggleAloud}
               onSkip={(by) => aloud?.skip(by)}
               rate={app.settings.voiceRate}

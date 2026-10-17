@@ -6,6 +6,8 @@
     paused,
     waiting,
     starting,
+    warming,
+    ready,
     onToggle,
     onSkip,
     rate,
@@ -21,6 +23,10 @@
     waiting: boolean;
     /** Nothing has been heard yet since the reading started or moved. */
     starting: boolean;
+    /** The voice is loading and warming up, while the reader reads on. */
+    warming: boolean;
+    /** The voice has warmed up and waits for Play to read from the page on screen. */
+    ready: boolean;
     onToggle: () => void;
     onSkip: (by: 1 | -1) => void;
     /** How fast the voice is heard, as a multiple of its own pace. */
@@ -42,6 +48,7 @@
   <button
     type="button"
     class="play"
+    class:ready
     aria-label={paused ? 'Play' : 'Pause'}
     aria-keyshortcuts="Space"
     aria-busy={waiting && !paused}
@@ -71,9 +78,14 @@
     ><Icon name="close" size={18} /></button
   >
   <span class="listen-wait" role="status"
-    >{#if waiting && !paused}<span class="sound-bars" aria-hidden="true"
+    >{#if ready}{reader} is ready: Play reads from this page.<small
+        >Or hold on a sentence to read from there.</small
+      >{:else if waiting && !paused}<span class="sound-bars" aria-hidden="true"
         ><i></i><i></i><i></i><i></i></span
-      >{#if starting}{reader} is getting ready…<small>Hold on a sentence to read from there.</small
+      >{#if warming}{reader} is warming up…<small
+          >Read on meanwhile: you will be told when it is ready.</small
+        >{:else if starting}{reader} is getting ready…<small
+          >Hold on a sentence to read from there.</small
         >{:else}{reader} is catching up…{/if}{/if}</span
   >
 </div>

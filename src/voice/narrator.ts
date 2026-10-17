@@ -35,6 +35,10 @@ export interface Tuning {
 export interface Narrator {
   readonly sampleRate: number;
   readonly backend: 'webgpu' | 'wasm' | 'fake';
+  /** The steps each piece is made in, and the threads that make it, known once loaded. */
+  readonly steps: number;
+  readonly threads: number;
+  /** Loads the voice and warms it up, so the first piece is made as fast as the rest. */
   load(): Promise<void>;
   speak(text: string, lang: Lang, voice: VoiceId, tuning?: Tuning): Promise<Float32Array>;
   destroy(): void;
@@ -48,7 +52,14 @@ export type WorkerRequest =
 
 /** Messages from the worker. */
 export type WorkerReply =
-  | { id: number; type: 'ready'; sampleRate: number; backend: 'webgpu' | 'wasm'; steps: 6 | 8 | 16 }
+  | {
+      id: number;
+      type: 'ready';
+      sampleRate: number;
+      backend: 'webgpu' | 'wasm';
+      steps: 6 | 8 | 16;
+      threads: number;
+    }
   | { id: number; type: 'audio'; samples: Float32Array }
   | { id: number; type: 'error'; message: string };
 
@@ -90,6 +101,8 @@ interface Pending {
 export class WorkerNarrator implements Narrator {
   sampleRate = 44100;
   backend: 'webgpu' | 'wasm' = 'wasm';
+  steps = 8;
+  threads = 1;
   private worker: WorkerLike | null = null;
   private nextId = 1;
   private readonly pending = new Map<number, Pending>();
@@ -104,6 +117,8 @@ export class WorkerNarrator implements Narrator {
     if (reply.type === 'ready') {
       this.sampleRate = reply.sampleRate;
       this.backend = reply.backend;
+      this.steps = reply.steps;
+      this.threads = reply.threads;
     }
   }
 
@@ -159,18 +174,32 @@ export function voiceWorker(): WorkerLike {
 /** A narrator for tests: silence as long as the text would take to say, a little later. */
 export class FakeNarrator implements Narrator {
   readonly backend = 'fake';
+  readonly steps = 8;
+  readonly threads = 1;
   readonly sampleRate: number;
   private readonly msPerChar: number;
   /** How long each character lasts once spoken. */
   private readonly secondsPerChar: number;
+  /** How long loading and warming up takes. */
+  private readonly loadMs: number;
 
-  constructor(options: { msPerChar?: number; secondsPerChar?: number; sampleRate?: number } = {}) {
+  constructor(
+    options: {
+      msPerChar?: number;
+      secondsPerChar?: number;
+      sampleRate?: number;
+      loadMs?: number;
+    } = {},
+  ) {
     this.msPerChar = options.msPerChar ?? 2;
+    this.loadMs = options.loadMs ?? 0;
     this.secondsPerChar = options.secondsPerChar ?? 0.06;
     this.sampleRate = options.sampleRate ?? 44100;
   }
 
-  async load(): Promise<void> {}
+  async load(): Promise<void> {
+    if (this.loadMs > 0) await new Promise((resolve) => setTimeout(resolve, this.loadMs));
+  }
 
   async speak(text: string): Promise<Float32Array> {
     await new Promise((resolve) => setTimeout(resolve, text.length * this.msPerChar));

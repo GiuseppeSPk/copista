@@ -50,14 +50,16 @@ describe('WorkerNarrator', () => {
     expect(worker.sent[1]!).not.toHaveProperty('tuning');
   });
 
-  it('takes the sample rate and backend from the ready reply', async () => {
+  it('takes the sample rate, backend, steps and threads from the ready reply', async () => {
     const { worker, narrator } = setUp();
     const loading = narrator.load();
     const { id } = worker.sent[0]!;
-    worker.reply({ id, type: 'ready', sampleRate: 22050, backend: 'webgpu', steps: 8 });
+    worker.reply({ id, type: 'ready', sampleRate: 22050, backend: 'webgpu', steps: 6, threads: 4 });
     await loading;
     expect(narrator.sampleRate).toBe(22050);
     expect(narrator.backend).toBe('webgpu');
+    expect(narrator.steps).toBe(6);
+    expect(narrator.threads).toBe(4);
   });
 
   it('tells the worker whether it may use the graphics chip', () => {

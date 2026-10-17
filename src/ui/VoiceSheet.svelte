@@ -2,7 +2,7 @@
   import { DOWNLOAD_BYTES, VOICE_HOST } from '../rooms/voice';
   import Icon from './Icon.svelte';
   import { app } from './state.svelte';
-  import { megabytes } from './text';
+  import { describeEngine, megabytes } from './text';
   import type { Lang } from '../voice/text';
   import {
     READERS,
@@ -96,6 +96,10 @@
     <dl class="facts">
       <dt>Space used</dt>
       <dd>{megabytes(voice.status.bytes)}</dd>
+      {#if voice.engine}
+        <dt>Runs on</dt>
+        <dd>{describeEngine(voice.engine)}</dd>
+      {/if}
     </dl>
     <p>
       <button type="button" class="danger" onclick={removeVoiceHere}>

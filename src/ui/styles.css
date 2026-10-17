@@ -2411,6 +2411,13 @@ button.link:hover:not(:disabled) {
   animation: rise 300ms var(--ease) 400ms backwards;
 }
 
+/* The voice warmed up while the reader read on: Play is the next thing to press. */
+.listen-bar .play.ready {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--card);
+}
+
 .listen-wait:empty {
   display: none;
 }

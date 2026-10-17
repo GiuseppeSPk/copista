@@ -30,6 +30,9 @@ export const TEST_VOICE_KEY = 'copista-test-voice';
 /** In development, the milliseconds the fake takes for each character, so a test can see the wait. */
 export const TEST_VOICE_PACE_KEY = 'copista-test-voice-ms';
 
+/** In development, the milliseconds the fake takes to load, so a test can see it warm up. */
+export const TEST_VOICE_LOAD_KEY = 'copista-test-voice-load-ms';
+
 const real: VoiceService = {
   isInstalled: () => isInstalled(),
   install: (onProgress, signal) => install(onProgress, signal),
@@ -65,6 +68,7 @@ const fake: VoiceService = {
     new FakeNarrator({
       msPerChar: Number(localStorage.getItem(TEST_VOICE_PACE_KEY) ?? 1),
       secondsPerChar: 0.002,
+      loadMs: Number(localStorage.getItem(TEST_VOICE_LOAD_KEY) ?? 0),
     }),
 };
 

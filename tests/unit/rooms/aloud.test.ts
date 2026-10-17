@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { ReadAloud, type AloudState } from '../../../src/rooms/lectorium/aloud';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { QUICK_WARM_MS, ReadAloud, type AloudState } from '../../../src/rooms/lectorium/aloud';
 import { FakeNarrator } from '../../../src/voice/narrator';
 import { piecesOf, rampUp, type Piece } from '../../../src/voice/text';
 
@@ -83,7 +83,7 @@ class Reader {
   }
 }
 
-function setUp(docs: Document[]) {
+function setUp(docs: Document[], warm?: () => Promise<void>) {
   const reader = new Reader(docs);
   const states: (AloudState | null)[] = [];
   const errors: unknown[] = [];
@@ -103,6 +103,7 @@ function setUp(docs: Document[]) {
     },
     lang: 'en',
     voice: () => 'M2',
+    ...(warm && { warm }),
     onState: (state) => {
       states.push(state);
       if (state === null) ended();
@@ -248,6 +249,98 @@ describe('reading aloud', () => {
     expect(errors).toEqual([]);
     expect(aloud.active).toBe(false);
     aloud.restart();
+    expect(aloud.active).toBe(false);
+  });
+});
+
+/** A voice that warms up when told to, the clock moved on by the time given. */
+function warming() {
+  let done = () => {};
+  let fail = (_error: unknown) => {};
+  const warmed = new Promise<void>((resolve, reject) => {
+    done = resolve;
+    fail = reject;
+  });
+  let now = 0;
+  vi.spyOn(Date, 'now').mockImplementation(() => now);
+  return {
+    warm: () => warmed,
+    after(ms: number) {
+      now += ms;
+      done();
+    },
+    fail(error: unknown) {
+      fail(error);
+    },
+  };
+}
+
+const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+describe('reading aloud while the voice warms up', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('starts from the page on screen once a quick warm-up is over, the moves meanwhile left alone', async () => {
+    const voice = warming();
+    const { reader, aloud, states, end } = setUp([PROSE], voice.warm);
+    aloud.start();
+    expect(states.at(-1)).toMatchObject({ warming: true, waiting: true, ready: false });
+    reader.block = 2;
+    aloud.restart();
+    voice.after(QUICK_WARM_MS - 1);
+    await end;
+    expect(reader.follows).toEqual([...texts(PROSE, 2), null]);
+    expect(states.some((s) => s?.ready)).toBe(false);
+  });
+
+  it('waits for Play after a long warm-up, then reads from the page on screen then', async () => {
+    const voice = warming();
+    const { reader, aloud, states, end, played } = setUp([PROSE], voice.warm);
+    aloud.start();
+    voice.after(QUICK_WARM_MS);
+    await settle();
+    expect(states.at(-1)).toMatchObject({ ready: true, paused: true, warming: false });
+    expect(played()).toBe(0);
+    reader.block = 3;
+    aloud.restart();
+    await settle();
+    expect(played()).toBe(0);
+    aloud.resume();
+    await end;
+    expect(reader.follows).toEqual([...texts(PROSE, 3), null]);
+  });
+
+  it('waits for Play when paused while warming up, however quick', async () => {
+    const voice = warming();
+    const { aloud, states, played } = setUp([PROSE], voice.warm);
+    aloud.start();
+    aloud.pause();
+    voice.after(1);
+    await settle();
+    expect(states.at(-1)).toMatchObject({ ready: true, paused: true });
+    expect(played()).toBe(0);
+    aloud.stop();
+  });
+
+  it('reads from a place chosen on the page as soon as the voice is warm', async () => {
+    const voice = warming();
+    const { reader, aloud, end } = setUp([PROSE], voice.warm);
+    aloud.start({ doc: PROSE, spineIndex: 0, block: 3, offset: 0 });
+    voice.after(QUICK_WARM_MS * 10);
+    await end;
+    expect(reader.follows).toEqual([...texts(PROSE, 3), null]);
+  });
+
+  it('stops and says why when the voice fails to load', async () => {
+    const voice = warming();
+    const { aloud, errors, end, played } = setUp([PROSE], voice.warm);
+    aloud.start();
+    voice.fail(new Error('No memory.'));
+    await end;
+    expect(errors).toEqual([new Error('No memory.')]);
+    expect(played()).toBe(0);
     expect(aloud.active).toBe(false);
   });
 });
