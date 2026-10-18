@@ -274,10 +274,12 @@ export async function forgetProfile(): Promise<void> {
 
 /**
  * Whether the device can read aloud, as far as the verdicts tell: yes once a
- * backend passed, no once wasm failed, since it is tried last, and null before.
+ * backend passed, no once both failed, and null before. A browser without
+ * WebGPU has it marked failed when it is skipped, and a phone measured on its
+ * processor alone, before its graphics chip was tried after it, is tested again.
  */
 export function isFit(profile: Profile): boolean | null {
-  if (profile.webgpu && 'steps' in profile.webgpu) return true;
-  if (profile.wasm) return 'steps' in profile.wasm;
-  return null;
+  const { webgpu, wasm } = profile;
+  if ((webgpu && 'steps' in webgpu) || (wasm && 'steps' in wasm)) return true;
+  return webgpu && wasm ? false : null;
 }

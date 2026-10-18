@@ -203,12 +203,16 @@ describe('reading and removing', () => {
 });
 
 describe('isFit', () => {
-  it('is yes once a backend passed, no once wasm failed, and unknown before', () => {
+  it('is yes once a backend passed, no once both failed, and unknown before', () => {
     expect(isFit({})).toBeNull();
     expect(isFit({ webgpu: { steps: 8 } })).toBe(true);
     expect(isFit({ webgpu: { unfit: 'noise' } })).toBeNull();
     expect(isFit({ webgpu: { unfit: 'noise' }, wasm: { steps: 6 } })).toBe(true);
     expect(isFit({ webgpu: { unfit: 'stalled' }, wasm: { unfit: 'slow' } })).toBe(false);
-    expect(isFit({ wasm: { unfit: 'slow' } })).toBe(false);
+  });
+
+  it('is unknown on a phone whose processor failed and whose graphics chip is still to try', () => {
+    // A phone measured before the chip was tried after the processor kept only this.
+    expect(isFit({ wasm: { unfit: 'slow' } })).toBeNull();
   });
 });

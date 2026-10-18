@@ -222,8 +222,11 @@ async function load(testing: (on: Backend) => void = () => {}): Promise<void> {
   for (const on of order) {
     const known = profile[on];
     if (known && 'unfit' in known) reasons.push(known.unfit);
-    else if (on === 'webgpu' && !(await hasWebGpu())) continue;
-    else if (on === 'wasm' && !scope.crossOriginIsolated) reasons.push('isolation');
+    else if (on === 'webgpu' && !(await hasWebGpu())) {
+      // Kept, so a device whose processor failed too is known to be unfit.
+      if (known === undefined) await saveVerdict(on, { unfit: 'failed' });
+      continue;
+    } else if (on === 'wasm' && !scope.crossOriginIsolated) reasons.push('isolation');
     else candidates.push(on);
   }
   if (ort === null) gpuBuild = candidates[0] === 'webgpu';
