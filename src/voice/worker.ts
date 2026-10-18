@@ -8,6 +8,7 @@ import {
   SEED,
   SPEED,
   isDeviceLost,
+  type LoadTimes,
   type Tuning,
   type VoiceId,
   type WorkerReply,
@@ -18,6 +19,7 @@ import {
   Supertonic,
   parseStyle,
   type ModelName,
+  type PieceTimes,
   type OrtModule,
   type Style,
   type TtsConfig,
@@ -47,14 +49,18 @@ let steps: 6 | 8 | 16 = 8;
 /** Set once WebGPU fails, or when the page asks for wasm: this worker stays on wasm from then on. */
 let wasmOnly = false;
 const styles = new Map<VoiceId, Style>();
+/** How long the last load took, for the stopwatch in development. */
+let times: LoadTimes = { engine: 0, sessions: {}, warmUp: 0, total: 0 };
 
 async function loadOrt(): Promise<OrtModule> {
   if (ort !== null) return ort;
+  const start = performance.now();
   const module = (await import(/* @vite-ignore */ `${ORT_DIR}ort.webgpu.min.mjs`)) as OrtModule;
   module.env.wasm.wasmPaths = ORT_DIR;
   module.env.wasm.numThreads = scope.crossOriginIsolated
     ? Math.min(4, navigator.hardwareConcurrency || 1)
     : 1;
+  times.engine = performance.now() - start;
   return (ort = module);
 }
 
@@ -128,13 +134,14 @@ async function tryBackend(
       (model) => bytes(`onnx/${MODEL_FILES[model]}.onnx`),
       read.cfg,
       read.indexer,
-      { backend: on },
+      { backend: on, times: (times.sessions = {}) },
     );
   } catch (error) {
     if (on === 'wasm') throw error;
     await saveVerdict(on, (verdict = { unfit: 'failed' }));
     return verdict;
   }
+  const warming = performance.now();
   if (known === undefined) {
     testing();
     try {
@@ -155,6 +162,7 @@ async function tryBackend(
       }
     }
   }
+  times.warmUp = performance.now() - warming;
   if ('steps' in verdict) {
     tts = voice;
     backend = on;
@@ -172,6 +180,8 @@ async function tryBackend(
  */
 async function load(testing: (on: Backend) => void = () => {}): Promise<void> {
   if (tts !== null) return;
+  const start = performance.now();
+  times = { engine: 0, sessions: {}, warmUp: 0, total: 0 };
   const profile = await getProfile();
   const reasons: Unfit[] = [];
   const candidates: Backend[] = [];
@@ -186,7 +196,10 @@ async function load(testing: (on: Backend) => void = () => {}): Promise<void> {
     const read = await files();
     for (const on of candidates) {
       const verdict = await tryBackend(on, profile[on], read, () => testing(on));
-      if ('steps' in verdict) return;
+      if ('steps' in verdict) {
+        times.total = performance.now() - start;
+        return;
+      }
       reasons.push(verdict.unfit);
     }
   }
@@ -205,6 +218,7 @@ async function speak(
   voice: VoiceId,
   tuning: Tuning = {},
   isGivenUp: () => boolean = () => false,
+  pieceTimes?: PieceTimes,
 ): Promise<Float32Array> {
   await load();
   const run = async (): Promise<Float32Array> =>
@@ -215,7 +229,12 @@ async function speak(
       steps,
       tuning.speed ?? SPEED,
       tuning.seed ?? SEED[voice],
-      { fixes: tuning.fixes ?? FIXES, noise: tuning.noise, givenUp: isGivenUp },
+      {
+        fixes: tuning.fixes ?? FIXES,
+        noise: tuning.noise,
+        givenUp: isGivenUp,
+        ...(pieceTimes && { times: pieceTimes }),
+      },
     );
   try {
     return await run();
@@ -261,16 +280,25 @@ async function handle(message: WorkerRequest): Promise<WorkerReply> {
         backend,
         steps,
         threads: ort!.env.wasm.numThreads ?? 1,
+        times,
       };
     case 'speak': {
       const { id } = message;
-      return {
-        id,
-        type: 'audio',
-        samples: await speak(message.text, message.lang, message.voice, message.tuning, () =>
-          givenUp.has(id),
-        ),
+      const pieceTimes: PieceTimes = {
+        durationPredictor: 0,
+        textEncoder: 0,
+        vectorEstimator: 0,
+        vocoder: 0,
       };
+      const samples = await speak(
+        message.text,
+        message.lang,
+        message.voice,
+        message.tuning,
+        () => givenUp.has(id),
+        pieceTimes,
+      );
+      return { id, type: 'audio', samples, times: pieceTimes };
     }
     case 'probe':
       return { id: message.id, type: 'audio', samples: await probe(message.model) };

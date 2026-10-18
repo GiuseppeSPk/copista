@@ -14,6 +14,8 @@ import {
   SPEED,
 } from '../../../src/voice/narrator';
 
+const TIMES = { engine: 0, sessions: {}, warmUp: 0, total: 0 };
+
 /** A worker that keeps what it is sent and answers when the test says. */
 class FakeWorker implements WorkerLike {
   readonly sent: WorkerRequest[] = [];
@@ -56,12 +58,47 @@ describe('WorkerNarrator', () => {
     const { worker, narrator } = setUp();
     const loading = narrator.load();
     const { id } = worker.sent[0]!;
-    worker.reply({ id, type: 'ready', sampleRate: 22050, backend: 'webgpu', steps: 6, threads: 4 });
+    worker.reply({
+      id,
+      type: 'ready',
+      sampleRate: 22050,
+      backend: 'webgpu',
+      steps: 6,
+      threads: 4,
+      times: TIMES,
+    });
     await loading;
     expect(narrator.sampleRate).toBe(22050);
     expect(narrator.backend).toBe('webgpu');
     expect(narrator.steps).toBe(6);
     expect(narrator.threads).toBe(4);
+  });
+
+  it('keeps how long loading took, and each model on the last piece', async () => {
+    const { worker, narrator } = setUp();
+    const loading = narrator.load();
+    const times = { engine: 120, sessions: { vocoder: 300 }, warmUp: 900, total: 1500 };
+    worker.reply({
+      id: worker.sent[0]!.id,
+      type: 'ready',
+      sampleRate: 44100,
+      backend: 'wasm',
+      steps: 8,
+      threads: 4,
+      times,
+    });
+    await loading;
+    expect(narrator.loadTimes).toEqual(times);
+    const speaking = narrator.speak('Uno.', 'it', 'M2');
+    const piece = { durationPredictor: 5, textEncoder: 20, vectorEstimator: 400, vocoder: 80 };
+    worker.reply({
+      id: worker.sent[1]!.id,
+      type: 'audio',
+      samples: new Float32Array(4),
+      times: piece,
+    });
+    await speaking;
+    expect(narrator.lastTimes).toEqual(piece);
   });
 
   it('tells the worker whether it may use the graphics chip', () => {
@@ -175,6 +212,7 @@ describe('WorkerNarrator testing the device', () => {
       backend: 'webgpu',
       steps: 8,
       threads: 4,
+      times: TIMES,
     });
     await loading;
     await vi.advanceTimersByTimeAsync(5000);
@@ -199,6 +237,7 @@ describe('WorkerNarrator testing the device', () => {
       backend: 'wasm',
       steps: 6,
       threads: 4,
+      times: TIMES,
     });
     await loading;
     expect(narrator.backend).toBe('wasm');

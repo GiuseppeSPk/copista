@@ -1,4 +1,5 @@
 import { TEST_BUDGET_MS, VoiceUnfitError, type Unfit, type Verdict } from './fitness';
+import type { PieceTimes } from './supertonic';
 import type { Lang } from './text';
 
 /** The two voices: the Lector and the Lectrix. */
@@ -32,6 +33,17 @@ export interface Tuning {
   noise?: 'latent' | 'frame';
 }
 
+/**
+ * How long loading took, in milliseconds: importing the engine, opening each
+ * model, and the warm-up, or the fitness test the first time.
+ */
+export interface LoadTimes {
+  engine: number;
+  sessions: Partial<PieceTimes>;
+  warmUp: number;
+  total: number;
+}
+
 /** What reads a piece aloud. The app uses the worker; tests use the fake. */
 export interface Narrator {
   readonly sampleRate: number;
@@ -39,6 +51,9 @@ export interface Narrator {
   /** The steps each piece is made in, and the threads that make it, known once loaded. */
   readonly steps: number;
   readonly threads: number;
+  /** For development: how long loading took, and each model on the last piece, where known. */
+  readonly loadTimes?: LoadTimes | undefined;
+  readonly lastTimes?: PieceTimes | undefined;
   /** Loads the voice and warms it up, so the first piece is made as fast as the rest. */
   load(): Promise<void>;
   /** Makes a piece; the signal gives it up, so the voice is free at once for the next one. */
@@ -69,8 +84,9 @@ export type WorkerReply =
       backend: 'webgpu' | 'wasm';
       steps: 6 | 8 | 16;
       threads: number;
+      times: LoadTimes;
     }
-  | { id: number; type: 'audio'; samples: Float32Array }
+  | { id: number; type: 'audio'; samples: Float32Array; times?: PieceTimes }
   /** The fitness test starts on a backend; the page stops it if it does not end in time. */
   | { id: number; type: 'testing'; backend: 'webgpu' | 'wasm' }
   | { id: number; type: 'unfit'; reason: Unfit }
@@ -140,6 +156,9 @@ export class WorkerNarrator implements Narrator {
   backend: 'webgpu' | 'wasm' = 'wasm';
   steps = 8;
   threads = 1;
+  /** For development: how long loading took, and each model on the last piece. */
+  loadTimes: LoadTimes | undefined;
+  lastTimes: PieceTimes | undefined;
   private worker: WorkerLike | null = null;
   private nextId = 1;
   private readonly pending = new Map<number, Pending>();
@@ -162,6 +181,7 @@ export class WorkerNarrator implements Narrator {
           this.backend = reply.backend;
           this.steps = reply.steps;
           this.threads = reply.threads;
+          this.loadTimes = reply.times;
         }
         return;
       } catch (error) {
@@ -182,7 +202,9 @@ export class WorkerNarrator implements Narrator {
       { id: 0, type: 'speak', text, lang, voice, ...(tuning && { tuning }) },
       signal,
     );
-    return reply.type === 'audio' ? reply.samples : new Float32Array(0);
+    if (reply.type !== 'audio') return new Float32Array(0);
+    this.lastTimes = reply.times;
+    return reply.samples;
   }
 
   destroy(): void {

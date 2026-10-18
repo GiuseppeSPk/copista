@@ -186,6 +186,14 @@ describe('Supertonic.create', () => {
       expect(o).toEqual({ executionProviders: ['webgpu'], graphOptimizationLevel: 'all' });
   });
 
+  it('times how long each model takes to read and open', async () => {
+    const { ort, read } = fake();
+    const times = {};
+    await Supertonic.create(ort, read, cfg, [], { backend: 'wasm', times });
+    expect(Object.keys(times).sort()).toEqual([...MODEL_ORDER].sort());
+    for (const ms of Object.values(times)) expect(ms).toBeGreaterThanOrEqual(0);
+  });
+
   it('releases the sessions already made when one fails to open', async () => {
     const { ort, read, log } = fake('textEncoder');
     await expect(Supertonic.create(ort, read, cfg, [], { backend: 'wasm' })).rejects.toThrow(
@@ -231,10 +239,13 @@ describe('Supertonic.create', () => {
     const style = { ttl: new Float32Array(1), ttlDims: [1], dp: new Float32Array(1), dpDims: [1] };
     const steps = () => runs.filter((r) => r === 'vectorEstimator').length;
 
-    expect(await voice.speak('Ciao.', 'it', style, 8, 1, 1, { givenUp: () => false })).toHaveLength(
-      22050,
-    );
+    const times = { durationPredictor: -1, textEncoder: -1, vectorEstimator: -1, vocoder: -1 };
+    for (const model of MODEL_ORDER) times[model] = 0;
+    expect(
+      await voice.speak('Ciao.', 'it', style, 8, 1, 1, { givenUp: () => false, times }),
+    ).toHaveLength(22050);
     expect(steps()).toBe(8);
+    for (const ms of Object.values(times)) expect(ms).toBeGreaterThanOrEqual(0);
 
     runs.length = 0;
     await expect(

@@ -6,6 +6,7 @@
  */
 import { encodeWav, finishPiece } from '../audio';
 import { WorkerNarrator, voiceWorker } from '../narrator';
+import { describeLoad, describePiece } from '../stopwatch';
 import { isInstalled } from '../store';
 import { piecesOf } from '../text';
 import { TRIALS, shuffle, tally, type Answer, type Trial, type Variant } from './blind';
@@ -21,8 +22,45 @@ const passageTitle = $<HTMLParagraphElement>('trial-passage');
 const players = [$<HTMLAudioElement>('first'), $<HTMLAudioElement>('second')] as const;
 const choices = $<HTMLElement>('choices');
 const results = $<HTMLElement>('results');
+const stopwatch = $<HTMLParagraphElement>('stopwatch');
 
 const narrator = new WorkerNarrator(voiceWorker);
+
+/** The pieces made so far, for the stopwatch: their times added up, and how long they last. */
+const soFar = {
+  pieces: 0,
+  seconds: 0,
+  durationPredictor: 0,
+  textEncoder: 0,
+  vectorEstimator: 0,
+  vocoder: 0,
+};
+
+/** Shows how long loading took and, over the pieces soFar so far, each model on average. */
+function showTimes(samples?: Float32Array): void {
+  const lines = narrator.loadTimes ? [describeLoad(narrator.loadTimes)] : [];
+  const last = narrator.lastTimes;
+  if (samples && last) {
+    const seconds = samples.length / narrator.sampleRate;
+    console.debug(describePiece(last, seconds));
+    soFar.pieces++;
+    soFar.seconds += seconds;
+    for (const model of ['durationPredictor', 'textEncoder', 'vectorEstimator', 'vocoder'] as const)
+      soFar[model] += last[model];
+  }
+  if (soFar.pieces > 0) {
+    const n = soFar.pieces;
+    const mean = {
+      durationPredictor: soFar.durationPredictor / n,
+      textEncoder: soFar.textEncoder / n,
+      vectorEstimator: soFar.vectorEstimator / n,
+      vocoder: soFar.vocoder / n,
+    };
+    lines.push(`${n} pieces, on average ${describePiece(mean, soFar.seconds / n)}`);
+  }
+  stopwatch.textContent = `${narrator.backend}, ${narrator.steps} steps. ${lines.join('. ')}.`;
+  stopwatch.hidden = false;
+}
 
 /** A variant read over its trial's passage, as one WAV file. */
 async function render(
@@ -35,6 +73,7 @@ async function render(
   const parts: Float32Array[] = [];
   for (const [i, piece] of pieces.entries()) {
     const samples = await narrator.speak(piece.text, passage.lang, trial.voice, variant.tuning);
+    showTimes(samples);
     parts.push(finishPiece(samples, narrator.sampleRate, piece.ends, variant.finish));
     onPiece(i + 1, pieces.length);
   }
@@ -146,6 +185,8 @@ async function run(): Promise<void> {
   begin.disabled = true;
   status.textContent = 'Loading the voice…';
   await narrator.load();
+  if (narrator.loadTimes) console.debug(describeLoad(narrator.loadTimes));
+  showTimes();
   const seed = crypto.getRandomValues(new Uint32Array(1))[0]!;
   const order = shuffle(TRIALS, seed);
   const answers: Answer[] = [];

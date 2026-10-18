@@ -32,6 +32,7 @@
   import { voiceService } from '../voice/index';
   import { voiceOutput, type Output } from '../voice/stream';
   import { usesGraphics, type Narrator } from '../voice/narrator';
+  import { describeLoad, describePiece } from '../voice/stopwatch';
   import { mediaSession, type LockScreen } from '../voice/session';
   import type { Lang } from '../voice/text';
   import { ReadAloud, type AloudState } from '../rooms/lectorium/aloud';
@@ -555,6 +556,7 @@
   function warmUp(voice: Narrator): Promise<void> {
     const loading = voice.load().then(
       () => {
+        if (import.meta.env.DEV && voice.loadTimes) console.debug(describeLoad(voice.loadTimes));
         if (narrator !== voice) return;
         warm = true;
         const { backend, threads, steps } = voice;
@@ -571,6 +573,9 @@
   /** Reads aloud from the first paragraph on screen, or from a place chosen on it. */
   function listenFrom(place?: Parameters<ReadAloud['start']>[0]): void {
     if (!ctrl || !session) return;
+    // For development: how long from the tap on Listen to the first word heard.
+    const tapped = performance.now();
+    let heard = false;
     // One thing moves the page at a time: the voice takes over from the scrolling.
     if (ctrl.playing) ctrl.pause();
     const out = (speaker ??= voiceOutput());
@@ -586,6 +591,8 @@
           await loaded;
           const began = performance.now();
           const samples = await voice.speak(text, l, v, tuning, signal);
+          if (import.meta.env.DEV && voice.lastTimes)
+            console.debug(describePiece(voice.lastTimes, samples.length / voice.sampleRate));
           const engine = voiceState.engine;
           if (narrator === voice && engine) {
             engine.made += samples.length / voice.sampleRate;
@@ -608,6 +615,12 @@
       ...(!warm && { warm: () => loaded }),
       onState: (state) => {
         if (aloud !== reading) return;
+        if (import.meta.env.DEV && !heard && state?.piece && !state.waiting) {
+          heard = true;
+          console.debug(
+            `first word heard ${Math.round(performance.now() - tapped)} ms after Listen`,
+          );
+        }
         // The phone buzzes once when the voice has warmed up and waits for Play.
         if (state?.ready && !aloudState?.ready) navigator.vibrate?.(15);
         aloudState = state;

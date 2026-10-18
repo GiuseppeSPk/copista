@@ -45,6 +45,9 @@ export const MODEL_ORDER: readonly ModelName[] = [
   'durationPredictor',
 ];
 
+/** The milliseconds each model took on a piece; the vector estimator's are all its steps together. */
+export type PieceTimes = Record<ModelName, number>;
+
 /** The part of `tts.json` the voice needs. */
 export interface TtsConfig {
   ae: { sample_rate: number; base_chunk_size: number };
@@ -302,7 +305,11 @@ export class Supertonic {
     read: (model: ModelName) => Promise<Uint8Array>,
     cfg: TtsConfig,
     indexer: number[],
-    options: { backend: 'webgpu' | 'wasm' },
+    options: {
+      backend: 'webgpu' | 'wasm';
+      /** Filled in with the milliseconds each model took to read and open. */
+      times?: Partial<PieceTimes>;
+    },
   ): Promise<Supertonic> {
     const sessionOptions: Ort.InferenceSession.SessionOptions = {
       executionProviders: [options.backend],
@@ -314,8 +321,11 @@ export class Supertonic {
     };
     const sessions: Partial<Record<ModelName, Ort.InferenceSession>> = {};
     try {
-      for (const model of MODEL_ORDER)
+      for (const model of MODEL_ORDER) {
+        const start = performance.now();
         sessions[model] = await ort.InferenceSession.create(await read(model), sessionOptions);
+        if (options.times) options.times[model] = performance.now() - start;
+      }
     } catch (error) {
       await Promise.all(Object.values(sessions).map((s) => s.release()));
       throw error;
@@ -341,6 +351,8 @@ export class Supertonic {
       noise?: 'latent' | 'frame';
       /** Asked between one model run and the next: true gives the piece up. */
       givenUp?: () => boolean;
+      /** Filled in with the milliseconds each model took. */
+      times?: PieceTimes;
     } = {},
   ): Promise<Float32Array> {
     const { Tensor } = this.ort;
@@ -352,6 +364,18 @@ export class Supertonic {
       if (options.givenUp()) throw new DOMException('The piece was given up.', 'AbortError');
     };
     const s = this.sessions;
+    const times = options.times ?? {
+      durationPredictor: 0,
+      textEncoder: 0,
+      vectorEstimator: 0,
+      vocoder: 0,
+    };
+    let start = performance.now();
+    const lap = (model: ModelName): void => {
+      const now = performance.now();
+      times[model] += now - start;
+      start = now;
+    };
     const ids = this.ids.encode(text, lang, options.fixes);
     const textIds = new Tensor('int64', ids, [1, ids.length]);
     const textMask = new Tensor('float32', new Float32Array(ids.length).fill(1), [
@@ -367,14 +391,17 @@ export class Supertonic {
       style_dp: styleDp,
       text_mask: textMask,
     });
+    lap('durationPredictor');
     const seconds = (duration!.data as Float32Array)[0]! / speed;
     await check();
 
+    start = performance.now();
     const { text_emb: textEmb } = await s.textEncoder.run({
       text_ids: textIds,
       style_ttl: styleTtl,
       text_mask: textMask,
     });
+    lap('textEncoder');
 
     await check();
     const { length, dim } = latentSize(seconds, this.cfg);
@@ -383,6 +410,7 @@ export class Supertonic {
     const latentMask = new Tensor('float32', new Float32Array(length).fill(1), [1, 1, length]);
     const totalStep = new Tensor('float32', new Float32Array([steps]), [1]);
     for (let step = 0; step < steps; step++) {
+      start = performance.now();
       const { denoised_latent: denoised } = await s.vectorEstimator.run({
         noisy_latent: new Tensor('float32', latent, [1, dim, length]),
         text_emb: textEmb!,
@@ -393,12 +421,15 @@ export class Supertonic {
         total_step: totalStep,
       });
       latent = denoised!.data as Float32Array;
+      lap('vectorEstimator');
       await check();
     }
 
+    start = performance.now();
     const { wav_tts: wav } = await s.vocoder.run({
       latent: new Tensor('float32', latent, [1, dim, length]),
     });
+    lap('vocoder');
     const samples = wav!.data as Float32Array;
     const spoken = Math.min(samples.length, Math.floor(seconds * this.sampleRate));
     return samples.slice(0, spoken);
