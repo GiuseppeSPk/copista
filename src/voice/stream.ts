@@ -128,6 +128,7 @@ export class Stream {
     // A piece follows the last one, or starts a little ahead of the ear when it comes late.
     const ear = this.frameAt(this.audio.currentTime);
     const soonest = ear + framesFor(LATE_AHEAD * this.rate * this.sampleRate);
+    const late = soonest > this.placed;
     const start = Math.max(this.placed, soonest);
     const appended = this.put(buffer, samples, start);
     this.placed = this.filled = start + framesFor(samples.length);
@@ -137,6 +138,10 @@ export class Stream {
     this.tick();
     await appended;
     if (signal.aborted || buffer !== this.buffer) return;
+    // A phone has the silence ahead of the ear already taken in to play, so a
+    // late piece put over it lost its first word: the ear is moved to the
+    // piece, which makes the browser take in what is there now.
+    if (late) this.audio.currentTime = begins;
     const mark = (at: number, tell?: () => void): Wait => {
       const wait: Wait = {
         at,
