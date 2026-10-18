@@ -48,6 +48,10 @@
     <p class="note">
       The voice is new. It may stumble over a name or a number; it gets better with each version.
     </p>
+    <p class="note">
+      It also needs a minute or two to warm up: at first it may pause between sentences, then it
+      reads smoothly.
+    </p>
   </div>
 
   <h3>Hear them first</h3>
