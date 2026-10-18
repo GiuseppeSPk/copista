@@ -1934,6 +1934,11 @@ test.describe('home', () => {
     await expect(title).toBeInViewport();
     const guide = page.getByRole('region', { name: 'How it works' });
     await expect(guide.getByRole('listitem')).toHaveCount(4);
+    await expect(guide.getByRole('heading', { level: 3, name: /Listen to a book/ })).toBeVisible();
+    await expect(guide.getByRole('link', { name: 'Choose a book to hear' })).toHaveAttribute(
+      'href',
+      '#/lectorium',
+    );
     await guide.getByRole('link', { name: /Open the Scriptorium/ }).click();
     await expect(page.getByRole('heading', { level: 1, name: 'Scriptorium' })).toBeVisible();
   });

@@ -23,6 +23,7 @@
 
 <script lang="ts">
   import { onMount } from 'svelte';
+  import Icon from './Icon.svelte';
   import { hashOf } from './route';
   import { ROOMS, type RoomName } from './rooms';
 
@@ -67,6 +68,16 @@
       </li>
     {/each}
   </ol>
+  <!-- Not a room, so not a number: the voice is heard from a book open in the Lectorium. -->
+  <div class="guide-step guide-voice">
+    <span class="guide-key" aria-hidden="true"><Icon name="listen" size={30} /></span>
+    <h3>Listen to a book <span class="beta">Beta</span></h3>
+    <p>
+      Open a book and press Listen. The first time, set up the voice in the panel that opens: one
+      download, then the Lector or the Lectrix reads aloud on this device, even offline.
+    </p>
+    <a class="guide-go" href={hashOf({ room: 'lectorium' })}>Choose a book to hear</a>
+  </div>
   <p class="guide-keys">
     Each number is also a key: press <kbd>1</kbd> to <kbd>4</kbd> to open that room, and
     <kbd>0</kbd> to come back to the hall.
