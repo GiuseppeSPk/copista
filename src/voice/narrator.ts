@@ -69,7 +69,7 @@ export interface Narrator {
 
 /** Messages to the worker. */
 export type WorkerRequest =
-  | { id: number; type: 'load'; gpu: boolean }
+  | { id: number; type: 'load'; gpuFirst: boolean }
   | { id: number; type: 'speak'; text: string; lang: Lang; voice: VoiceId; tuning?: Tuning }
   | { id: number; type: 'probe'; model: ArrayBuffer }
   /** Gives up the piece asked for as `id`, whether it is being made or still waits its turn. */
@@ -90,6 +90,11 @@ export type WorkerReply =
   /** The fitness test starts on a backend; the page stops it if it does not end in time. */
   | { id: number; type: 'testing'; backend: 'webgpu' | 'wasm' }
   | { id: number; type: 'unfit'; reason: Unfit }
+  /**
+   * The processor was tried first and failed, on an engine built for it alone:
+   * the graphics chip needs the other engine, in a new worker.
+   */
+  | { id: number; type: 'switch' }
   | { id: number; type: 'error'; message: string };
 
 /** The part of a Worker the narrator uses. */
@@ -100,11 +105,13 @@ export interface WorkerLike {
 }
 
 /**
- * Whether the voice may run on the graphics chip: on a computer only. On a
- * Galaxy Tab S7 that work froze the page with a buzz, and on an iPhone it
- * crashed the page; Firefox on the same tablet, on the processor, read well.
+ * Whether the voice tries the graphics chip first: on a computer. On a Galaxy
+ * Tab S7 that work froze the page with a buzz, and on an iPhone it crashed the
+ * page, while Firefox on the same tablet, on the processor, read well; so a
+ * phone or a tablet tries the processor first, and the graphics chip only when
+ * the processor is not fast enough, as on a phone that read well on its chip.
  */
-export function gpuAllowed(
+export function gpuFirst(
   userAgent: string = navigator.userAgent,
   touchPoints: number = navigator.maxTouchPoints ?? 0,
   coarse: boolean = globalThis.matchMedia?.('(pointer: coarse)').matches ?? false,
@@ -158,16 +165,24 @@ export class WorkerNarrator implements Narrator {
 
   constructor(
     private readonly makeWorker: () => WorkerLike,
-    private readonly gpu = true,
+    private readonly gpuFirst = true,
     private readonly keepVerdict: KeepVerdict = async () => {},
     private readonly budgetMs = TEST_BUDGET_MS,
   ) {}
 
   async load(): Promise<void> {
-    // At most one stalled test for each backend.
+    // At most one stalled test for each backend, and one change of engine.
+    let switched = false;
     for (let attempt = 0; ; attempt++) {
       try {
-        const reply = await this.request({ id: 0, type: 'load', gpu: this.gpu });
+        const reply = await this.request({ id: 0, type: 'load', gpuFirst: this.gpuFirst });
+        if (reply.type === 'switch') {
+          if (switched) throw new VoiceUnfitError('failed');
+          switched = true;
+          this.worker?.terminate();
+          this.worker = null;
+          continue;
+        }
         if (reply.type === 'ready') {
           this.sampleRate = reply.sampleRate;
           this.backend = reply.backend;

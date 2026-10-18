@@ -16,7 +16,7 @@ import type { VoiceId } from '../rooms/archivum';
 import type { Lang } from '../voice/text';
 import { voiceService } from '../voice/index';
 import { NarratorKeeper } from '../voice/keep';
-import { gpuAllowed, type Narrator } from '../voice/narrator';
+import { gpuFirst, type Narrator } from '../voice/narrator';
 import { describeLoad } from '../voice/stopwatch';
 import { changeSettings } from './state.svelte';
 import { errorMessage, type Engine } from './text';
@@ -107,7 +107,7 @@ export function dropNarrator(): void {
  * which may need the memory, and only with nothing being read.
  */
 function putAway(): boolean {
-  return document.visibilityState === 'hidden' && !gpuAllowed();
+  return document.visibilityState === 'hidden' && !gpuFirst();
 }
 
 /** A reading begins, which keeps the voice loaded until the function returned is called. */
@@ -131,7 +131,7 @@ export async function measureVoice(): Promise<void> {
 export async function downloadVoice(): Promise<void> {
   if (controller) return;
   const current = (controller = new AbortController());
-  voice.progress = { done: 0, total: downloadBytes(gpuAllowed()) };
+  voice.progress = { done: 0, total: downloadBytes(gpuFirst()) };
   voice.message = undefined;
   try {
     await installVoice((done, total) => {
@@ -168,7 +168,7 @@ export async function testVoice(again = false): Promise<void> {
     text: 'Checking that this device can read aloud. It takes up to a minute, and the device may be slow meanwhile.',
   };
   try {
-    await checkVoice(gpuAllowed(), again);
+    await checkVoice(gpuFirst(), again);
     voice.ready = true;
     voice.message = { tone: 'ok', text: 'The voice is ready.' };
   } catch (e) {

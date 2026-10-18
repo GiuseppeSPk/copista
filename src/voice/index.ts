@@ -23,7 +23,7 @@ export interface VoiceService {
   remove(): Promise<void>;
   /** The bytes the voice takes on this device. */
   spaceUsed(): Promise<number>;
-  /** A narrator on the graphics chip, or else on the processor. */
+  /** A narrator that tries the graphics chip first, or the processor first. */
   narrator(gpu: boolean): Narrator;
   /** Whether the device passed the fitness test, failed it, or has not taken it (null). */
   isFit(): Promise<boolean | null>;
@@ -33,7 +33,7 @@ export interface VoiceService {
 
 /**
  * What setting up the voice downloads, model and engine together: the engine
- * this device loads from this site on first use, on the graphics chip or not.
+ * this device loads from this site on first use, for the chip it tries first.
  */
 export function downloadBytes(gpu: boolean): number {
   return TOTAL_BYTES + buildBytes(ortBuild(gpu));

@@ -40,7 +40,7 @@
   } from './voice.svelte';
   import { VoiceUnfitError } from '../voice/fitness';
   import { voiceOutput, type Output } from '../voice/stream';
-  import { gpuAllowed } from '../voice/narrator';
+  import { gpuFirst } from '../voice/narrator';
   import { describePiece } from '../voice/stopwatch';
   import { mediaSession, type LockScreen } from '../voice/session';
   import type { Lang } from '../voice/text';
@@ -547,7 +547,7 @@
     const out = (speaker ??= voiceOutput());
     out.unlock();
     out.setRate(app.settings.voiceRate);
-    const voice = keptNarrator(gpuAllowed());
+    const voice = keptNarrator(gpuFirst());
     const warm = narratorLoaded(voice);
     const loaded = loadNarrator(voice);
     const lang = bookLang;

@@ -3,7 +3,7 @@
   import Icon from './Icon.svelte';
   import { app } from './state.svelte';
   import { describeEngine, megabytes } from './text';
-  import { gpuAllowed } from '../voice/narrator';
+  import { gpuFirst } from '../voice/narrator';
   import type { Lang } from '../voice/text';
   import {
     READERS,
@@ -130,7 +130,7 @@
     </p>
     <dl class="facts">
       <dt>Download</dt>
-      <dd>About {megabytes(downloadBytes(gpuAllowed()))}, once</dd>
+      <dd>About {megabytes(downloadBytes(gpuFirst()))}, once</dd>
       <dt>From</dt>
       <dd>{VOICE_HOST}, and this site</dd>
       <dt>Then</dt>

@@ -47,20 +47,25 @@ let ort: OrtModule | null = null;
 let tts: Supertonic | null = null;
 let backend: Backend = 'wasm';
 let steps: 6 | 8 | 16 = 8;
-/** Set once WebGPU fails, or when the page asks for wasm: this worker stays on wasm from then on. */
+/** Set once WebGPU fails: this worker stays on wasm from then on. */
 let wasmOnly = false;
+/** Whether the graphics chip is tried before the processor, as on a computer. */
+let gpuFirst = true;
+/** Whether the engine loaded, or to load, is the one with WebGPU. */
+let gpuBuild = true;
 const styles = new Map<VoiceId, Style>();
 /** How long the last load took, for the stopwatch in development. */
 let times: LoadTimes = { engine: 0, sessions: {}, warmUp: 0, total: 0 };
 
 /**
- * Loads onnxruntime-web once: the build for wasm alone when the page asked for
- * it, else one with WebGPU, which wasm falls back on when the device is lost.
+ * Loads onnxruntime-web once: the build for wasm alone when the processor is
+ * tried first, else one with WebGPU, which wasm falls back on when the device
+ * is lost.
  */
 async function loadOrt(): Promise<OrtModule> {
   if (ort !== null) return ort;
   const start = performance.now();
-  const { entry } = ORT_BUILDS[ortBuild(!wasmOnly)];
+  const { entry } = ORT_BUILDS[ortBuild(gpuBuild)];
   const module = (await import(/* @vite-ignore */ `${ORT_DIR}${entry}`)) as OrtModule;
   module.env.wasm.wasmPaths = ORT_DIR;
   module.env.wasm.numThreads = scope.crossOriginIsolated
@@ -134,6 +139,10 @@ async function tryBackend(
 ): Promise<Verdict> {
   let voice: Supertonic;
   let verdict: Verdict;
+  // A phone whose graphics chip crashes the page, as an iPhone's did, would
+  // crash it again on every load: it is marked failed until the test passes.
+  if (known === undefined && on === 'webgpu' && !gpuFirst)
+    await saveVerdict(on, { unfit: 'failed' });
   try {
     voice = await Supertonic.create(
       await loadOrt(),
@@ -174,10 +183,14 @@ async function tryBackend(
   return verdict;
 }
 
+/** The processor failed on the engine built for it alone, and WebGPU is still to try. */
+class EngineSwitch extends Error {}
+
 /**
- * Loads the voice on WebGPU when there is one and it passed, else on wasm when
- * it passed; a backend never tested is tested first. Wasm on a single thread,
- * before the page is isolated, is never good enough and is not tried.
+ * Loads the voice on the first backend that passed, WebGPU before wasm on a
+ * computer and after it on a phone; a backend never tested is tested first.
+ * Wasm on a single thread, before the page is isolated, is never good enough
+ * and is not tried.
  */
 async function load(testing: (on: Backend) => void = () => {}): Promise<void> {
   if (tts !== null) return;
@@ -186,16 +199,19 @@ async function load(testing: (on: Backend) => void = () => {}): Promise<void> {
   const profile = await getProfile();
   const reasons: Unfit[] = [];
   const candidates: Backend[] = [];
-  for (const on of ['webgpu', 'wasm'] as const) {
+  const order: Backend[] = gpuFirst ? ['webgpu', 'wasm'] : ['wasm', 'webgpu'];
+  for (const on of order) {
     const known = profile[on];
     if (known && 'unfit' in known) reasons.push(known.unfit);
     else if (on === 'webgpu' && !(await hasWebGpu())) continue;
     else if (on === 'wasm' && !scope.crossOriginIsolated) reasons.push('isolation');
     else candidates.push(on);
   }
+  if (ort === null) gpuBuild = candidates[0] === 'webgpu';
   if (candidates.length > 0) {
     const read = await files();
     for (const on of candidates) {
+      if (on === 'webgpu' && !gpuBuild) throw new EngineSwitch();
       const verdict = await tryBackend(on, profile[on], read, () => testing(on));
       if ('steps' in verdict) {
         times.total = performance.now() - start;
@@ -272,8 +288,13 @@ const givenUp = new Set<number>();
 async function handle(message: WorkerRequest): Promise<WorkerReply> {
   switch (message.type) {
     case 'load':
-      if (!message.gpu) wasmOnly = true;
-      await load((on) => scope.postMessage({ id: message.id, type: 'testing', backend: on }, []));
+      gpuFirst = message.gpuFirst;
+      try {
+        await load((on) => scope.postMessage({ id: message.id, type: 'testing', backend: on }, []));
+      } catch (error) {
+        if (error instanceof EngineSwitch) return { id: message.id, type: 'switch' };
+        throw error;
+      }
       return {
         id: message.id,
         type: 'ready',

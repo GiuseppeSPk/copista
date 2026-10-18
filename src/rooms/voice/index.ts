@@ -23,8 +23,8 @@ export async function voiceStatus(): Promise<VoiceStatus> {
 }
 
 /**
- * Tests whether this device can read aloud, by loading the voice once, on the
- * graphics chip when `gpu` and there is one, and lets go of it. Rejects with
+ * Tests whether this device can read aloud, by loading the voice once, trying
+ * the graphics chip first when `gpu`, and lets go of it. Rejects with
  * VoiceUnfitError when it cannot. With `again`, the earlier results are
  * forgotten first.
  */

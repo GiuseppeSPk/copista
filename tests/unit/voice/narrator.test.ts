@@ -3,7 +3,7 @@ import { VoiceUnfitError, type Verdict } from '../../../src/voice/fitness';
 import {
   FakeNarrator,
   WorkerNarrator,
-  gpuAllowed,
+  gpuFirst,
   isDeviceLost,
   type WorkerLike,
   type WorkerReply,
@@ -100,13 +100,52 @@ describe('WorkerNarrator', () => {
     expect(narrator.lastTimes).toEqual(piece);
   });
 
-  it('tells the worker whether it may use the graphics chip', () => {
+  it('tells the worker which chip to try first', () => {
     const { worker, narrator } = setUp();
     void narrator.load();
-    expect(worker.sent[0]).toMatchObject({ type: 'load', gpu: true });
+    expect(worker.sent[0]).toMatchObject({ type: 'load', gpuFirst: true });
     const phone = new FakeWorker();
     void new WorkerNarrator(() => phone, false).load();
-    expect(phone.sent[0]).toMatchObject({ type: 'load', gpu: false });
+    expect(phone.sent[0]).toMatchObject({ type: 'load', gpuFirst: false });
+  });
+
+  it('loads again in a new worker when the graphics chip needs the other engine', async () => {
+    const workers: FakeWorker[] = [];
+    const narrator = new WorkerNarrator(() => {
+      const worker = new FakeWorker();
+      workers.push(worker);
+      return worker;
+    }, false);
+    const loading = narrator.load();
+    workers[0]!.reply({ id: workers[0]!.sent[0]!.id, type: 'switch' });
+    await vi.waitFor(() => expect(workers).toHaveLength(2));
+    expect(workers[0]!.terminated).toBe(true);
+    workers[1]!.reply({
+      id: workers[1]!.sent[0]!.id,
+      type: 'ready',
+      sampleRate: 44100,
+      backend: 'webgpu',
+      steps: 8,
+      threads: 1,
+      times: TIMES,
+    });
+    await loading;
+    expect(narrator.backend).toBe('webgpu');
+  });
+
+  it('switches engine once only', async () => {
+    const workers: FakeWorker[] = [];
+    const narrator = new WorkerNarrator(() => {
+      const worker = new FakeWorker();
+      workers.push(worker);
+      return worker;
+    }, false);
+    const loading = narrator.load();
+    const failed = expect(loading).rejects.toBeInstanceOf(VoiceUnfitError);
+    workers[0]!.reply({ id: workers[0]!.sent[0]!.id, type: 'switch' });
+    await vi.waitFor(() => expect(workers).toHaveLength(2));
+    workers[1]!.reply({ id: workers[1]!.sent[0]!.id, type: 'switch' });
+    await failed;
   });
 
   it('gives each request its own answer, in whatever order they come', async () => {
@@ -289,7 +328,7 @@ describe('FakeNarrator', () => {
   });
 });
 
-describe('gpuAllowed', () => {
+describe('gpuFirst', () => {
   const WINDOWS =
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/141.0 Safari/537.36';
   const MAC =
@@ -299,18 +338,18 @@ describe('gpuAllowed', () => {
   const TAB_S7 =
     'Mozilla/5.0 (Linux; Android 13; SM-T870) AppleWebKit/537.36 Chrome/141.0 Safari/537.36';
 
-  it('lets a computer use it, a touch laptop too', () => {
-    expect(gpuAllowed(WINDOWS, 0, false)).toBe(true);
-    expect(gpuAllowed(WINDOWS, 10, false)).toBe(true);
-    expect(gpuAllowed(MAC, 0, false)).toBe(true);
+  it('has a computer try it first, a touch laptop too', () => {
+    expect(gpuFirst(WINDOWS, 0, false)).toBe(true);
+    expect(gpuFirst(WINDOWS, 10, false)).toBe(true);
+    expect(gpuFirst(MAC, 0, false)).toBe(true);
   });
 
-  it('keeps phones and tablets on the processor, an iPad that says it is a Mac too', () => {
-    expect(gpuAllowed(IPHONE, 5, true)).toBe(false);
-    expect(gpuAllowed(TAB_S7, 10, true)).toBe(false);
-    expect(gpuAllowed(MAC, 5, true)).toBe(false);
-    expect(gpuAllowed(MAC, 5, false)).toBe(false);
-    expect(gpuAllowed(WINDOWS, 10, true)).toBe(false);
+  it('has phones and tablets try the processor first, an iPad that says it is a Mac too', () => {
+    expect(gpuFirst(IPHONE, 5, true)).toBe(false);
+    expect(gpuFirst(TAB_S7, 10, true)).toBe(false);
+    expect(gpuFirst(MAC, 5, true)).toBe(false);
+    expect(gpuFirst(MAC, 5, false)).toBe(false);
+    expect(gpuFirst(WINDOWS, 10, true)).toBe(false);
   });
 });
 
