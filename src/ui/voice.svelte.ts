@@ -24,13 +24,18 @@ import { errorMessage, type Engine } from './text';
 /**
  * The two readers, each with a recorded sample in each language, under
  * voice/<lang>/. Both read the same lines, written for Copista so the voices
- * can be compared: in Italian, "Mi ricordo ancora l'odore di quella cucina:
- * caffè, pane tostato e la radio sempre accesa. Mia nonna canticchiava senza
- * sapere le parole, e io facevo finta di leggere il giornale, con le gambe che
- * penzolavano dalla sedia."; in English, "I still remember the smell of that
- * kitchen: coffee, toast, and the radio always on. My grandmother hummed along
- * without knowing the words, and I pretended to read the newspaper, my legs
- * dangling from the chair."
+ * can be compared, and so a reader hears how to use the voice from the voice
+ * itself: in Italian, "Ciao, sono la voce di Copista. Per sentirmi, apri un
+ * libro e premi il pulsante con le cuffie. La prima volta mi serve un minuto o
+ * due per scaldarmi: all'inizio posso fermarmi tra una frase e l'altra, ma non
+ * si è bloccato niente. Aspetta, e leggerò senza pause. Tieni premuta una frase
+ * e leggerò da lì; tocca due volte la pagina per lo schermo intero, e col
+ * pulsante della velocità scegli quanto in fretta leggo."; in English, "Hello,
+ * I am the voice of Copista. To hear me, open a book and press Listen. The
+ * first time, I need a minute or two to warm up: at first I may stop between
+ * sentences, but nothing is stuck. Wait, and I will read without pauses. Hold
+ * on a sentence and I will read from there; tap the page twice for full
+ * screen, and with the speed button choose how fast I read."
  */
 export const READERS: { id: VoiceId; name: string; sample: string }[] = [
   { id: 'M2', name: 'The Lector', sample: 'lector' },
