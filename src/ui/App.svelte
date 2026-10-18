@@ -245,15 +245,13 @@
     ></span>
   </nav>
   <div class="tools">
-    {#if app.route.room === 'home'}
-      <button
-        class="theme-switch help"
-        type="button"
-        aria-label="How it works"
-        title="How it works"
-        onclick={showGuide}>?</button
-      >
-    {/if}
+    <button
+      class="theme-switch help"
+      type="button"
+      aria-label="How it works"
+      title="How it works"
+      onclick={showGuide}>?</button
+    >
     <a class="star-top" href={GITHUB_URL} target="_blank" rel="noopener noreferrer">
       <Icon name="star" size={16} />
       <span>Star</span>

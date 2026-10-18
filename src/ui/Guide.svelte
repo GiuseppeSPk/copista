@@ -1,8 +1,20 @@
 <script module lang="ts">
+  import { app, go } from './state.svelte';
   import { stillMotion } from './theme.svelte';
 
-  /** Down to the guide, which takes the focus so the keyboard carries on from there. */
+  /** Asked from another room: the guide is shown once the hall is there. */
+  let wanted = false;
+
+  /**
+   * Down to the guide, which takes the focus so the keyboard carries on from
+   * there; from another room, back to the hall first.
+   */
   export function showGuide(): void {
+    if (app.route.room !== 'home') {
+      wanted = true;
+      go({ room: 'home' });
+      return;
+    }
     const title = document.getElementById('guide-title');
     title?.scrollIntoView({ behavior: stillMotion() ? 'auto' : 'smooth', block: 'start' });
     title?.focus({ preventScroll: true });
@@ -10,6 +22,7 @@
 </script>
 
 <script lang="ts">
+  import { onMount } from 'svelte';
   import { hashOf } from './route';
   import { ROOMS, type RoomName } from './rooms';
 
@@ -32,6 +45,12 @@
       how: 'No account, nothing uploaded. The Archivum shows what is kept in this browser and erases it in one click.',
     },
   };
+
+  onMount(() => {
+    if (!wanted) return;
+    wanted = false;
+    showGuide();
+  });
 </script>
 
 <section class="guide" aria-labelledby="guide-title">

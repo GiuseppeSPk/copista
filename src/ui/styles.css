@@ -2561,6 +2561,24 @@ button.link:hover:not(:disabled) {
   gap: 12px;
 }
 
+/* Faint until wanted, so the page stays the thing to look at. */
+.page-nav button:not(:disabled) {
+  opacity: 0.6;
+  transition: opacity 160ms var(--ease);
+}
+
+.page-nav button:focus-visible,
+.page-nav button:active:not(:disabled) {
+  opacity: 1;
+}
+
+/* A finger's tap leaves hover on, so only a mouse brings them up by pointing. */
+@media (hover: hover) {
+  .page-nav button:hover:not(:disabled) {
+    opacity: 1;
+  }
+}
+
 .where {
   flex: 1;
   margin: 0;
