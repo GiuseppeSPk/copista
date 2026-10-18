@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { TODAY, encodeWav, type Finish } from '../../../src/voice/audio';
-import { AHEAD_SECONDS, KEPT_BEHIND, listen } from '../../../src/voice/listen';
+import { AHEAD_SECONDS, KEPT_BEHIND, listen, type Hearing } from '../../../src/voice/listen';
 import type { Ending, Lang } from '../../../src/voice/text';
 import type { VoiceId } from '../../../src/voice/narrator';
 
@@ -31,12 +31,26 @@ const BARE: Finish = {
 };
 
 /** A narrator whose pieces finish when the test says, and a player that does the same. */
-function setUp(texts: string[], options: { finish?: Finish; ends?: Ending; rate?: number } = {}) {
+function setUp(
+  texts: string[],
+  options: {
+    finish?: Finish;
+    ends?: Ending;
+    rate?: number;
+    heardLater?: boolean;
+    overLater?: boolean;
+  } = {},
+) {
   const log: string[] = [];
   const speaking = new Map<string, (samples: Float32Array) => void>();
   const failing = new Map<string, (error: Error) => void>();
   const playing: (() => void)[] = [];
   const played: Float32Array[] = [];
+  /** Tells the reading that a piece starts to be heard, when `heardLater` holds it back. */
+  const heard: (() => void)[] = [];
+  /** Tells the reading that a piece has been heard to its end, when `overLater` holds it back. */
+  const over: (() => void)[] = [];
+  const lasts: boolean[] = [];
   const waits: boolean[] = [];
   const started: number[] = [];
   let pending = 0;
@@ -62,12 +76,19 @@ function setUp(texts: string[], options: { finish?: Finish; ends?: Ending; rate?
     },
   };
   const player = {
-    play(samples: Float32Array, signal: AbortSignal): Promise<void> {
+    play(samples: Float32Array, signal: AbortSignal, hearing: Hearing): Promise<void> {
       log.push(`play ${samples.length}`);
       played.push(samples);
+      lasts.push(hearing.last);
+      if (options.heardLater) heard.push(hearing.onStart);
+      else hearing.onStart();
       most = Math.max(most, ++pending);
       return new Promise<void>((resolve) => {
-        playing.push(resolve);
+        playing.push(() => {
+          resolve();
+          if (options.overLater) over.push(hearing.onEnd);
+          else hearing.onEnd();
+        });
         signal.addEventListener('abort', () => resolve(), { once: true });
       }).finally(() => pending--);
     },
@@ -91,6 +112,9 @@ function setUp(texts: string[], options: { finish?: Finish; ends?: Ending; rate?
     failing,
     playing,
     played,
+    heard,
+    over,
+    lasts,
     waits,
     started,
     listening,
@@ -177,6 +201,62 @@ describe('listen', () => {
     // A piece skipped past counts as heard and is kept, so going back plays it at once.
     expect(started).toEqual([0, 1, 2, 1]);
     expect(speaks().filter((line) => line === 'speak b it M2')).toHaveLength(1);
+  });
+
+  it('tells of a piece when it starts to be heard, not when it is put in', async () => {
+    const { started, heard, say, playing, tick } = setUp(['a', 'b'], { heardLater: true });
+    await say('a', 1);
+    await say('b', 1);
+    expect(started).toEqual([]);
+    heard.shift()!();
+    expect(started).toEqual([0]);
+    // The first piece has nearly played, so the second is put in after it, and is heard later.
+    playing.shift()!();
+    await tick();
+    expect(started).toEqual([0]);
+    heard.shift()!();
+    expect(started).toEqual([0, 1]);
+  });
+
+  it('skips from the piece being heard, while the next one is put in already', async () => {
+    const { listening, started, heard, say, playing, tick } = setUp(['a', 'b', 'c'], {
+      heardLater: true,
+    });
+    await say('a', 1);
+    await say('b', 1);
+    await say('c', 1);
+    heard.shift()!();
+    playing.shift()!();
+    await tick();
+    // "b" is put in, "a" still heard: forward goes to "b", not past it.
+    listening.skip(1);
+    await tick();
+    heard.at(-1)!();
+    expect(started).toEqual([0, 1]);
+  });
+
+  it('reports waiting only once the piece before has been heard to its end', async () => {
+    const { waits, over, say, playing, tick } = setUp(['a', 'b'], { overLater: true });
+    await say('a', 1);
+    // "a" has nearly played, and "b" is not made yet: "a" is still heard.
+    playing.shift()!();
+    await tick();
+    expect(waits).toEqual([]);
+    over.shift()!();
+    await tick();
+    expect(waits).toEqual([true]);
+    await say('b', 1);
+    expect(waits).toEqual([true, false]);
+  });
+
+  it('plays the last piece to its end', async () => {
+    const { lasts, say, playing, tick } = setUp(['a', 'b', 'c']);
+    for (const text of ['a', 'b', 'c']) {
+      await say(text, 1);
+      playing.shift()!();
+      await tick();
+    }
+    expect(lasts).toEqual([false, false, true]);
   });
 
   it('ends the listening when skipping forward from the last piece, so the next chapter follows', async () => {

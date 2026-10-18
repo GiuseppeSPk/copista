@@ -2,10 +2,23 @@ import { finishPiece, type Finish } from './audio';
 import type { Narrator, VoiceId } from './narrator';
 import type { Ending, Lang } from './text';
 
+/** What the player tells of a piece as it is heard. */
+export interface Hearing {
+  /** The piece starts to be heard. */
+  onStart(): void;
+  /** The piece has been heard to its end. */
+  onEnd(): void;
+  /** The last piece, whose play resolves only once heard to the end, so nothing stops it early. */
+  last: boolean;
+}
+
 /** Where the pieces are heard. */
 export interface Player {
-  /** Resolves when the samples have played, or at once when the signal stops them. */
-  play(samples: Float32Array, signal: AbortSignal): Promise<void>;
+  /**
+   * Resolves when the samples have played, or nearly, so the next ones can be
+   * put after them in time, or at once when the signal stops them.
+   */
+  play(samples: Float32Array, signal: AbortSignal, hearing: Hearing): Promise<void>;
   pause(): void;
   resume(): void;
 }
@@ -51,8 +64,10 @@ export function listen(
   finish: Finish,
   events: ListenEvents,
 ): Listening {
-  /** The piece being heard, or about to be. */
+  /** The piece played next, or being played. */
   let current = 0;
+  /** The piece being heard, which may still be the one before `current`. */
+  let hearing = 0;
   /** The pieces made and not yet heard. */
   const made = new Map<number, Float32Array>();
   let stopped = false;
@@ -118,11 +133,14 @@ export function listen(
   const playAll = async (): Promise<void> => {
     let started = false;
     let waiting = false;
+    /** The piece before has been heard to its end, so playback has truly caught up. */
+    let over = true;
+    let plays = 0;
     while (!stopped && current < pieces.length) {
       if (failure) throw failure.error;
       const samples = made.get(current);
       if (paused || !samples) {
-        if (!samples && started && !waiting) events.onWaiting((waiting = true));
+        if (!samples && started && over && !waiting) events.onWaiting((waiting = true));
         await toPlayer.rung;
         toPlayer = bell();
         continue;
@@ -131,12 +149,28 @@ export function listen(
       started = true;
       const index = current;
       const controller = (playing = new AbortController());
-      events.onPiece(index);
+      const play = ++plays;
+      over = false;
       await player.play(
         finishPiece(samples, narrator.sampleRate, pieces[index]!.ends, finish),
         controller.signal,
+        {
+          onStart: () => {
+            hearing = index;
+            events.onPiece(index);
+          },
+          onEnd: () => {
+            if (play !== plays) return;
+            over = true;
+            toPlayer.ring();
+          },
+          last: index === pieces.length - 1,
+        },
       );
-      if (controller.signal.aborted) continue;
+      if (controller.signal.aborted) {
+        over = true;
+        continue;
+      }
       current++;
       dropBehind();
       toVoice.ring();
@@ -176,14 +210,14 @@ export function listen(
     },
     skip(by) {
       // Forward from the last piece ends the reading, so the next chapter follows.
-      if (by === 1 && current === pieces.length - 1) {
+      if (by === 1 && hearing === pieces.length - 1) {
         this.stop();
         return;
       }
-      const to = Math.max(Math.min(current + by, pieces.length - 1), 0);
-      if (stopped || to === current) return;
+      const to = Math.max(Math.min(hearing + by, pieces.length - 1), 0);
+      if (stopped || to === hearing) return;
       // A piece skipped past counts as heard.
-      current = to;
+      current = hearing = to;
       dropBehind();
       playing?.abort();
       // The voice moves to the piece now wanted, when the one it was making is not.

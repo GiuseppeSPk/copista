@@ -1,18 +1,24 @@
 import { Speaker } from './audio';
+import type { Hearing } from './listen';
 import { FRAME, STREAM_TYPE, framesFor, initSegment, mediaSegment } from './flac';
 
 /** Seconds of silence kept ahead of the ear, so the stream never runs dry while the voice works. */
 export const FILL_AHEAD = 3;
-/** Frames between the ear and a piece put in at once, time for the browser to take it in. */
+/** Frames between the ear and where a piece stopped is cut, time for the browser to take it in. */
 const MARGIN = 4;
 /**
- * Seconds between the ear and a piece that comes late: time for the browser to
+ * Seconds a piece is put ahead of the ear at least: time for the browser to
  * swap the silence there for it. With only MARGIN, a phone still swapping when
  * the ear got there lost the piece's first word.
  */
 export const LATE_AHEAD = 0.35;
-/** How long before its end a piece counts as heard, so the next one is put straight after it. */
-export const LEAD = 0.25;
+/**
+ * How long before its end a piece counts as played, so the next one is put in
+ * after it while there is time. With 0.25 s, a page busy for 0.15 s between
+ * two pieces, as a phone's is, put the next one in too late, and its first
+ * 0.1 s was not heard.
+ */
+export const LEAD = 1;
 /** Seconds of sound kept behind the ear; older sound is let go. */
 const KEEP_BEHIND = 30;
 /** How often the stream is looked at, besides the element's own ticks. */
@@ -61,6 +67,8 @@ export class Stream {
   private held = false;
   private rate = 1;
   private readonly waits = new Set<Wait>();
+  /** Where the ear will start and finish hearing the pieces put in. */
+  private readonly marks = new Set<Wait>();
   private ticker: ReturnType<typeof setInterval> | undefined;
 
   constructor() {
@@ -99,8 +107,17 @@ export class Stream {
     this.audio.playbackRate = rate;
   }
 
-  /** Resolves when the samples have nearly played, or at once when the signal stops them. */
-  async play(samples: Float32Array, rate: number, signal: AbortSignal): Promise<void> {
+  /**
+   * Resolves when the samples have nearly played, or played to the end when
+   * they are the last, or at once when the signal stops them; `hearing` is told
+   * when the ear reaches them and when it is past them.
+   */
+  async play(
+    samples: Float32Array,
+    rate: number,
+    signal: AbortSignal,
+    hearing?: Hearing,
+  ): Promise<void> {
     if (!this.opened) this.unlock();
     const buffer = await this.opened;
     if (signal.aborted || !buffer || buffer !== this.buffer) return;
@@ -110,19 +127,31 @@ export class Stream {
     }
     // A piece follows the last one, or starts a little ahead of the ear when it comes late.
     const ear = this.frameAt(this.audio.currentTime);
-    const start =
-      this.placed >= ear + MARGIN
-        ? this.placed
-        : ear + framesFor(LATE_AHEAD * this.rate * this.sampleRate);
+    const soonest = ear + framesFor(LATE_AHEAD * this.rate * this.sampleRate);
+    const start = Math.max(this.placed, soonest);
     const appended = this.put(buffer, samples, start);
     this.placed = this.filled = start + framesFor(samples.length);
+    const begins = this.timeOf(start);
     const end = this.timeOf(this.placed);
     this.evict(buffer);
     this.tick();
     await appended;
     if (signal.aborted || buffer !== this.buffer) return;
+    const mark = (at: number, tell?: () => void): Wait => {
+      const wait: Wait = {
+        at,
+        done: () => {
+          this.marks.delete(wait);
+          if (!signal.aborted && buffer === this.buffer) tell?.();
+        },
+      };
+      this.marks.add(wait);
+      return wait;
+    };
+    const heard = mark(begins, hearing?.onStart);
+    const over = mark(end, hearing?.onEnd);
     return new Promise<void>((resolve, reject) => {
-      const at = end - LEAD;
+      const at = hearing?.last ? end : end - LEAD;
       // On time to the moment on a screen being watched, besides the ticks.
       const timer = setTimeout(
         () => this.tick(),
@@ -139,6 +168,8 @@ export class Stream {
         },
       };
       const stopped = (): void => {
+        this.marks.delete(heard);
+        this.marks.delete(over);
         this.cut(buffer);
         wait.done();
       };
@@ -163,6 +194,7 @@ export class Stream {
     clearInterval(this.ticker);
     this.ticker = undefined;
     for (const wait of [...this.waits]) wait.done();
+    this.marks.clear();
     this.abandon?.();
     this.abandon = undefined;
     this.audio.pause();
@@ -201,6 +233,7 @@ export class Stream {
     const buffer = this.buffer;
     if (!buffer || this.sampleRate === 0) return;
     const now = this.audio.currentTime;
+    for (const mark of [...this.marks]) if (now >= mark.at) mark.done();
     for (const wait of [...this.waits]) if (now >= wait.at) wait.done();
     if (this.held) return;
     const until = this.frameAt(now) + framesFor(FILL_AHEAD * this.sampleRate);

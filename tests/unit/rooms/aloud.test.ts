@@ -94,8 +94,10 @@ function setUp(docs: Document[], warm?: () => Promise<void>) {
     reader,
     narrator: new FakeNarrator({ msPerChar: 0 }),
     player: {
-      play: () => {
+      play: (_samples, _signal, hearing) => {
         played++;
+        hearing.onStart();
+        hearing.onEnd();
         return Promise.resolve();
       },
       pause: () => {},
@@ -125,8 +127,10 @@ describe('reading aloud', () => {
         speak: () => Promise.resolve(new Float32Array(1000).fill(0.5)),
       },
       player: {
-        play: (samples) => {
+        play: (samples, _signal, hearing) => {
           heard.push(samples);
+          hearing.onStart();
+          hearing.onEnd();
           return Promise.resolve();
         },
         pause: () => {},

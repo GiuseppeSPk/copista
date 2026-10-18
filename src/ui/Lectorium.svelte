@@ -587,7 +587,7 @@
         },
       },
       player: {
-        play: (samples, signal) => out.play(samples, voice.sampleRate, signal),
+        play: (samples, signal, hearing) => out.play(samples, voice.sampleRate, signal, hearing),
         pause: () => out.pause(),
         resume: () => out.resume(),
       },

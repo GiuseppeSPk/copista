@@ -1,3 +1,4 @@
+import type { Hearing } from './listen';
 import type { Ending } from './text';
 
 /** How a piece ends: the pause after it, by what comes next, and a fade over its last moment. */
@@ -220,8 +221,11 @@ export class Speaker {
     this.audio.playbackRate = rate;
   }
 
-  /** Resolves when the samples have played, or at once when the signal stops them. */
-  play(samples: Float32Array, rate: number, signal: AbortSignal): Promise<void> {
+  /**
+   * Resolves when the samples have played, or at once when the signal stops
+   * them; `hearing` is told when they start and when they end.
+   */
+  play(samples: Float32Array, rate: number, signal: AbortSignal, hearing?: Hearing): Promise<void> {
     const audio = this.audio;
     this.load(new Blob([encodeWav(samples, rate)], { type: 'audio/wav' }));
     this.live = true;
@@ -229,19 +233,25 @@ export class Speaker {
     return new Promise<void>((resolve, reject) => {
       const finish = (error?: Error): void => {
         this.live = false;
+        audio.removeEventListener('playing', started);
         audio.removeEventListener('ended', ended);
         audio.removeEventListener('error', failed);
         signal.removeEventListener('abort', stopped);
         if (error === undefined) resolve();
         else reject(error);
       };
-      const ended = (): void => finish();
+      const started = (): void => hearing?.onStart();
+      const ended = (): void => {
+        finish();
+        hearing?.onEnd();
+      };
       const failed = (): void => finish(new Error('The voice could not be played.'));
       const stopped = (): void => {
         audio.pause();
         finish();
       };
       if (signal.aborted) return stopped();
+      audio.addEventListener('playing', started, { once: true });
       audio.addEventListener('ended', ended);
       audio.addEventListener('error', failed);
       signal.addEventListener('abort', stopped);

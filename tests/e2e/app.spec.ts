@@ -1636,6 +1636,13 @@ test.describe('Listen', () => {
           await openReader(page);
           await page.getByRole('button', { name: 'Listen', exact: true }).click();
           await expect(listening(page).getByRole('button', { name: /^The Lect/ })).toBeVisible();
+          // Paused, the bar is laid out the same, without the ring that turns round Pause
+          // while the voice catches up, as at a page turn: the ring and the tap's ripple
+          // are drawn outside the button on purpose.
+          await listening(page).getByRole('button', { name: 'Pause' }).click();
+          const play = listening(page).getByRole('button', { name: 'Play' });
+          await expect(play).toBeVisible();
+          await expect(play).not.toHaveClass(/rippling/);
           for (const look of ['Light', 'Sepia', 'Dark']) {
             await page.getByRole('button', { name: 'Look', exact: true }).click();
             await page.getByRole('button', { name: look, exact: true }).click();
