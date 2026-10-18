@@ -27,6 +27,7 @@
 import type * as Ort from 'onnxruntime-web';
 import type { TextFix } from './narrator';
 import { spellNumbers } from './numbers';
+import { markStress, type StressList } from './stress';
 import type { Lang } from './text';
 
 export type OrtModule = typeof Ort;
@@ -145,7 +146,7 @@ const ROMAN_HEADING_IT = new RegExp(
   'g',
 );
 
-function fixItalian(text: string, fixes: readonly TextFix[]): string {
+function fixItalian(text: string, fixes: readonly TextFix[], stress?: StressList): string {
   if (fixes.includes('roman')) {
     text = text.replace(ROMAN_HEADING_IT, (_, word: string, roman: string) => {
       const ordinal = ORDINALS_IT[ROMAN_TO_TWENTY.indexOf(roman)]!;
@@ -156,15 +157,24 @@ function fixItalian(text: string, fixes: readonly TextFix[]): string {
   if (fixes.includes('abbreviations')) {
     for (const [pattern, spelt] of ABBREVIATIONS_IT) text = text.replace(pattern, spelt);
   }
+  if (fixes.includes('stress') && stress) text = markStress(text, stress);
   return text;
 }
 
-/** Normalises a piece the way the model was trained to read it, and tags its language. */
-export function preprocessText(text: string, lang: Lang, fixes: readonly TextFix[] = []): string {
+/**
+ * Normalises a piece the way the model was trained to read it, and tags its
+ * language. The stress is written only with a list to find it in.
+ */
+export function preprocessText(
+  text: string,
+  lang: Lang,
+  fixes: readonly TextFix[] = [],
+  stress?: StressList,
+): string {
   // Before the text is normalised, which turns the "ª" of "2ª" into a plain "a".
   if (fixes.includes('numbers')) text = spellNumbers(text, lang);
   text = text.normalize('NFKD').replace(EMOJI, '');
-  if (lang === 'it') text = fixItalian(text, fixes);
+  if (lang === 'it') text = fixItalian(text, fixes, stress);
   for (const [from, to] of SYMBOLS) text = text.replaceAll(from, to);
   text = text.replace(/[♥☆♡©\\]/g, '');
   for (const [from, to] of EXPRESSIONS) text = text.replaceAll(from, to);
@@ -177,10 +187,13 @@ export function preprocessText(text: string, lang: Lang, fixes: readonly TextFix
 
 /** Turns a piece into the model's text ids. */
 export class TextIds {
-  constructor(private readonly indexer: number[]) {}
+  constructor(
+    private readonly indexer: number[],
+    private readonly stress?: StressList,
+  ) {}
 
   encode(text: string, lang: Lang, fixes: readonly TextFix[] = []): BigInt64Array {
-    const prepared = preprocessText(text, lang, fixes);
+    const prepared = preprocessText(text, lang, fixes, this.stress);
     const ids = new BigInt64Array(prepared.length);
     for (let i = 0; i < prepared.length; i++) {
       // Code units, as the original does: a surrogate pair gives two ids.
@@ -309,6 +322,8 @@ export class Supertonic {
       backend: 'webgpu' | 'wasm';
       /** Filled in with the milliseconds each model took to read and open. */
       times?: Partial<PieceTimes>;
+      /** Where the stress falls in Italian words; without it none is written. */
+      stress?: StressList;
     },
   ): Promise<Supertonic> {
     const sessionOptions: Ort.InferenceSession.SessionOptions = {
@@ -337,7 +352,7 @@ export class Supertonic {
       ort,
       sessions as Record<ModelName, Ort.InferenceSession>,
       cfg,
-      new TextIds(indexer),
+      new TextIds(indexer, options.stress),
     );
   }
 

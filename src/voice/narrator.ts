@@ -7,9 +7,10 @@ export type VoiceId = 'M2' | 'F1';
 
 /**
  * A text fix the voice can be asked for: Italian abbreviations spelt out,
- * Roman numerals read as ordinals, numbers in digits spelt out as words.
+ * Roman numerals read as ordinals, numbers in digits spelt out as words, the
+ * stress of Italian words written as an accent (stress.ts).
  */
-export type TextFix = 'abbreviations' | 'roman' | 'numbers';
+export type TextFix = 'abbreviations' | 'roman' | 'numbers' | 'stress';
 
 /** The speed the voice reads at, chosen by ear. */
 export const SPEED = 1.1;
@@ -17,9 +18,11 @@ export const SPEED = 1.1;
 export const SEED: Record<VoiceId, number> = { M2: 2, F1: 3 };
 /**
  * The text fixes the voice makes: Roman numerals, chosen by ear in the blind
- * tests of 15 October, and numbers as words, asked for after the Android trial.
+ * tests of 15 October, numbers as words, asked for after the Android trial, and
+ * the stress, which the voice put on the wrong syllable of epoca, macchina and
+ * videro until it was written: chosen by ear on 18 October.
  */
-export const FIXES: readonly TextFix[] = ['roman', 'numbers'];
+export const FIXES: readonly TextFix[] = ['roman', 'numbers', 'stress'];
 
 /**
  * The voice's levers, for blind tests. A missing field keeps the default:

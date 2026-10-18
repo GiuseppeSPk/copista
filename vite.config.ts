@@ -43,14 +43,20 @@ export default defineConfig({
         // txt is the voice's licence and notices, so they can be read offline too.
         globPatterns: ['**/*.{js,css,html,svg,png,woff2,webmanifest,txt}'],
         // The link preview picture is for other sites, not for the app offline.
-        // onnxruntime-web is for the voice only: cached when first used, with the voice.
-        globIgnores: ['og-image.png', 'ort/**'],
+        // onnxruntime-web and the stress of Italian words are for the voice only:
+        // cached when first used, with the voice.
+        globIgnores: ['og-image.png', 'ort/**', 'assets/stress-it-*.txt'],
         navigateFallback: 'index.html',
         // Isolates the page once the voice is set up, so the voice can use several threads.
         importScripts: ['coi.js'],
         runtimeCaching: [
           {
             urlPattern: /\/ort\/\d+\.\d+\.\d+\//,
+            handler: 'CacheFirst',
+            options: { cacheName: 'copista-voice-v1', cacheableResponse: { statuses: [200] } },
+          },
+          {
+            urlPattern: /\/assets\/stress-it-[\w-]+\.txt$/,
             handler: 'CacheFirst',
             options: { cacheName: 'copista-voice-v1', cacheableResponse: { statuses: [200] } },
           },

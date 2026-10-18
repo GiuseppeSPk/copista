@@ -16,6 +16,8 @@ import {
   type WorkerRequest,
 } from './narrator';
 import { getProfile, readFile, saveVerdict } from './store';
+import { StressList } from './stress';
+import stressUrl from './stress-it.txt?url';
 import {
   Supertonic,
   parseStyle,
@@ -117,12 +119,29 @@ async function fitnessTest(voice: Supertonic): Promise<Verdict> {
 interface Files {
   cfg: TtsConfig;
   indexer: number[];
+  stress: StressList | undefined;
+}
+
+/**
+ * Where the stress falls in Italian words, 7.3 MB, fetched with the voice and
+ * kept with it. Without it, as offline before it was first fetched, the voice
+ * reads as it did before it was written.
+ */
+async function stressList(): Promise<StressList | undefined> {
+  try {
+    const response = await fetch(stressUrl);
+    return response.ok ? new StressList(await response.text()) : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 async function files(): Promise<Files> {
+  const stress = stressList();
   return {
     cfg: (await json('onnx/tts.json')) as TtsConfig,
     indexer: (await json('onnx/unicode_indexer.json')) as number[],
+    stress: await stress,
   };
 }
 
@@ -149,7 +168,7 @@ async function tryBackend(
       (model) => bytes(`onnx/${MODEL_FILES[model]}.onnx`),
       read.cfg,
       read.indexer,
-      { backend: on, times: (times.sessions = {}) },
+      { backend: on, times: (times.sessions = {}), stress: read.stress },
     );
   } catch (error) {
     if (on === 'wasm') throw error;
