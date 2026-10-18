@@ -27,12 +27,21 @@
   import { errorMessage } from './text';
   import VoiceSheet from './VoiceSheet.svelte';
   import ListenBar from './ListenBar.svelte';
-  import { cancelDownload, measureVoice, READERS, voice as voiceState } from './voice.svelte';
+  import {
+    beginReading,
+    cancelDownload,
+    dropNarrator,
+    keptNarrator,
+    loadNarrator,
+    measureVoice,
+    narratorLoaded,
+    READERS,
+    voice as voiceState,
+  } from './voice.svelte';
   import { VoiceUnfitError } from '../voice/fitness';
-  import { voiceService } from '../voice/index';
   import { voiceOutput, type Output } from '../voice/stream';
-  import { usesGraphics, type Narrator } from '../voice/narrator';
-  import { describeLoad, describePiece } from '../voice/stopwatch';
+  import { usesGraphics } from '../voice/narrator';
+  import { describePiece } from '../voice/stopwatch';
   import { mediaSession, type LockScreen } from '../voice/session';
   import type { Lang } from '../voice/text';
   import { ReadAloud, type AloudState } from '../rooms/lectorium/aloud';
@@ -71,10 +80,8 @@
   let aloudState = $state.raw<AloudState | null>(null);
   let lock: LockScreen | undefined;
   let listenError = $state('');
-  let narrator: Narrator | undefined;
-  /** The narrator loading and warming up, and whether it has. */
-  let warming: Promise<void> | undefined;
-  let warm = false;
+  /** Ends the reading's hold on the voice, which stays loaded a while after. */
+  let endReading: (() => void) | undefined;
   let speaker: Output | undefined;
 
   // The window behind a fitted page shows no scrollbar. Only the scrollbar is
@@ -102,15 +109,6 @@
     void voiceId;
     untrack(() => aloud?.restart());
   });
-
-  /** Lets go of the voice's model, so the next reading loads it afresh. */
-  function dropNarrator(): void {
-    narrator?.destroy();
-    narrator = undefined;
-    warming = undefined;
-    warm = false;
-    voiceState.engine = null;
-  }
 
   // A voice taken off this device stops the reading that uses it, and lets go of the model it holds.
   $effect(() => {
@@ -230,8 +228,6 @@
       resize.disconnect();
       stopListening();
       cancelDownload();
-      narrator?.destroy();
-      voiceState.engine = null;
       speaker?.release();
       ctrl?.destroy();
       ctrl = undefined;
@@ -511,6 +507,8 @@
   function stopListening(): void {
     aloud?.stop();
     aloud = undefined;
+    endReading?.();
+    endReading = undefined;
     speaker?.release();
     lock?.release();
     lock = undefined;
@@ -552,24 +550,6 @@
     listenFrom();
   }
 
-  /** Loads the voice and warms it up, once for the open book; a failure lets the next Listen try again. */
-  function warmUp(voice: Narrator): Promise<void> {
-    const loading = voice.load().then(
-      () => {
-        if (import.meta.env.DEV && voice.loadTimes) console.debug(describeLoad(voice.loadTimes));
-        if (narrator !== voice) return;
-        warm = true;
-        const { backend, threads, steps } = voice;
-        voiceState.engine = { backend, threads, steps, made: 0, took: 0 };
-      },
-      (error: unknown) => {
-        if (warming === loading) warming = undefined;
-        throw error;
-      },
-    );
-    return loading;
-  }
-
   /** Reads aloud from the first paragraph on screen, or from a place chosen on it. */
   function listenFrom(place?: Parameters<ReadAloud['start']>[0]): void {
     if (!ctrl || !session) return;
@@ -581,8 +561,9 @@
     const out = (speaker ??= voiceOutput());
     out.unlock();
     out.setRate(app.settings.voiceRate);
-    const voice = (narrator ??= voiceService().narrator(usesGraphics(app.settings.voiceChip)));
-    const loaded = (warming ??= warmUp(voice));
+    const voice = keptNarrator(usesGraphics(app.settings.voiceChip));
+    const warm = narratorLoaded(voice);
+    const loaded = loadNarrator(voice);
     const lang = bookLang;
     const reading = new ReadAloud({
       reader: ctrl,
@@ -594,7 +575,7 @@
           if (import.meta.env.DEV && voice.lastTimes)
             console.debug(describePiece(voice.lastTimes, samples.length / voice.sampleRate));
           const engine = voiceState.engine;
-          if (narrator === voice && engine) {
+          if (engine && narratorLoaded(voice)) {
             engine.made += samples.length / voice.sampleRate;
             engine.took += (performance.now() - began) / 1000;
           }
@@ -638,6 +619,8 @@
       aloud = undefined;
       return;
     }
+    endReading?.();
+    endReading = beginReading();
     lookOpen = false;
     sheetOpen = false;
     voiceState.ready = false;

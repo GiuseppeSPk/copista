@@ -14,7 +14,10 @@ import {
 } from '../rooms/voice';
 import type { VoiceId } from '../rooms/archivum';
 import type { Lang } from '../voice/text';
-import { usesGraphics } from '../voice/narrator';
+import { voiceService } from '../voice/index';
+import { NarratorKeeper } from '../voice/keep';
+import { gpuAllowed, usesGraphics, type Narrator } from '../voice/narrator';
+import { describeLoad } from '../voice/stopwatch';
 import { app, changeSettings } from './state.svelte';
 import { errorMessage, type Engine } from './text';
 
@@ -52,7 +55,7 @@ export const voice = $state<{
   /** The test found the page not isolated yet, which a reload fixes. */
   reload: boolean;
   message: { tone: 'ok' | 'error'; text: string } | undefined;
-  /** How the voice runs here, once it has loaded in the open book. */
+  /** How the voice runs here, while it is loaded. */
   engine: Engine | null;
 }>({
   status: null,
@@ -66,6 +69,60 @@ export const voice = $state<{
 });
 
 let controller: AbortController | undefined;
+
+/** The voice kept loaded between readings, and from one book to the next. */
+const keeper = new NarratorKeeper(
+  (gpu) => voiceService().narrator(gpu),
+  () => {
+    voice.engine = null;
+  },
+);
+
+/** The narrator on the graphics chip or the processor, loaded already when it was kept. */
+export function keptNarrator(gpu: boolean): Narrator {
+  return keeper.narrator(gpu);
+}
+
+/** Whether the narrator has loaded. */
+export function narratorLoaded(narrator: Narrator): boolean {
+  return keeper.loaded(narrator);
+}
+
+/** Loads the narrator once; a failure lets the next Listen try again. */
+export function loadNarrator(narrator: Narrator): Promise<void> {
+  return keeper.load(narrator, () => {
+    if (import.meta.env.DEV && narrator.loadTimes) console.debug(describeLoad(narrator.loadTimes));
+    const { backend, threads, steps } = narrator;
+    voice.engine = { backend, threads, steps, made: 0, took: 0 };
+  });
+}
+
+/** Lets go of the voice's model, so the next reading loads it afresh. */
+export function dropNarrator(): void {
+  keeper.drop();
+}
+
+/**
+ * Whether the page put away lets go of the voice: on a phone or a tablet,
+ * which may need the memory, and only with nothing being read.
+ */
+function putAway(): boolean {
+  return document.visibilityState === 'hidden' && !gpuAllowed();
+}
+
+/** A reading begins, which keeps the voice loaded until the function returned is called. */
+export function beginReading(): () => void {
+  const end = keeper.begin();
+  return () => {
+    end();
+    if (putAway()) keeper.idle();
+  };
+}
+
+if (typeof document !== 'undefined')
+  document.addEventListener('visibilitychange', () => {
+    if (putAway()) keeper.idle();
+  });
 
 export async function measureVoice(): Promise<void> {
   voice.status = await voiceStatus().catch(() => ({ installed: false, bytes: 0, fit: null }));
@@ -102,6 +159,8 @@ export async function downloadVoice(): Promise<void> {
 export async function testVoice(again = false): Promise<void> {
   if (voice.checking) return;
   voice.checking = true;
+  // A second copy of the model, for the test, would weigh too much beside the one kept.
+  keeper.idle();
   voice.ready = false;
   voice.reload = false;
   voice.message = {
@@ -128,6 +187,7 @@ export function cancelDownload(): void {
 export async function removeVoiceHere(): Promise<void> {
   try {
     await removeVoice();
+    keeper.drop();
     await measureVoice();
     voice.accepted = false;
     voice.ready = false;
