@@ -316,7 +316,10 @@ export class Supertonic {
       // On wasm the optimiser folds each fp16 weight and its cast into an fp32
       // copy, which doubled the memory the voice takes, to about 1 GB, and froze
       // a phone with little of it; without it the voice sounds the same, at the
-      // same speed on a computer.
+      // same speed on a computer. Turned on with constant folding left out, it
+      // still took 1.37 GB at its peak and 1.10 GB while reading, against 0.86
+      // and 0.69 without, and read no faster: real-time factor 0.399 against
+      // 0.395 at 6 steps, 0.508 against 0.507 at 8.
       graphOptimizationLevel: options.backend === 'wasm' ? 'disabled' : 'all',
     };
     const sessions: Partial<Record<ModelName, Ort.InferenceSession>> = {};
