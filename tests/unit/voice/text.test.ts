@@ -88,6 +88,15 @@ describe('pieces', () => {
     expect(pieces.map((p) => p.text).join(' ')).toBe(long);
   });
 
+  it('splits a long sentence at semicolons and colons before commas', () => {
+    const clause = 'e poi venne un altro giorno, di pioggia lunga sui campi';
+    const long = `${Array.from({ length: 8 }, (_, i) => clause + (i % 2 ? ';' : ':')).join(' ')} fine.`;
+    expect(long.length).toBeGreaterThan(400);
+    const pieces = piecesOf(chapter(`<p>${long}</p>`), 'it', 0);
+    for (const p of pieces.slice(0, -1)) expect(/[;:]$/.test(p.text)).toBe(true);
+    expect(pieces.map((p) => p.text).join(' ')).toBe(long);
+  });
+
   it('splits a long sentence with no commas at spaces', () => {
     const long = `${Array.from({ length: 120 }, (_, i) => `parola${i}`).join(' ')}.`;
     const pieces = piecesOf(chapter(`<p>${long}</p>`), 'it', 0);
@@ -226,6 +235,24 @@ describe('the first pieces of a reading', () => {
     expect(ramped[0]!.text.length).toBeLessThanOrEqual(FIRST_PIECES[0]!);
     expect(ramped[0]!.text.endsWith(',')).toBe(true);
     expect(ramped.map((p) => p.text).join(' ')).toBe(words.trim());
+  });
+
+  it('never cuts a first piece between two words, and runs it on to a mark instead', () => {
+    const run = Array.from({ length: 16 }, (_, i) => `parola${i}`).join(' ');
+    const words = `${run}, e poi la fine della frase.`;
+    expect(run.length).toBeGreaterThan(FIRST_PIECES[0]!);
+    const ramped = rampUp(piecesOf(chapter(`<p>${words}</p>`), 'it', 0), 'it');
+    expect(ramped[0]!.text).toBe(`${run},`);
+    expect(ramped.map((p) => p.text).join(' ')).toBe(words);
+  });
+
+  it('cuts a first piece with no mark at all between words only past the longest piece', () => {
+    const words = `${Array.from({ length: 40 }, (_, i) => `parola${i}`).join(' ')}.`;
+    expect(words.length).toBeGreaterThan(MAX_PIECE);
+    const ramped = rampUp(piecesOf(chapter(`<p>${words}</p>`), 'it', 0), 'it');
+    expect(ramped[0]!.text.length).toBeGreaterThan(FIRST_PIECES[0]!);
+    expect(ramped[0]!.text.length).toBeLessThanOrEqual(MAX_PIECE);
+    expect(ramped.map((p) => p.text).join(' ')).toBe(words);
   });
 
   it('leaves short pieces as they are', () => {

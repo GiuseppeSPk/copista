@@ -1507,6 +1507,7 @@ button.link:hover:not(:disabled) {
 }
 
 .readers label,
+.chip,
 .accept {
   display: inline-flex;
   align-items: center;

@@ -139,12 +139,23 @@ function pack(parts: Span[], longest = MAX_PIECE): Span[] {
   return out;
 }
 
-/** Where a sentence too long for one call may be cut, best first. */
-const BREAKS = [/,/g, /\s/g];
+/**
+ * Where a sentence too long for one call may be cut, best first: a semicolon
+ * or a colon, a comma, a space. The voice ends each piece as if a sentence
+ * ended, so a cut between two words is heard the most.
+ */
+const BREAKS = [/[;:]/g, /,/g, /\s/g];
 
-/** Cuts a span that is too long at commas, then at spaces, then anywhere. */
-function fit(text: string, span: Span, longest = MAX_PIECE, level = 0): Span[] {
-  if (span[1] - span[0] <= longest) return [span];
+/** The level of BREAKS that cuts between words. */
+const SPACES = BREAKS.length - 1;
+
+/**
+ * Cuts a span that is too long at semicolons and colons, then at commas, then
+ * at spaces, then anywhere; with `marksOnly`, never between words, so a span
+ * with no mark to cut at is left whole.
+ */
+function fit(text: string, span: Span, longest = MAX_PIECE, marksOnly = false, level = 0): Span[] {
+  if (span[1] - span[0] <= longest || (marksOnly && level === SPACES)) return [span];
   const breaks = BREAKS[level];
   if (breaks === undefined) {
     const cuts: Span[] = [];
@@ -154,7 +165,9 @@ function fit(text: string, span: Span, longest = MAX_PIECE, level = 0): Span[] {
     return cuts;
   }
   return pack(
-    splitAfter(text, span, breaks).flatMap((part) => fit(text, part, longest, level + 1)),
+    splitAfter(text, span, breaks).flatMap((part) =>
+      fit(text, part, longest, marksOnly, level + 1),
+    ),
     longest,
   );
 }
@@ -232,7 +245,10 @@ function partOf(piece: Piece, start: number, end: number, ends: Ending): Piece {
 
 /**
  * The pieces of a reading with its first ones cut down to `FIRST_PIECES`, at
- * the ends of sentences where they can be, then at commas and spaces.
+ * the ends of sentences where they can be, then at semicolons, colons and
+ * commas. A first piece is never cut between two words: with no mark to cut
+ * at it runs on, up to `MAX_PIECE`, since a sentence broken off mid-way is
+ * heard as two.
  */
 export function rampUp(pieces: readonly Piece[], lang: Lang): Piece[] {
   const out: Piece[] = [];
@@ -246,10 +262,11 @@ export function rampUp(pieces: readonly Piece[], lang: Lang): Piece[] {
     ) {
       const from: number = rest[0];
       const tail = text.slice(from);
-      const [start, end] = pack(
-        sentences(tail, lang).flatMap((sentence) => fit(tail, sentence, longest)),
+      let [start, end] = pack(
+        sentences(tail, lang).flatMap((sentence) => fit(tail, sentence, longest, true)),
         longest,
       )[0]!;
+      if (end - start > MAX_PIECE) [start, end] = fit(tail, [start, end])[0]!;
       out.push(partOf(piece, from + start, from + end, 'piece'));
       rest = trim(text, [from + end, text.length])[0];
     }

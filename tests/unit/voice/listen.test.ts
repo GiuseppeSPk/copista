@@ -43,11 +43,21 @@ function setUp(texts: string[], options: { finish?: Finish; ends?: Ending; rate?
   let most = 0;
   const narrator = {
     sampleRate: options.rate ?? 1,
-    speak(text: string, lang: Lang, voice: VoiceId): Promise<Float32Array> {
+    speak(
+      text: string,
+      lang: Lang,
+      voice: VoiceId,
+      _tuning?: unknown,
+      signal?: AbortSignal,
+    ): Promise<Float32Array> {
       log.push(`speak ${text} ${lang} ${voice}`);
       return new Promise((resolve, reject) => {
         speaking.set(text, resolve);
         failing.set(text, reject);
+        signal?.addEventListener('abort', () => {
+          log.push(`give up ${text}`);
+          reject(new DOMException('given up', 'AbortError'));
+        });
       });
     },
   };
@@ -194,15 +204,16 @@ describe('listen', () => {
 
   it('makes again a piece heard longer ago than the ones kept', async () => {
     expect(KEPT_BEHIND).toBe(2);
-    const { listening, say, speaks, started, playing, tick } = setUp(['a', 'b', 'c', 'd']);
+    const { listening, log, say, speaks, started, playing, tick } = setUp(['a', 'b', 'c', 'd']);
     for (const text of ['a', 'b', 'c']) {
       await say(text, 1);
       playing.shift()!();
       await tick();
     }
     for (let i = 0; i < 3; i++) listening.skip(-1);
-    // The voice ends the piece it is making before it turns back.
-    await say('d', 1);
+    await tick();
+    // The voice gives up the piece it was making and turns back at once.
+    expect(log).toContain('give up d');
     expect(speaks().filter((line) => line === 'speak a it M2')).toHaveLength(2);
     await say('a', 1);
     expect(started.at(-1)).toBe(0);
@@ -220,6 +231,28 @@ describe('listen', () => {
     await say('c', 3);
     expect(started).toEqual([0, 2]);
     expect(log.at(-1)).toBe('play 3');
+  });
+
+  it('gives up the piece being made when skipped past, and makes the one wanted', async () => {
+    const { listening, log, say, speaks, tick } = setUp(['a', 'b', 'c']);
+    await say('a', 1);
+    expect(speaks()).toEqual(['speak a it M2', 'speak b it M2']);
+    listening.skip(1);
+    await tick();
+    // b is the piece now wanted: the voice goes on with it.
+    expect(log).not.toContain('give up b');
+    listening.skip(1);
+    await tick();
+    expect(log).toContain('give up b');
+    expect(speaks().at(-1)).toBe('speak c it M2');
+  });
+
+  it('gives up the piece being made when the reading stops, so the next one starts at once', async () => {
+    const { listening, log, say } = setUp(['a', 'b']);
+    await say('a', 1);
+    listening.stop();
+    expect(log).toContain('give up b');
+    await expect(listening.done).resolves.toBeUndefined();
   });
 
   it('plays one piece at a time under quick skips', async () => {
@@ -271,7 +304,7 @@ describe('listen', () => {
     speaking.get('bb')!(new Float32Array(2));
     await listening.done;
     await tick();
-    expect(log).toEqual(['speak a it M2', 'speak bb it M2', 'play 1']);
+    expect(log).toEqual(['speak a it M2', 'speak bb it M2', 'play 1', 'give up bb']);
   });
 
   it('plays nothing made after it was stopped', async () => {
@@ -279,7 +312,7 @@ describe('listen', () => {
     listening.stop();
     speaking.get('a')!(new Float32Array(1));
     await listening.done;
-    expect(log).toEqual(['speak a it M2']);
+    expect(log).toEqual(['speak a it M2', 'give up a']);
   });
 
   it('ends with the error when a piece cannot be read', async () => {

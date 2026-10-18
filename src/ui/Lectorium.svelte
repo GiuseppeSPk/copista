@@ -30,7 +30,7 @@
   import { cancelDownload, measureVoice, READERS, voice as voiceState } from './voice.svelte';
   import { voiceService } from '../voice/index';
   import { voiceOutput, type Output } from '../voice/stream';
-  import type { Narrator } from '../voice/narrator';
+  import { usesGraphics, type Narrator } from '../voice/narrator';
   import { mediaSession, type LockScreen } from '../voice/session';
   import type { Lang } from '../voice/text';
   import { ReadAloud, type AloudState } from '../rooms/lectorium/aloud';
@@ -101,16 +101,35 @@
     untrack(() => aloud?.restart());
   });
 
+  /** Lets go of the voice's model, so the next reading loads it afresh. */
+  function dropNarrator(): void {
+    narrator?.destroy();
+    narrator = undefined;
+    warming = undefined;
+    warm = false;
+    voiceState.engine = null;
+  }
+
   // A voice taken off this device stops the reading that uses it, and lets go of the model it holds.
   $effect(() => {
     if (voiceState.status?.installed) return;
     untrack(() => {
       if (aloudState) stopListening();
-      narrator?.destroy();
-      narrator = undefined;
-      warming = undefined;
-      warm = false;
-      voiceState.engine = null;
+      dropNarrator();
+    });
+  });
+
+  // Another chip chosen loads the voice again there, and takes up the reading from the page on screen.
+  let chip = app.settings.voiceChip;
+  $effect(() => {
+    const chosen = app.settings.voiceChip;
+    if (chosen === chip) return;
+    chip = chosen;
+    untrack(() => {
+      const reading = aloud?.active ?? false;
+      if (reading) stopListening();
+      dropNarrator();
+      if (reading) listenFrom();
     });
   });
 
@@ -546,16 +565,16 @@
     const out = (speaker ??= voiceOutput());
     out.unlock();
     out.setRate(app.settings.voiceRate);
-    const voice = (narrator ??= voiceService().narrator());
+    const voice = (narrator ??= voiceService().narrator(usesGraphics(app.settings.voiceChip)));
     const loaded = (warming ??= warmUp(voice));
     const lang = bookLang;
     const reading = new ReadAloud({
       reader: ctrl,
       narrator: {
-        speak: async (text, l, v) => {
+        speak: async (text, l, v, tuning, signal) => {
           await loaded;
           const began = performance.now();
-          const samples = await voice.speak(text, l, v);
+          const samples = await voice.speak(text, l, v, tuning, signal);
           const engine = voiceState.engine;
           if (narrator === voice && engine) {
             engine.made += samples.length / voice.sampleRate;

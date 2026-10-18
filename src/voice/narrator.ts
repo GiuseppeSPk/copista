@@ -40,7 +40,14 @@ export interface Narrator {
   readonly threads: number;
   /** Loads the voice and warms it up, so the first piece is made as fast as the rest. */
   load(): Promise<void>;
-  speak(text: string, lang: Lang, voice: VoiceId, tuning?: Tuning): Promise<Float32Array>;
+  /** Makes a piece; the signal gives it up, so the voice is free at once for the next one. */
+  speak(
+    text: string,
+    lang: Lang,
+    voice: VoiceId,
+    tuning?: Tuning,
+    signal?: AbortSignal,
+  ): Promise<Float32Array>;
   destroy(): void;
 }
 
@@ -48,7 +55,9 @@ export interface Narrator {
 export type WorkerRequest =
   | { id: number; type: 'load'; gpu: boolean }
   | { id: number; type: 'speak'; text: string; lang: Lang; voice: VoiceId; tuning?: Tuning }
-  | { id: number; type: 'probe'; model: ArrayBuffer };
+  | { id: number; type: 'probe'; model: ArrayBuffer }
+  /** Gives up the piece asked for as `id`, whether it is being made or still waits its turn. */
+  | { id: number; type: 'cancel' };
 
 /** Messages from the worker. */
 export type WorkerReply =
@@ -84,6 +93,19 @@ export function gpuAllowed(
   // An iPad says it is a Mac: only its touch screen tells it apart.
   if (/Macintosh/.test(userAgent) && touchPoints > 1) return false;
   return !coarse;
+}
+
+/** Where the voice runs: as this device suits, or on the chip the reader chose. */
+export type VoiceChip = 'auto' | 'graphics' | 'processor';
+
+/** Whether the voice runs on the graphics chip, by the reader's choice or else as the device suits. */
+export function usesGraphics(chip: VoiceChip, allowed: () => boolean = gpuAllowed): boolean {
+  return chip === 'auto' ? allowed() : chip === 'graphics';
+}
+
+/** The error a piece given up rejects with. */
+export function cancelled(): Error {
+  return new DOMException('The piece was given up.', 'AbortError');
 }
 
 /** Whether an error says the WebGPU device was lost. */
@@ -122,15 +144,17 @@ export class WorkerNarrator implements Narrator {
     }
   }
 
-  async speak(text: string, lang: Lang, voice: VoiceId, tuning?: Tuning): Promise<Float32Array> {
-    const reply = await this.request({
-      id: 0,
-      type: 'speak',
-      text,
-      lang,
-      voice,
-      ...(tuning && { tuning }),
-    });
+  async speak(
+    text: string,
+    lang: Lang,
+    voice: VoiceId,
+    tuning?: Tuning,
+    signal?: AbortSignal,
+  ): Promise<Float32Array> {
+    const reply = await this.request(
+      { id: 0, type: 'speak', text, lang, voice, ...(tuning && { tuning }) },
+      signal,
+    );
     return reply.type === 'audio' ? reply.samples : new Float32Array(0);
   }
 
@@ -141,11 +165,27 @@ export class WorkerNarrator implements Narrator {
     this.pending.clear();
   }
 
-  private request(message: WorkerRequest): Promise<WorkerReply> {
+  private request(message: WorkerRequest, signal?: AbortSignal): Promise<WorkerReply> {
+    if (signal?.aborted) return Promise.reject(cancelled());
     const worker = (this.worker ??= this.start());
     const id = this.nextId++;
     return new Promise((resolve, reject) => {
-      this.pending.set(id, { resolve, reject });
+      const giveUp = (): void => {
+        if (!this.pending.delete(id)) return;
+        worker.postMessage({ id, type: 'cancel' });
+        reject(cancelled());
+      };
+      this.pending.set(id, {
+        resolve: (reply) => {
+          signal?.removeEventListener('abort', giveUp);
+          resolve(reply);
+        },
+        reject: (error) => {
+          signal?.removeEventListener('abort', giveUp);
+          reject(error);
+        },
+      });
+      signal?.addEventListener('abort', giveUp, { once: true });
       worker.postMessage({ ...message, id });
     });
   }
@@ -201,8 +241,25 @@ export class FakeNarrator implements Narrator {
     if (this.loadMs > 0) await new Promise((resolve) => setTimeout(resolve, this.loadMs));
   }
 
-  async speak(text: string): Promise<Float32Array> {
-    await new Promise((resolve) => setTimeout(resolve, text.length * this.msPerChar));
+  async speak(
+    text: string,
+    _lang?: Lang,
+    _voice?: VoiceId,
+    _tuning?: Tuning,
+    signal?: AbortSignal,
+  ): Promise<Float32Array> {
+    if (signal?.aborted) throw cancelled();
+    await new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(resolve, text.length * this.msPerChar);
+      signal?.addEventListener(
+        'abort',
+        () => {
+          clearTimeout(timer);
+          reject(cancelled());
+        },
+        { once: true },
+      );
+    });
     return new Float32Array(Math.round(text.length * this.secondsPerChar * this.sampleRate));
   }
 

@@ -196,4 +196,51 @@ describe('Supertonic.create', () => {
       'released vocoder',
     ]);
   });
+
+  it('gives a piece up between model runs, once asked to', async () => {
+    const runs: string[] = [];
+    const outputs: Record<string, (feeds: Record<string, { data: Float32Array }>) => unknown> = {
+      durationPredictor: () => ({ duration: { data: new Float32Array([0.5]) } }),
+      textEncoder: () => ({ text_emb: { data: new Float32Array(1) } }),
+      vectorEstimator: (feeds) => ({ denoised_latent: { data: feeds.noisy_latent!.data } }),
+      vocoder: () => ({ wav_tts: { data: new Float32Array(44100) } }),
+    };
+    const ort = {
+      Tensor: class {
+        constructor(
+          readonly type: string,
+          readonly data: Float32Array,
+          readonly dims: number[],
+        ) {}
+      },
+      InferenceSession: {
+        create: async (bytes: Uint8Array) => {
+          const model = new TextDecoder().decode(bytes);
+          return {
+            run: async (feeds: Record<string, { data: Float32Array }>) => {
+              runs.push(model);
+              return outputs[model]!(feeds);
+            },
+            release: async () => {},
+          };
+        },
+      },
+    } as unknown as OrtModule;
+    const read = async (model: ModelName) => new TextEncoder().encode(model);
+    const voice = await Supertonic.create(ort, read, cfg, [], { backend: 'wasm' });
+    const style = { ttl: new Float32Array(1), ttlDims: [1], dp: new Float32Array(1), dpDims: [1] };
+    const steps = () => runs.filter((r) => r === 'vectorEstimator').length;
+
+    expect(await voice.speak('Ciao.', 'it', style, 8, 1, 1, { givenUp: () => false })).toHaveLength(
+      22050,
+    );
+    expect(steps()).toBe(8);
+
+    runs.length = 0;
+    await expect(
+      voice.speak('Ciao.', 'it', style, 8, 1, 1, { givenUp: () => steps() >= 2 }),
+    ).rejects.toMatchObject({ name: 'AbortError' });
+    expect(steps()).toBe(2);
+    expect(runs).not.toContain('vocoder');
+  });
 });

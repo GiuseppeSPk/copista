@@ -108,3 +108,12 @@ export async function chooseReader(id: VoiceId): Promise<void> {
     voice.message = { tone: 'error', text: errorMessage(e) };
   }
 }
+
+/** Runs the voice on the graphics chip, or on the processor. */
+export async function chooseGraphics(on: boolean): Promise<void> {
+  try {
+    await changeSettings({ voiceChip: on ? 'graphics' : 'processor' });
+  } catch (e) {
+    voice.message = { tone: 'error', text: errorMessage(e) };
+  }
+}

@@ -5,6 +5,12 @@ import { FRAME, STREAM_TYPE, framesFor, initSegment, mediaSegment } from './flac
 export const FILL_AHEAD = 3;
 /** Frames between the ear and a piece put in at once, time for the browser to take it in. */
 const MARGIN = 4;
+/**
+ * Seconds between the ear and a piece that comes late: time for the browser to
+ * swap the silence there for it. With only MARGIN, a phone still swapping when
+ * the ear got there lost the piece's first word.
+ */
+export const LATE_AHEAD = 0.35;
 /** How long before its end a piece counts as heard, so the next one is put straight after it. */
 export const LEAD = 0.25;
 /** Seconds of sound kept behind the ear; older sound is let go. */
@@ -102,8 +108,12 @@ export class Stream {
       this.sampleRate = rate;
       void this.change(buffer, (b) => b.appendBuffer(initSegment(rate)));
     }
-    // A piece follows the last one, or starts just ahead of the ear when the ear has passed it.
-    const start = Math.max(this.placed, this.frameAt(this.audio.currentTime) + MARGIN);
+    // A piece follows the last one, or starts a little ahead of the ear when it comes late.
+    const ear = this.frameAt(this.audio.currentTime);
+    const start =
+      this.placed >= ear + MARGIN
+        ? this.placed
+        : ear + framesFor(LATE_AHEAD * this.rate * this.sampleRate);
     const appended = this.put(buffer, samples, start);
     this.placed = this.filled = start + framesFor(samples.length);
     const end = this.timeOf(this.placed);

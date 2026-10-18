@@ -3,11 +3,13 @@
   import Icon from './Icon.svelte';
   import { app } from './state.svelte';
   import { describeEngine, megabytes } from './text';
+  import { usesGraphics } from '../voice/narrator';
   import type { Lang } from '../voice/text';
   import {
     READERS,
     SAMPLE_LANGS,
     cancelDownload,
+    chooseGraphics,
     chooseReader,
     downloadVoice,
     removeVoiceHere,
@@ -92,6 +94,19 @@
         </label>
       {/each}
     </fieldset>
+
+    <label class="chip">
+      <input
+        type="checkbox"
+        checked={usesGraphics(app.settings.voiceChip)}
+        onchange={(e) => chooseGraphics(e.currentTarget.checked)}
+      />
+      Use the graphics chip
+    </label>
+    <p class="note">
+      Faster where it works, but it can freeze some phones. If the page freezes, reload it and turn
+      this off.
+    </p>
 
     <dl class="facts">
       <dt>Space used</dt>

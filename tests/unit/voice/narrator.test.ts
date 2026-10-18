@@ -4,6 +4,7 @@ import {
   WorkerNarrator,
   gpuAllowed,
   isDeviceLost,
+  usesGraphics,
   type WorkerLike,
   type WorkerReply,
   type WorkerRequest,
@@ -95,6 +96,39 @@ describe('WorkerNarrator', () => {
     expect(await fine).toHaveLength(3);
   });
 
+  it('gives up a piece when its signal aborts, telling the worker, and ignores a late answer', async () => {
+    const { worker, narrator } = setUp();
+    const controller = new AbortController();
+    const piece = narrator.speak('Uno.', 'it', 'M2', undefined, controller.signal);
+    const { id } = worker.sent[0]!;
+    controller.abort();
+    await expect(piece).rejects.toMatchObject({ name: 'AbortError' });
+    expect(worker.sent[1]).toEqual({ id, type: 'cancel' });
+    worker.reply({ id, type: 'audio', samples: new Float32Array(3) });
+    controller.abort();
+    expect(worker.sent).toHaveLength(2);
+  });
+
+  it('never sends a piece already given up', async () => {
+    const { worker, narrator } = setUp();
+    const controller = new AbortController();
+    controller.abort();
+    await expect(
+      narrator.speak('Uno.', 'it', 'M2', undefined, controller.signal),
+    ).rejects.toMatchObject({ name: 'AbortError' });
+    expect(worker.sent).toHaveLength(0);
+  });
+
+  it('sends no give-up for a piece already answered', async () => {
+    const { worker, narrator } = setUp();
+    const controller = new AbortController();
+    const piece = narrator.speak('Uno.', 'it', 'M2', undefined, controller.signal);
+    worker.reply({ id: worker.sent[0]!.id, type: 'audio', samples: new Float32Array(2) });
+    expect(await piece).toHaveLength(2);
+    controller.abort();
+    expect(worker.sent).toHaveLength(1);
+  });
+
   it('stops the worker and rejects what is still pending', async () => {
     const { worker, narrator } = setUp();
     const pending = narrator.speak('Uno.', 'it', 'M2');
@@ -105,6 +139,14 @@ describe('WorkerNarrator', () => {
 });
 
 describe('FakeNarrator', () => {
+  it('gives up a piece when its signal aborts', async () => {
+    const narrator = new FakeNarrator({ msPerChar: 1000 });
+    const controller = new AbortController();
+    const piece = narrator.speak('Ciao.', 'it', 'M2', undefined, controller.signal);
+    controller.abort();
+    await expect(piece).rejects.toMatchObject({ name: 'AbortError' });
+  });
+
   it('gives silence as long as the text takes to say', async () => {
     const narrator = new FakeNarrator({ msPerChar: 0, sampleRate: 1000 });
     expect(await narrator.speak('Ciao a tutti.')).toHaveLength(13 * 0.06 * 1000);
@@ -138,6 +180,15 @@ describe('gpuAllowed', () => {
     expect(gpuAllowed(MAC, 5, true)).toBe(false);
     expect(gpuAllowed(MAC, 5, false)).toBe(false);
     expect(gpuAllowed(WINDOWS, 10, true)).toBe(false);
+  });
+});
+
+describe('usesGraphics', () => {
+  it('follows the device unless the reader chose a chip', () => {
+    expect(usesGraphics('auto', () => true)).toBe(true);
+    expect(usesGraphics('auto', () => false)).toBe(false);
+    expect(usesGraphics('graphics', () => false)).toBe(true);
+    expect(usesGraphics('processor', () => true)).toBe(false);
   });
 });
 

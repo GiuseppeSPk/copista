@@ -141,6 +141,7 @@ async function speak(
   lang: Lang,
   voice: VoiceId,
   tuning: Tuning = {},
+  isGivenUp: () => boolean = () => false,
 ): Promise<Float32Array> {
   await load();
   const run = async (): Promise<Float32Array> =>
@@ -151,7 +152,7 @@ async function speak(
       profile!.steps,
       tuning.speed ?? SPEED,
       tuning.seed ?? SEED[voice],
-      { fixes: tuning.fixes ?? FIXES, noise: tuning.noise },
+      { fixes: tuning.fixes ?? FIXES, noise: tuning.noise, givenUp: isGivenUp },
     );
   try {
     return await run();
@@ -179,6 +180,10 @@ async function probe(model: ArrayBuffer): Promise<Float32Array> {
   }
 }
 
+/** The pieces waiting their turn or being made, and those of them given up. */
+const asked = new Set<number>();
+const givenUp = new Set<number>();
+
 async function handle(message: WorkerRequest): Promise<WorkerReply> {
   switch (message.type) {
     case 'load':
@@ -192,14 +197,20 @@ async function handle(message: WorkerRequest): Promise<WorkerReply> {
         steps: profile!.steps,
         threads: ort!.env.wasm.numThreads ?? 1,
       };
-    case 'speak':
+    case 'speak': {
+      const { id } = message;
       return {
-        id: message.id,
+        id,
         type: 'audio',
-        samples: await speak(message.text, message.lang, message.voice, message.tuning),
+        samples: await speak(message.text, message.lang, message.voice, message.tuning, () =>
+          givenUp.has(id),
+        ),
       };
+    }
     case 'probe':
       return { id: message.id, type: 'audio', samples: await probe(message.model) };
+    case 'cancel':
+      throw new Error('A give-up is never queued.');
   }
 }
 
@@ -207,7 +218,17 @@ async function handle(message: WorkerRequest): Promise<WorkerReply> {
 let queue: Promise<void> = Promise.resolve();
 
 scope.onmessage = ({ data }: MessageEvent<WorkerRequest>) => {
+  // A give-up comes in at once, past the queue, and stops the piece at its next model run.
+  if (data.type === 'cancel') {
+    if (asked.has(data.id)) givenUp.add(data.id);
+    return;
+  }
+  if (data.type === 'speak') asked.add(data.id);
   queue = queue.then(async () => {
+    if (givenUp.delete(data.id)) {
+      asked.delete(data.id);
+      return;
+    }
     let reply: WorkerReply;
     try {
       reply = await handle(data);
@@ -218,6 +239,9 @@ scope.onmessage = ({ data }: MessageEvent<WorkerRequest>) => {
         message: error instanceof Error ? error.message : String(error),
       };
     }
+    asked.delete(data.id);
+    // The page has already let go of a piece given up.
+    if (givenUp.delete(data.id)) return;
     scope.postMessage(reply, reply.type === 'audio' ? [reply.samples.buffer] : []);
   });
 };

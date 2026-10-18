@@ -34,6 +34,6 @@ describe('voice', () => {
   });
 
   it('gives the test voice a narrator that needs no model', () => {
-    expect(voiceService().narrator().backend).toBe('fake');
+    expect(voiceService().narrator(false).backend).toBe('fake');
   });
 });

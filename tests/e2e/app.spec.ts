@@ -1149,24 +1149,30 @@ test.describe('Listen', () => {
     await expect(sheet.getByRole('status')).toContainText('The voice is ready.');
     await expect(sheet.getByText('Space used')).toBeVisible();
 
-    await sheet.getByRole('radio', { name: 'The Lectrix' }).check();
-    await expect
-      .poll(() =>
-        page.evaluate(
-          () =>
-            new Promise((resolve) => {
-              indexedDB.open('copista').onsuccess = ({ target }) => {
-                const db = (target as IDBOpenDBRequest).result;
-                const get = db.transaction('settings').objectStore('settings').get('reader');
-                get.onsuccess = () => {
-                  db.close();
-                  resolve(get.result?.value?.voice);
-                };
+    const saved = (): Promise<unknown> =>
+      page.evaluate(
+        () =>
+          new Promise((resolve) => {
+            indexedDB.open('copista').onsuccess = ({ target }) => {
+              const db = (target as IDBOpenDBRequest).result;
+              const get = db.transaction('settings').objectStore('settings').get('reader');
+              get.onsuccess = () => {
+                db.close();
+                resolve(get.result?.value);
               };
-            }),
-        ),
-      )
-      .toBe('F1');
+            };
+          }),
+      );
+    await sheet.getByRole('radio', { name: 'The Lectrix' }).check();
+    await expect.poll(saved).toMatchObject({ voice: 'F1' });
+
+    // A computer runs the voice on its graphics chip unless told otherwise.
+    const chip = sheet.getByRole('checkbox', { name: 'Use the graphics chip' });
+    await expect(chip).toBeChecked();
+    await chip.uncheck();
+    await expect.poll(saved).toMatchObject({ voiceChip: 'processor' });
+    await chip.check();
+    await expect.poll(saved).toMatchObject({ voiceChip: 'graphics' });
 
     await sheet.getByRole('button', { name: 'Remove the voice' }).click();
     await expect(sheet.getByRole('status')).toContainText('has been removed');

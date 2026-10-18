@@ -273,6 +273,18 @@ export function frameNoise(dim: number, length: number, seed: number): Float32Ar
 }
 
 /** The Supertonic voice, run with onnxruntime-web. */
+/** Settles on a later task, once the messages already waiting have been let in. */
+export function nextTask(): Promise<void> {
+  return new Promise((resolve) => {
+    const { port1, port2 } = new MessageChannel();
+    port1.onmessage = () => {
+      port1.close();
+      resolve();
+    };
+    port2.postMessage(null);
+  });
+}
+
 export class Supertonic {
   readonly sampleRate: number;
 
@@ -324,9 +336,21 @@ export class Supertonic {
     steps: number,
     speed: number,
     seed: number,
-    options: { fixes?: readonly TextFix[]; noise?: 'latent' | 'frame' } = {},
+    options: {
+      fixes?: readonly TextFix[];
+      noise?: 'latent' | 'frame';
+      /** Asked between one model run and the next: true gives the piece up. */
+      givenUp?: () => boolean;
+    } = {},
   ): Promise<Float32Array> {
     const { Tensor } = this.ort;
+    // A run of the models can keep the worker busy without letting a message in,
+    // so each check first lets waiting messages through.
+    const check = async (): Promise<void> => {
+      if (options.givenUp === undefined) return;
+      await nextTask();
+      if (options.givenUp()) throw new DOMException('The piece was given up.', 'AbortError');
+    };
     const s = this.sessions;
     const ids = this.ids.encode(text, lang, options.fixes);
     const textIds = new Tensor('int64', ids, [1, ids.length]);
@@ -344,6 +368,7 @@ export class Supertonic {
       text_mask: textMask,
     });
     const seconds = (duration!.data as Float32Array)[0]! / speed;
+    await check();
 
     const { text_emb: textEmb } = await s.textEncoder.run({
       text_ids: textIds,
@@ -351,6 +376,7 @@ export class Supertonic {
       text_mask: textMask,
     });
 
+    await check();
     const { length, dim } = latentSize(seconds, this.cfg);
     let latent =
       options.noise === 'frame' ? frameNoise(dim, length, seed) : noise(dim * length, seed);
@@ -367,6 +393,7 @@ export class Supertonic {
         total_step: totalStep,
       });
       latent = denoised!.data as Float32Array;
+      await check();
     }
 
     const { wav_tts: wav } = await s.vocoder.run({

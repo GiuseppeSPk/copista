@@ -2,7 +2,7 @@
  * The voice as the rest of the app sees it: set up, removed, measured, and
  * a narrator to read with.
  */
-import { FakeNarrator, WorkerNarrator, gpuAllowed, voiceWorker, type Narrator } from './narrator';
+import { FakeNarrator, WorkerNarrator, voiceWorker, type Narrator } from './narrator';
 import { TOTAL_BYTES, install, isInstalled, remove, spaceUsed } from './store';
 
 export interface VoiceService {
@@ -11,7 +11,8 @@ export interface VoiceService {
   remove(): Promise<void>;
   /** The bytes the voice takes on this device. */
   spaceUsed(): Promise<number>;
-  narrator(): Narrator;
+  /** A narrator on the graphics chip, or else on the processor. */
+  narrator(gpu: boolean): Narrator;
 }
 
 /** The onnxruntime-web files the voice loads from this site on first use (1.30.0). */
@@ -38,7 +39,7 @@ const real: VoiceService = {
   install: (onProgress, signal) => install(onProgress, signal),
   remove,
   spaceUsed,
-  narrator: () => new WorkerNarrator(voiceWorker, gpuAllowed()),
+  narrator: (gpu) => new WorkerNarrator(voiceWorker, gpu),
 };
 
 function wait(ms: number, signal?: AbortSignal): Promise<void> {

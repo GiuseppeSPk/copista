@@ -59,6 +59,8 @@ export function listen(
   let paused = false;
   let failure: { error: unknown } | undefined;
   let playing: AbortController | undefined;
+  /** The piece being made, which a stop or a skip away from it gives up. */
+  let making: { index: number; controller: AbortController } | undefined;
 
   // Each side sleeps on its own bell; anything that may give it work rings it.
   const bell = () => {
@@ -96,7 +98,17 @@ export function listen(
         toVoice = bell();
         continue;
       }
-      const samples = await narrator.speak(pieces[i]!.text, lang, voice);
+      const controller = new AbortController();
+      making = { index: i, controller };
+      let samples: Float32Array;
+      try {
+        samples = await narrator.speak(pieces[i]!.text, lang, voice, undefined, controller.signal);
+      } catch (error) {
+        if (controller.signal.aborted) continue;
+        throw error;
+      } finally {
+        making = undefined;
+      }
       // A piece skipped past while it was being made is not wanted any more.
       if (!stopped && i >= current) made.set(i, samples);
       toPlayer.ring();
@@ -148,6 +160,7 @@ export function listen(
     stop() {
       stopped = true;
       playing?.abort();
+      making?.controller.abort();
       wake();
     },
     pause() {
@@ -173,6 +186,8 @@ export function listen(
       current = to;
       dropBehind();
       playing?.abort();
+      // The voice moves to the piece now wanted, when the one it was making is not.
+      if (making && making.index !== nextToMake()) making.controller.abort();
       wake();
     },
     get paused() {

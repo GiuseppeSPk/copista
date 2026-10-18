@@ -1,9 +1,9 @@
 import { DEFAULT_PACE, snapPace } from '../../reader/autoscroll';
 import type { ReadingMode, Theme } from '../../reader/render';
 import { deleteAllStorage, getSetting, putSetting } from '../../storage/db';
-import type { VoiceId } from '../../voice/narrator';
+import type { VoiceChip, VoiceId } from '../../voice/narrator';
 
-export type { ReadingMode, VoiceId };
+export type { ReadingMode, VoiceChip, VoiceId };
 
 export interface Settings {
   fontSizePercent: number;
@@ -16,6 +16,8 @@ export interface Settings {
   voice: VoiceId;
   /** How fast the voice is heard, as a multiple of its own pace; one of `VOICE_RATES`. */
   voiceRate: number;
+  /** Where the voice runs: as the device suits, or on the chip chosen in the voice sheet. */
+  voiceChip: VoiceChip;
 }
 
 /** The speeds the voice can be heard at, in the order the listening bar steps through them. */
@@ -29,12 +31,14 @@ export const DEFAULT_SETTINGS: Settings = {
   guideLine: false,
   voice: 'M2',
   voiceRate: 1,
+  voiceChip: 'auto',
 };
 
 const SETTINGS_KEY = 'reader';
 const THEMES: readonly Theme[] = ['light', 'dark', 'sepia'];
 const MODES: readonly ReadingMode[] = ['pages', 'scroll'];
 const VOICES: readonly VoiceId[] = ['M2', 'F1'];
+const CHIPS: readonly VoiceChip[] = ['auto', 'graphics', 'processor'];
 const MIN_FONT = 80;
 const MAX_FONT = 200;
 
@@ -63,6 +67,9 @@ function merge(base: Settings, patch: Partial<Settings>): Settings {
     voiceRate: VOICE_RATES.includes(patch.voiceRate as number)
       ? (patch.voiceRate as number)
       : base.voiceRate,
+    voiceChip: CHIPS.includes(patch.voiceChip as VoiceChip)
+      ? (patch.voiceChip as VoiceChip)
+      : base.voiceChip,
   };
 }
 
