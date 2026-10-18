@@ -4,8 +4,8 @@
  * the sheet is closed and shows its progress when it opens again.
  */
 import {
-  DOWNLOAD_BYTES,
   VoiceUnfitError,
+  downloadBytes,
   checkVoice,
   installVoice,
   removeVoice,
@@ -74,7 +74,7 @@ export async function measureVoice(): Promise<void> {
 export async function downloadVoice(): Promise<void> {
   if (controller) return;
   const current = (controller = new AbortController());
-  voice.progress = { done: 0, total: DOWNLOAD_BYTES };
+  voice.progress = { done: 0, total: downloadBytes(usesGraphics(app.settings.voiceChip)) };
   voice.message = undefined;
   try {
     await installVoice((done, total) => {

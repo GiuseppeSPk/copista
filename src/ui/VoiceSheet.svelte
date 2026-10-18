@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { DOWNLOAD_BYTES, VOICE_HOST } from '../rooms/voice';
+  import { VOICE_HOST, downloadBytes } from '../rooms/voice';
   import Icon from './Icon.svelte';
   import { app } from './state.svelte';
   import { describeEngine, megabytes } from './text';
@@ -140,7 +140,7 @@
     </p>
     <dl class="facts">
       <dt>Download</dt>
-      <dd>About {megabytes(DOWNLOAD_BYTES)}, once</dd>
+      <dd>About {megabytes(downloadBytes(usesGraphics(app.settings.voiceChip)))}, once</dd>
       <dt>From</dt>
       <dd>{VOICE_HOST}, and this site</dd>
       <dt>Then</dt>

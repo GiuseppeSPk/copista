@@ -2,16 +2,13 @@ import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import type { Plugin } from 'vite';
+import { ORT_BUILDS } from '../src/voice/engine';
 
 /** The onnxruntime-web release the voice was measured with. */
 export const ORT_VERSION = '1.30.0';
 
-/** The files the WebGPU build loads: itself, then its wasm engine. */
-export const ORT_FILES = [
-  'ort.webgpu.min.mjs',
-  'ort-wasm-simd-threaded.asyncify.mjs',
-  'ort-wasm-simd-threaded.asyncify.wasm',
-];
+/** The files of every build a device may load: each entry, then its wasm engine. */
+export const ORT_FILES = Object.values(ORT_BUILDS).flatMap(({ files }) => Object.keys(files));
 
 const TYPES: Record<string, string> = { mjs: 'text/javascript', wasm: 'application/wasm' };
 
@@ -46,6 +43,9 @@ export function ort(): Plugin {
         const name = path.startsWith(prefix) ? path.slice(prefix.length) : '';
         if (!ORT_FILES.includes(name)) return next();
         res.setHeader('Content-Type', TYPES[name.split('.').pop()!]!);
+        // On an isolated page the engine's threads are workers, which do not start
+        // without this, and the voice then waits for them for ever.
+        res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp');
         res.end(readFileSync(join(dir, name)));
       });
     },

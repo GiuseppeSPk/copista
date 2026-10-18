@@ -2,6 +2,7 @@
  * The worker that runs the voice. onnxruntime-web is loaded here only, from
  * the copy served under ort/, so it never weighs on the page.
  */
+import { ORT_BUILDS, ortBuild } from './engine';
 import { VoiceUnfitError, judge, type Unfit, type Verdict } from './fitness';
 import {
   FIXES,
@@ -52,10 +53,15 @@ const styles = new Map<VoiceId, Style>();
 /** How long the last load took, for the stopwatch in development. */
 let times: LoadTimes = { engine: 0, sessions: {}, warmUp: 0, total: 0 };
 
+/**
+ * Loads onnxruntime-web once: the build for wasm alone when the page asked for
+ * it, else one with WebGPU, which wasm falls back on when the device is lost.
+ */
 async function loadOrt(): Promise<OrtModule> {
   if (ort !== null) return ort;
   const start = performance.now();
-  const module = (await import(/* @vite-ignore */ `${ORT_DIR}ort.webgpu.min.mjs`)) as OrtModule;
+  const { entry } = ORT_BUILDS[ortBuild(!wasmOnly)];
+  const module = (await import(/* @vite-ignore */ `${ORT_DIR}${entry}`)) as OrtModule;
   module.env.wasm.wasmPaths = ORT_DIR;
   module.env.wasm.numThreads = scope.crossOriginIsolated
     ? Math.min(4, navigator.hardwareConcurrency || 1)

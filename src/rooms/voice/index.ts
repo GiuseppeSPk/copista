@@ -1,6 +1,6 @@
 import { voiceService } from '../../voice/index';
 
-export { DOWNLOAD_BYTES } from '../../voice/index';
+export { downloadBytes } from '../../voice/index';
 export { VOICE_HOST } from '../../voice/store';
 export { VoiceUnfitError } from '../../voice/fitness';
 

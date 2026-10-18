@@ -2,6 +2,7 @@
  * The voice as the rest of the app sees it: set up, removed, measured, and
  * a narrator to read with.
  */
+import { buildBytes, ortBuild } from './engine';
 import type { Unfit } from './fitness';
 import { FakeNarrator, WorkerNarrator, voiceWorker, type Narrator } from './narrator';
 import {
@@ -30,11 +31,13 @@ export interface VoiceService {
   forgetFitness(): Promise<void>;
 }
 
-/** The onnxruntime-web files the voice loads from this site on first use (1.30.0). */
-export const ENGINE_BYTES = 66_349 + 53_057 + 26_781_914;
-
-/** What setting up the voice downloads, model and engine together. */
-export const DOWNLOAD_BYTES = TOTAL_BYTES + ENGINE_BYTES;
+/**
+ * What setting up the voice downloads, model and engine together: the engine
+ * this device loads from this site on first use, on the graphics chip or not.
+ */
+export function downloadBytes(gpu: boolean): number {
+  return TOTAL_BYTES + buildBytes(ortBuild(gpu));
+}
 
 /**
  * In development, this key in localStorage swaps the voice for a fake that
@@ -76,7 +79,7 @@ const fake: VoiceService = {
   async install(onProgress, signal) {
     for (let step = 0; step <= 4; step++) {
       await wait(step === 0 ? 0 : 250, signal);
-      onProgress((DOWNLOAD_BYTES * step) / 4, DOWNLOAD_BYTES);
+      onProgress((TOTAL_BYTES * step) / 4, TOTAL_BYTES);
     }
     localStorage.setItem(TEST_VOICE_KEY, 'installed');
   },
