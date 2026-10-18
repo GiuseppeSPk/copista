@@ -28,6 +28,7 @@
   import VoiceSheet from './VoiceSheet.svelte';
   import ListenBar from './ListenBar.svelte';
   import { cancelDownload, measureVoice, READERS, voice as voiceState } from './voice.svelte';
+  import { VoiceUnfitError } from '../voice/fitness';
   import { voiceService } from '../voice/index';
   import { voiceOutput, type Output } from '../voice/stream';
   import { usesGraphics, type Narrator } from '../voice/narrator';
@@ -476,7 +477,7 @@
     pressTimer = undefined;
     pressRing = undefined;
     pressed = true;
-    if (!voiceState.status?.installed) return openVoiceSheet();
+    if (!canListen()) return openVoiceSheet();
     const place = ctrl?.listeningStartAt(clientX, clientY);
     if (!place) return;
     navigator.vibrate?.(15);
@@ -514,6 +515,16 @@
     lock = undefined;
   }
 
+  /**
+   * Whether the voice may read: set up, and not found unfit for this device nor
+   * being tested, since a second copy of the model at once would weigh too much.
+   */
+  function canListen(): boolean {
+    return (
+      !!voiceState.status?.installed && voiceState.status.fit !== false && !voiceState.checking
+    );
+  }
+
   /** Opens or closes the voice sheet, from the button pressed or else the toolbar's Listen. */
   function openVoiceSheet(from?: HTMLElement): void {
     if (sheetOpen) return closeVoiceSheet();
@@ -536,7 +547,7 @@
    */
   function toggleListen(): void {
     if (aloud?.active) return stopListening();
-    if (!voiceState.status?.installed) return openVoiceSheet();
+    if (!canListen()) return openVoiceSheet();
     listenFrom();
   }
 
@@ -604,6 +615,8 @@
       },
       onError: (e) => {
         if (aloud === reading) listenError = errorMessage(e);
+        // Tested on first use and found unfit: Listen opens the sheet from now on.
+        if (e instanceof VoiceUnfitError) void measureVoice();
       },
     });
     aloud = reading;
@@ -907,7 +920,7 @@
           <Icon name={playing ? 'pause' : 'play'} size={18} />
           <span class="tool-label">Auto<wbr />scroll</span>
         </button>
-        {#if voiceState.status?.installed}
+        {#if canListen()}
           <button
             type="button"
             class="listen-toggle"
@@ -928,7 +941,11 @@
             onclick={toggleListen}
             aria-expanded={sheetOpen}
             aria-controls="voice-sheet"
-            title="Have the book read aloud: set up the voice"
+            title={voiceState.checking
+              ? 'The voice is testing this device'
+              : voiceState.status?.installed
+                ? 'The voice cannot read on this device'
+                : 'Have the book read aloud: set up the voice'}
           >
             <Icon name="listen" size={18} />
             <span class="tool-label">Listen</span>

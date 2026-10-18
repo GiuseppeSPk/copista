@@ -1,4 +1,5 @@
 import { CopistaError } from '../core/errors';
+import type { Verdict } from './fitness';
 
 /** The cache that holds the voice: its files, the onnxruntime files and the profile. */
 export const VOICE_CACHE = 'copista-voice-v1';
@@ -66,26 +67,18 @@ export class VoiceDownloadError extends CopistaError {
   override name = 'VoiceDownloadError';
 }
 
-/** How the voice runs on this device, measured once by the self-test. */
-export interface Profile {
-  backend: 'webgpu' | 'wasm';
-  steps: 6 | 8 | 16;
-}
+/**
+ * How the voice runs on this device: each backend's verdict in the fitness test,
+ * measured once and kept with the voice.
+ */
+export type Profile = Partial<Record<'webgpu' | 'wasm', Verdict>>;
 
 /**
  * The profile's key in the voice cache. It is never fetched. The name changed
- * when 16 steps were added, so devices measured before are measured again.
+ * when 16 steps were added, and again when a device could be found unfit, so
+ * devices measured before are measured again.
  */
-const PROFILE = fileUrl('copista-profile-2.json');
-
-/**
- * From the time a piece takes at 8 steps, as a share of its own length: 16 steps
- * when twice that is still below 0.8, 8 when it is below 0.8, else 6.
- */
-export function pickSteps(rtf: number): 6 | 8 | 16 {
-  if (rtf < 0.4) return 16;
-  return rtf < 0.8 ? 8 : 6;
-}
+const PROFILE = fileUrl('copista-profile-3.json');
 
 /**
  * Looks up an entry without opening the cache: opening creates it, and the
@@ -240,20 +233,51 @@ export async function readFile(path: string): Promise<ArrayBuffer> {
   return response.arrayBuffer();
 }
 
-export async function getProfile(): Promise<Profile | null> {
-  const response = await lookup(PROFILE);
-  if (response === undefined) return null;
-  const p = (await response.json().catch(() => null)) as Partial<Profile> | null;
-  const backendOk = p?.backend === 'webgpu' || p?.backend === 'wasm';
-  return backendOk && (p.steps === 6 || p.steps === 8 || p.steps === 16)
-    ? { backend: p.backend!, steps: p.steps }
-    : null;
+function isVerdict(value: unknown): value is Verdict {
+  const v = value as { steps?: unknown; unfit?: unknown } | null | undefined;
+  return (
+    v?.steps === 6 ||
+    v?.steps === 8 ||
+    v?.steps === 16 ||
+    ['slow', 'noise', 'stalled', 'failed'].includes(v?.unfit as string)
+  );
 }
 
-export async function saveProfile(p: Profile): Promise<void> {
+/** The verdicts found so far, none before the first test. */
+export async function getProfile(): Promise<Profile> {
+  const response = await lookup(PROFILE);
+  const stored = (await response?.json().catch(() => null)) as Record<string, unknown> | null;
+  const profile: Profile = {};
+  for (const backend of ['webgpu', 'wasm'] as const) {
+    const verdict = stored?.[backend];
+    if (isVerdict(verdict)) profile[backend] = verdict;
+  }
+  return profile;
+}
+
+/** Keeps a backend's verdict, beside the other's. */
+export async function saveVerdict(backend: 'webgpu' | 'wasm', verdict: Verdict): Promise<void> {
+  const profile = { ...(await getProfile()), [backend]: verdict };
   const cache = await caches.open(VOICE_CACHE);
   await cache.put(
     PROFILE,
-    new Response(JSON.stringify(p), { headers: { 'Content-Type': 'application/json' } }),
+    new Response(JSON.stringify(profile), { headers: { 'Content-Type': 'application/json' } }),
   );
+}
+
+/** Forgets the verdicts, so the device is tested again. */
+export async function forgetProfile(): Promise<void> {
+  if (typeof caches !== 'undefined' && (await caches.has(VOICE_CACHE))) {
+    await (await caches.open(VOICE_CACHE)).delete(PROFILE);
+  }
+}
+
+/**
+ * Whether the device can read aloud, as far as the verdicts tell: yes once a
+ * backend passed, no once wasm failed, since it is tried last, and null before.
+ */
+export function isFit(profile: Profile): boolean | null {
+  if (profile.webgpu && 'steps' in profile.webgpu) return true;
+  if (profile.wasm) return 'steps' in profile.wasm;
+  return null;
 }

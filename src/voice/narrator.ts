@@ -1,3 +1,4 @@
+import { TEST_BUDGET_MS, VoiceUnfitError, type Unfit, type Verdict } from './fitness';
 import type { Lang } from './text';
 
 /** The two voices: the Lector and the Lectrix. */
@@ -70,6 +71,9 @@ export type WorkerReply =
       threads: number;
     }
   | { id: number; type: 'audio'; samples: Float32Array }
+  /** The fitness test starts on a backend; the page stops it if it does not end in time. */
+  | { id: number; type: 'testing'; backend: 'webgpu' | 'wasm' }
+  | { id: number; type: 'unfit'; reason: Unfit }
   | { id: number; type: 'error'; message: string };
 
 /** The part of a Worker the narrator uses. */
@@ -119,7 +123,18 @@ interface Pending {
   reject(error: Error): void;
 }
 
-/** The narrator that runs the voice in a worker, created on first use. */
+/** Keeps a backend's verdict; the narrator records a test it had to stop. */
+export type KeepVerdict = (backend: 'webgpu' | 'wasm', verdict: Verdict) => Promise<void>;
+
+/** Said to what was pending when a fitness test was stopped. */
+class Stalled extends Error {}
+
+/**
+ * The narrator that runs the voice in a worker, created on first use. A fitness
+ * test that does not end in time, as when the device is too slow and freezes,
+ * has its worker stopped and its backend marked as stalled; loading then goes
+ * on with the next backend, in a new worker.
+ */
 export class WorkerNarrator implements Narrator {
   sampleRate = 44100;
   backend: 'webgpu' | 'wasm' = 'wasm';
@@ -128,19 +143,31 @@ export class WorkerNarrator implements Narrator {
   private worker: WorkerLike | null = null;
   private nextId = 1;
   private readonly pending = new Map<number, Pending>();
+  private watchdog: ReturnType<typeof setTimeout> | undefined;
 
   constructor(
     private readonly makeWorker: () => WorkerLike,
     private readonly gpu = true,
+    private readonly keepVerdict: KeepVerdict = async () => {},
+    private readonly budgetMs = TEST_BUDGET_MS,
   ) {}
 
   async load(): Promise<void> {
-    const reply = await this.request({ id: 0, type: 'load', gpu: this.gpu });
-    if (reply.type === 'ready') {
-      this.sampleRate = reply.sampleRate;
-      this.backend = reply.backend;
-      this.steps = reply.steps;
-      this.threads = reply.threads;
+    // At most one stalled test for each backend.
+    for (let attempt = 0; ; attempt++) {
+      try {
+        const reply = await this.request({ id: 0, type: 'load', gpu: this.gpu });
+        if (reply.type === 'ready') {
+          this.sampleRate = reply.sampleRate;
+          this.backend = reply.backend;
+          this.steps = reply.steps;
+          this.threads = reply.threads;
+        }
+        return;
+      } catch (error) {
+        if (!(error instanceof Stalled)) throw error;
+        if (attempt === 1) throw new VoiceUnfitError('stalled');
+      }
     }
   }
 
@@ -159,6 +186,7 @@ export class WorkerNarrator implements Narrator {
   }
 
   destroy(): void {
+    clearTimeout(this.watchdog);
     this.worker?.terminate();
     this.worker = null;
     for (const p of this.pending.values()) p.reject(new Error('The voice was stopped.'));
@@ -195,8 +223,26 @@ export class WorkerNarrator implements Narrator {
     worker.onmessage = ({ data }) => {
       const p = this.pending.get(data.id);
       if (p === undefined) return;
+      clearTimeout(this.watchdog);
+      if (data.type === 'testing') {
+        this.watchdog = setTimeout(() => {
+          if (this.worker !== worker) return;
+          worker.terminate();
+          this.worker = null;
+          const stalled = [...this.pending.values()];
+          this.pending.clear();
+          // Marked before the pending load hears of it, so the next worker skips this backend.
+          void this.keepVerdict(data.backend, { unfit: 'stalled' })
+            .catch(() => {})
+            .then(() => {
+              for (const q of stalled) q.reject(new Stalled());
+            });
+        }, this.budgetMs);
+        return;
+      }
       this.pending.delete(data.id);
       if (data.type === 'error') p.reject(new Error(data.message));
+      else if (data.type === 'unfit') p.reject(new VoiceUnfitError(data.reason));
       else p.resolve(data);
     };
     return worker;
@@ -223,14 +269,19 @@ export class FakeNarrator implements Narrator {
   /** How long loading and warming up takes. */
   private readonly loadMs: number;
 
+  /** Why the fake fails its fitness test, if it does. */
+  private readonly unfit: Unfit | undefined;
+
   constructor(
     options: {
       msPerChar?: number;
       secondsPerChar?: number;
       sampleRate?: number;
       loadMs?: number;
+      unfit?: Unfit;
     } = {},
   ) {
+    this.unfit = options.unfit;
     this.msPerChar = options.msPerChar ?? 2;
     this.loadMs = options.loadMs ?? 0;
     this.secondsPerChar = options.secondsPerChar ?? 0.06;
@@ -238,6 +289,7 @@ export class FakeNarrator implements Narrator {
   }
 
   async load(): Promise<void> {
+    if (this.unfit) throw new VoiceUnfitError(this.unfit);
     if (this.loadMs > 0) await new Promise((resolve) => setTimeout(resolve, this.loadMs));
   }
 
@@ -248,6 +300,7 @@ export class FakeNarrator implements Narrator {
     _tuning?: Tuning,
     signal?: AbortSignal,
   ): Promise<Float32Array> {
+    if (this.unfit) throw new VoiceUnfitError(this.unfit);
     if (signal?.aborted) throw cancelled();
     await new Promise<void>((resolve, reject) => {
       const timer = setTimeout(resolve, text.length * this.msPerChar);

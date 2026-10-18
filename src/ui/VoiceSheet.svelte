@@ -13,6 +13,7 @@
     chooseReader,
     downloadVoice,
     removeVoiceHere,
+    testVoice,
     voice,
   } from './voice.svelte';
 
@@ -116,14 +117,27 @@
         <dd>{describeEngine(voice.engine)}</dd>
       {/if}
     </dl>
+    {#if voice.status.fit === false && !voice.checking}
+      <p class="note">
+        This device did not pass the test that the voice runs before it reads, so Listen stays off
+        here. A newer browser may do better.
+      </p>
+      <p>
+        <button type="button" onclick={() => testVoice(true)}>Test again</button>
+      </p>
+    {/if}
     <p>
-      <button type="button" class="danger" onclick={removeVoiceHere}>
+      <button type="button" class="danger" disabled={voice.checking} onclick={removeVoiceHere}>
         <Icon name="trash" size={18} /> Remove the voice
       </button>
     </p>
   {:else if voice.status}
     <h3>Set up the voice</h3>
     <p class="note">Works best on recent phones and computers.</p>
+    <p class="note">
+      After the download, Copista checks that this device keeps up. If it does not, the voice stays
+      off here and you can remove it.
+    </p>
     <dl class="facts">
       <dt>Download</dt>
       <dd>About {megabytes(DOWNLOAD_BYTES)}, once</dd>
@@ -176,6 +190,12 @@
           {voice.message.text}
         </p>{/key}{/if}
   </div>
+
+  {#if voice.reload}
+    <p class="next">
+      <button type="button" class="primary" onclick={() => location.reload()}>Reload</button>
+    </p>
+  {/if}
 
   <!-- Where Download was, under the news that the voice is in. -->
   {#if voice.status?.installed && voice.ready}

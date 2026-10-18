@@ -128,9 +128,22 @@ Same Manzoni sentence, fp16 weights, Chrome on Android, served over HTTPS on the
   steps. If its RTF is below 0.4, it uses 16 steps (about twice the work); below 0.8, 8 steps;
   otherwise 6. The result is stored
   with the voice and measured again when the backend changes.
-- **The voice is offered on every device.** Giuseppe chose this over hiding it on slow phones.
-  The Auditorium says "Works best on recent phones and computers." before the download. On a
-  device that cannot keep up, reading pauses while the Lector catches up (section 6).
+- **The voice is offered on every device, and reads only where it passes a fitness test**
+  (16 October). The Galaxy Tab S7 and a Redmi Note 13 never started reading, then gave a stuck
+  buzz while the whole phone froze. Right after the download, and on first use for a device
+  set up before, the worker reads one sentence on each backend it may use (`src/voice/fitness.ts`):
+  - it fails as **noise** when the samples are not finite, silent, wildly loud, or have less
+    than 15% of 20 ms frames 30 dB below the loudest. Read well, the test sentence has 35–41%;
+    the vocoder fed raw noise, as from a broken denoiser, has 4–5%; a buzz or a stuck loop, none;
+  - it fails as **slow** when 8 steps take as long as the audio or longer (RTF 1), where 6 steps
+    no longer keep ahead, above all with the screen off;
+  - it fails as **stalled** when the test does not end within 40 s: the page stops the worker,
+    marks the backend and goes on with the next one in a new worker;
+  - wasm on one thread, before the page is isolated, is never tried: the sheet asks for a reload.
+
+  Each backend's verdict is kept with the voice (`copista-profile-3.json`), so every device
+  measured before is measured again. Where no backend passes, Listen opens the voice sheet,
+  which says so and offers "Test again" and Remove.
 - **Longer pieces, fewer calls.** Each call to the model has a fixed cost, and a short
   sentence spoken alone gets a flat intonation. The narrator therefore joins consecutive
   sentences of one block into pieces of up to 300 characters, the helper's own limit, and
