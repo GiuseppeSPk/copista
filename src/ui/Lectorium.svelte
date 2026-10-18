@@ -1021,6 +1021,15 @@
     {/if}
 
     <div class="reading" class:panel-open={panelOpen}>
+      {#if panelOpen}
+        <button
+          type="button"
+          class="panel-scrim"
+          tabindex="-1"
+          aria-label="Close the contents"
+          onclick={() => (panelOpen = false)}
+        ></button>
+      {/if}
       <aside id="reader-panel" aria-label="Contents, bookmarks and notes">
         <div class="panel-tabs" role="tablist" aria-label="Lists">
           {#each [['contents', 'Contents', 0], ['marks', 'Bookmarks', marks.length], ['notes', 'Notes', notes.length]] as const as [id, label, count] (id)}

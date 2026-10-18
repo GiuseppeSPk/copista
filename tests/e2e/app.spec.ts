@@ -1866,6 +1866,33 @@ test.describe('on a phone-sized screen', () => {
   });
 });
 
+test.describe('on a tablet held upright', () => {
+  test.use({ viewport: { width: 800, height: 1280 } });
+
+  test('gives the page the width and opens the lists over it from Contents', async ({ page }) => {
+    await openReader(page);
+    await expect(page.locator('#reader-panel')).toBeHidden();
+    expect((await page.locator('.sheet').boundingBox())!.width).toBeGreaterThan(700);
+    const tools = page.locator('.reading-bar .toolbar > button, .reading-bar .look-toggle');
+    await expect(tools).toHaveCount(7);
+    const tops = new Set<number>();
+    for (const tool of await tools.all()) tops.add(Math.round((await tool.boundingBox())!.y));
+    expect(tops.size).toBe(1);
+
+    await page.getByRole('button', { name: 'Contents' }).click();
+    await expect(page.getByRole('button', { name: 'Part 2' })).toBeVisible();
+    await page
+      .getByRole('button', { name: 'Close the contents' })
+      .click({ position: { x: 700, y: 400 } });
+    await expect(page.locator('#reader-panel')).toBeHidden();
+
+    await page.getByRole('button', { name: 'Contents' }).click();
+    await page.getByRole('button', { name: 'Part 2' }).click();
+    await expect(page.locator('.where')).toContainText('chapter 2 of 3');
+    await expect(page.locator('#reader-panel')).toBeHidden();
+  });
+});
+
 test('has no serious accessibility problems in any room, in either theme', async ({ page }) => {
   await openReader(page);
   const screens: [string, () => Promise<void>][] = [

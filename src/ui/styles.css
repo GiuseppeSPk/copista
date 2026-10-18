@@ -1887,6 +1887,64 @@ button.link:hover:not(:disabled) {
   line-height: 18px;
 }
 
+.panel-scrim {
+  display: none;
+}
+
+/*
+ * On a tablet held upright the lists took 280 of its 800 px beside the page:
+ * there they open from Contents, over the left of the page, which a tap beside
+ * them closes. On a phone they cover the page (below), and a wider screen
+ * keeps them beside it.
+ */
+@media (min-width: 701px) and (max-width: 1100px) {
+  .panel-toggle {
+    display: inline-flex;
+  }
+
+  /* Seven tools in one row, none of their names broken over two lines. */
+  .reading-bar .toolbar > button,
+  .look-toggle {
+    padding-inline: 10px;
+    white-space: nowrap;
+  }
+
+  .reading {
+    grid-template-columns: 1fr;
+  }
+
+  .reading aside {
+    display: none;
+  }
+
+  .reading.panel-open aside {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 5;
+    display: block;
+    width: min(320px, 80%);
+    padding: 16px;
+    border: 1px solid var(--frame);
+    border-radius: 10px;
+    background: var(--paper);
+    box-shadow: 0 8px 24px var(--shadow);
+  }
+
+  .reading.panel-open .panel-scrim {
+    position: absolute;
+    inset: 0;
+    z-index: 4;
+    display: block;
+    padding: 0;
+    border: 0;
+    border-radius: 10px;
+    background: rgb(0 0 0 / 0.08);
+    cursor: default;
+  }
+}
+
 .contents {
   margin: 0;
   /* Room for two-digit numbers: the panel scrolls, so a wider marker would be cut off. */
