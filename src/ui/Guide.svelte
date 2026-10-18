@@ -1,3 +1,14 @@
+<script module lang="ts">
+  import { stillMotion } from './theme.svelte';
+
+  /** Down to the guide, which takes the focus so the keyboard carries on from there. */
+  export function showGuide(): void {
+    const title = document.getElementById('guide-title');
+    title?.scrollIntoView({ behavior: stillMotion() ? 'auto' : 'smooth', block: 'start' });
+    title?.focus({ preventScroll: true });
+  }
+</script>
+
 <script lang="ts">
   import { hashOf } from './route';
   import { ROOMS, type RoomName } from './rooms';

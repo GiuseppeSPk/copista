@@ -2,14 +2,13 @@
   import { SAMPLE } from './catalogues';
   import Cover from './Cover.svelte';
   import { BOOK_FILES, CONVERTIBLE_FILES } from './files';
-  import Guide from './Guide.svelte';
+  import Guide, { showGuide } from './Guide.svelte';
   import Icon from './Icon.svelte';
   import Incipit from './Incipit.svelte';
   import { hashOf } from './route';
   import { COFFEE_URL, GITHUB_URL, roomInfo, type RoomName } from './rooms';
   import Sortes from './Sortes.svelte';
   import { addFiles, app, go } from './state.svelte';
-  import { stillMotion } from './theme.svelte';
   import TitleCover from './TitleCover.svelte';
 
   const IN = ['EPUB', 'DOCX', 'MD', 'TXT'];
@@ -48,13 +47,6 @@
     if (files.length === 0) return;
     void addFiles(files);
     go({ room: 'bibliotheca' });
-  }
-
-  /** Down to the guide, which takes the focus so the keyboard carries on from there. */
-  function showGuide(): void {
-    const title = document.getElementById('guide-title');
-    title?.scrollIntoView({ behavior: stillMotion() ? 'auto' : 'smooth', block: 'start' });
-    title?.focus({ preventScroll: true });
   }
 
   // The doors rise in on arrival, but not when a room's name is flying back to its plaque.

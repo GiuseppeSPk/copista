@@ -309,6 +309,11 @@ p {
   color: var(--ink);
 }
 
+.help {
+  color: var(--accent);
+  font: 700 18px/1 var(--font);
+}
+
 .theme-glyph {
   display: grid;
   animation: glyph-in 610ms var(--ease) backwards;

@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import Archivum from './Archivum.svelte';
   import Bibliotheca from './Bibliotheca.svelte';
+  import { showGuide } from './Guide.svelte';
   import Home from './Home.svelte';
   import Icon from './Icon.svelte';
   import ConfirmDialog from './ConfirmDialog.svelte';
@@ -244,6 +245,15 @@
     ></span>
   </nav>
   <div class="tools">
+    {#if app.route.room === 'home'}
+      <button
+        class="theme-switch help"
+        type="button"
+        aria-label="How it works"
+        title="How it works"
+        onclick={showGuide}>?</button
+      >
+    {/if}
     <a class="star-top" href={GITHUB_URL} target="_blank" rel="noopener noreferrer">
       <Icon name="star" size={16} />
       <span>Star</span>

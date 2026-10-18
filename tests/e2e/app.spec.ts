@@ -1938,6 +1938,20 @@ test.describe('home', () => {
     await expect(page.getByRole('heading', { level: 1, name: 'Scriptorium' })).toBeVisible();
   });
 
+  test('leads from the question mark at the top to the guide, on the home page only', async ({
+    page,
+  }) => {
+    await page.goto('/');
+    const help = page.getByRole('button', { name: 'How it works', exact: true });
+    await help.click();
+    const title = page.getByRole('heading', { level: 2, name: 'How it works' });
+    await expect(title).toBeFocused();
+    await expect(title).toBeInViewport();
+    await page.goto('/#/archivum');
+    await expect(page.getByRole('heading', { level: 1, name: 'Archivum' })).toBeVisible();
+    await expect(help).toHaveCount(0);
+  });
+
   test('the home page has four doors and says the Lectorium can read aloud', async ({ page }) => {
     await page.goto('/');
     const doors = page.locator('.door');
