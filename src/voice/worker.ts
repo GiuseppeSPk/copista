@@ -147,6 +147,10 @@ async function tryBackend(
     await saveVerdict(on, (verdict = { unfit: 'failed' }));
     return verdict;
   }
+  // Once tested, the voice reads at once: a sentence read first to warm it up
+  // put off the reader's first word, by 1.8 s on wasm and 1.6 s on WebGPU, and
+  // "Buongiorno." at one step by 0.3 and 0.1 s, while the first piece after
+  // either came at most 0.15 s sooner.
   const warming = performance.now();
   if (known === undefined) {
     testing();
@@ -158,15 +162,6 @@ async function tryBackend(
     await saveVerdict(on, verdict);
   } else {
     verdict = known;
-    if ('steps' in verdict) {
-      try {
-        // The first pieces made after loading take longer; made here, the reader's do not.
-        await voice.speak(SELF_TEST, 'it', await style('M2'), verdict.steps, SPEED, SEED.M2);
-      } catch (error) {
-        await voice.release().catch(() => {});
-        throw error;
-      }
-    }
   }
   times.warmUp = performance.now() - warming;
   if ('steps' in verdict) {

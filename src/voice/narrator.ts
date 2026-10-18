@@ -35,7 +35,7 @@ export interface Tuning {
 
 /**
  * How long loading took, in milliseconds: importing the engine, opening each
- * model, and the warm-up, or the fitness test the first time.
+ * model, and the fitness test the first time (none after, so warmUp is 0).
  */
 export interface LoadTimes {
   engine: number;
