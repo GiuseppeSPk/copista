@@ -191,6 +191,18 @@ recorded again with the final settings.
   instead of Collodi and Manzoni, whose old words suit the lab better than a first hearing.
   The lines, a memory of a grandmother's kitchen, were chosen by ear from seven candidates.
 
+**A second round** (seed 4013392345, 2026-10-18) moved no default:
+
+- The 15 ms fade won again, and seed 2 for the Lector won against 5.
+- Three levers turned around from the first round: the frame noise beat the latent noise, speed
+  1.0 beat 1.1, and seed 1 for the Lectrix beat 3. Heard once each on two days, they are no
+  better than a coin, so they stay as they were.
+- Pauses, abbreviations, Roman numerals, tone, and seeds 7 for the Lector and 4 for the Lectrix
+  tied. Giuseppe says most ties meant that both readings sounded bad, so a tie is no sign that a
+  lever is harmless, and the lab's "Same" mixes two different answers.
+- What these levers change is smaller than what is wrong with both readings: the next rounds
+  turn to the voice itself, its intonation, before the finish around it.
+
 ## 8. Units
 
 | Unit | Change |
