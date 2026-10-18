@@ -16,9 +16,9 @@ import type { VoiceId } from '../rooms/archivum';
 import type { Lang } from '../voice/text';
 import { voiceService } from '../voice/index';
 import { NarratorKeeper } from '../voice/keep';
-import { gpuAllowed, usesGraphics, type Narrator } from '../voice/narrator';
+import { gpuAllowed, type Narrator } from '../voice/narrator';
 import { describeLoad } from '../voice/stopwatch';
-import { app, changeSettings } from './state.svelte';
+import { changeSettings } from './state.svelte';
 import { errorMessage, type Engine } from './text';
 
 /**
@@ -131,7 +131,7 @@ export async function measureVoice(): Promise<void> {
 export async function downloadVoice(): Promise<void> {
   if (controller) return;
   const current = (controller = new AbortController());
-  voice.progress = { done: 0, total: downloadBytes(usesGraphics(app.settings.voiceChip)) };
+  voice.progress = { done: 0, total: downloadBytes(gpuAllowed()) };
   voice.message = undefined;
   try {
     await installVoice((done, total) => {
@@ -168,7 +168,7 @@ export async function testVoice(again = false): Promise<void> {
     text: 'Checking that this device can read aloud. It takes up to a minute, and the device may be slow meanwhile.',
   };
   try {
-    await checkVoice(usesGraphics(app.settings.voiceChip), again);
+    await checkVoice(gpuAllowed(), again);
     voice.ready = true;
     voice.message = { tone: 'ok', text: 'The voice is ready.' };
   } catch (e) {
@@ -201,15 +201,6 @@ export async function removeVoiceHere(): Promise<void> {
 export async function chooseReader(id: VoiceId): Promise<void> {
   try {
     await changeSettings({ voice: id });
-  } catch (e) {
-    voice.message = { tone: 'error', text: errorMessage(e) };
-  }
-}
-
-/** Runs the voice on the graphics chip, or on the processor. */
-export async function chooseGraphics(on: boolean): Promise<void> {
-  try {
-    await changeSettings({ voiceChip: on ? 'graphics' : 'processor' });
   } catch (e) {
     voice.message = { tone: 'error', text: errorMessage(e) };
   }

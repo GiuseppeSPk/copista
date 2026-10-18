@@ -9,7 +9,7 @@ import {
   storageUsage,
   updateSettings,
 } from '../../../src/rooms/archivum/index';
-import type { VoiceChip, VoiceId } from '../../../src/voice/narrator';
+import type { VoiceId } from '../../../src/voice/narrator';
 import { deleteAllStorage, listBooks, putBook, putSetting } from '../../../src/storage/db';
 
 beforeEach(async () => {
@@ -30,7 +30,6 @@ describe('archivum', () => {
       guideLine: false,
       voice: 'M2',
       voiceRate: 1,
-      voiceChip: 'auto',
     };
     expect(await getSettings()).toEqual(defaults);
     expect(DEFAULT_SETTINGS).toEqual(defaults);
@@ -65,7 +64,6 @@ describe('archivum', () => {
       guideLine: false,
       voice: 'M2',
       voiceRate: 1,
-      voiceChip: 'auto',
     });
   });
 
@@ -80,13 +78,6 @@ describe('archivum', () => {
     expect((await updateSettings({ voice: 'F1' })).voice).toBe('F1');
     expect((await updateSettings({ voice: 'X1' as VoiceId })).voice).toBe('F1');
     expect((await getSettings()).voice).toBe('F1');
-  });
-
-  it('keeps the chip the voice runs on and ignores one it does not know', async () => {
-    expect((await updateSettings({ voiceChip: 'graphics' })).voiceChip).toBe('graphics');
-    expect((await updateSettings({ voiceChip: 'npu' as VoiceChip })).voiceChip).toBe('graphics');
-    expect((await updateSettings({ voiceChip: 'processor' })).voiceChip).toBe('processor');
-    expect((await getSettings()).voiceChip).toBe('processor');
   });
 
   it('reports storage use when the browser can tell', async () => {

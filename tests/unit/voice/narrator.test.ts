@@ -5,7 +5,6 @@ import {
   WorkerNarrator,
   gpuAllowed,
   isDeviceLost,
-  usesGraphics,
   type WorkerLike,
   type WorkerReply,
   type WorkerRequest,
@@ -312,15 +311,6 @@ describe('gpuAllowed', () => {
     expect(gpuAllowed(MAC, 5, true)).toBe(false);
     expect(gpuAllowed(MAC, 5, false)).toBe(false);
     expect(gpuAllowed(WINDOWS, 10, true)).toBe(false);
-  });
-});
-
-describe('usesGraphics', () => {
-  it('follows the device unless the reader chose a chip', () => {
-    expect(usesGraphics('auto', () => true)).toBe(true);
-    expect(usesGraphics('auto', () => false)).toBe(false);
-    expect(usesGraphics('graphics', () => false)).toBe(true);
-    expect(usesGraphics('processor', () => true)).toBe(false);
   });
 });
 

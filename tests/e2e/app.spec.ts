@@ -1192,14 +1192,6 @@ test.describe('Listen', () => {
     await sheet.getByRole('radio', { name: 'The Lectrix' }).check();
     await expect.poll(saved).toMatchObject({ voice: 'F1' });
 
-    // A computer runs the voice on its graphics chip unless told otherwise.
-    const chip = sheet.getByRole('checkbox', { name: 'Use the graphics chip' });
-    await expect(chip).toBeChecked();
-    await chip.uncheck();
-    await expect.poll(saved).toMatchObject({ voiceChip: 'processor' });
-    await chip.check();
-    await expect.poll(saved).toMatchObject({ voiceChip: 'graphics' });
-
     await sheet.getByRole('button', { name: 'Remove the voice' }).click();
     await expect(sheet.getByRole('status')).toContainText('has been removed');
     await expect(sheet.getByRole('button', { name: 'Download the voice' })).toBeDisabled();

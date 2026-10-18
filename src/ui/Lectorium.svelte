@@ -40,7 +40,7 @@
   } from './voice.svelte';
   import { VoiceUnfitError } from '../voice/fitness';
   import { voiceOutput, type Output } from '../voice/stream';
-  import { usesGraphics } from '../voice/narrator';
+  import { gpuAllowed } from '../voice/narrator';
   import { describePiece } from '../voice/stopwatch';
   import { mediaSession, type LockScreen } from '../voice/session';
   import type { Lang } from '../voice/text';
@@ -116,20 +116,6 @@
     untrack(() => {
       if (aloudState) stopListening();
       dropNarrator();
-    });
-  });
-
-  // Another chip chosen loads the voice again there, and takes up the reading from the page on screen.
-  let chip = app.settings.voiceChip;
-  $effect(() => {
-    const chosen = app.settings.voiceChip;
-    if (chosen === chip) return;
-    chip = chosen;
-    untrack(() => {
-      const reading = aloud?.active ?? false;
-      if (reading) stopListening();
-      dropNarrator();
-      if (reading) listenFrom();
     });
   });
 
@@ -561,7 +547,7 @@
     const out = (speaker ??= voiceOutput());
     out.unlock();
     out.setRate(app.settings.voiceRate);
-    const voice = keptNarrator(usesGraphics(app.settings.voiceChip));
+    const voice = keptNarrator(gpuAllowed());
     const warm = narratorLoaded(voice);
     const loaded = loadNarrator(voice);
     const lang = bookLang;

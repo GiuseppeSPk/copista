@@ -115,14 +115,6 @@ export function gpuAllowed(
   return !coarse;
 }
 
-/** Where the voice runs: as this device suits, or on the chip the reader chose. */
-export type VoiceChip = 'auto' | 'graphics' | 'processor';
-
-/** Whether the voice runs on the graphics chip, by the reader's choice or else as the device suits. */
-export function usesGraphics(chip: VoiceChip, allowed: () => boolean = gpuAllowed): boolean {
-  return chip === 'auto' ? allowed() : chip === 'graphics';
-}
-
 /** The error a piece given up rejects with. */
 export function cancelled(): Error {
   return new DOMException('The piece was given up.', 'AbortError');
