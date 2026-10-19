@@ -1902,11 +1902,34 @@ button.link:hover:not(:disabled) {
     display: inline-flex;
   }
 
-  /* Seven tools in one row, none of their names broken over two lines. */
+  /* Seven tools in one row, each icon over its name, as on a phone: side by
+     side they need 820px in a wide font such as DejaVu or Verdana, where the
+     page leaves them 752px at 800 wide. */
+  .reading-bar .toolbar {
+    flex: 1 1 100%;
+    align-items: stretch;
+  }
+
   .reading-bar .toolbar > button,
   .look-toggle {
-    padding-inline: 10px;
+    flex: 1 1 0;
+    flex-direction: column;
+    gap: 4px;
+    min-width: min-content;
+    min-height: 56px;
+    padding: 6px 4px;
+    line-height: 16px;
     white-space: nowrap;
+  }
+
+  .reading-bar .look {
+    display: flex;
+    flex: 1 1 0;
+    min-width: min-content;
+  }
+
+  .look-toggle {
+    width: 100%;
   }
 
   .reading {
