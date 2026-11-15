@@ -38,7 +38,7 @@
     "id": "se-earnest",
     "source": "standardebooks",
     "url": "https://standardebooks.org/ebooks/oscar-wilde/the-importance-of-being-earnest/downloads/oscar-wilde_the-importance-of-being-earnest.epub?source=download",
-    "sha256": "1b9d41ec39fdcd23c939fb60f7d8191ff51ea9a4b40d106c63a1e1c172691064",
+    "sha256": "4e24793e754dc342f36ae9d05751301479607906e8ad3412a2643365afc12236",
     "license": "CC0-1.0 (Standard Ebooks edition); public domain text"
   },
   {
@@ -115,7 +115,7 @@
     "id": "se-frankenstein",
     "source": "standardebooks",
     "url": "https://standardebooks.org/ebooks/mary-shelley/frankenstein/downloads/mary-shelley_frankenstein.epub?source=download",
-    "sha256": "0b5c070e2cde4d8bb36ef707f9d024465b00d0c49c078f0a148270f55b8c8780",
+    "sha256": "2809c5ba9434a4973735e160aa3d4fa2ff360297a796e3a0f4b1b8d1c1d8693f",
     "license": "CC0-1.0 (Standard Ebooks edition); public domain text"
   },
   {
