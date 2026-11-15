@@ -38,6 +38,24 @@ const SKIPPED = 'ol.notes, ol.footnotes, pre';
 /** Elements left out of a block's text: note marks, pictures and scripts. */
 const LEFT_OUT = 'sup > a, img, picture, svg, audio, video, script, style';
 
+/** A note's mark as it is printed in line: a figure, a letter or stars in square brackets. */
+const NOTE_MARK = /^\[(?:\d{1,4}|[a-z]|\*{1,3})\]$/i;
+
+/**
+ * A link to a note, or back from one, that is not raised: marked as such, or a mark in
+ * square brackets that leads to a place in the book. Read aloud it is a figure in the
+ * middle of a sentence.
+ */
+function isNoteMark(el: Element): boolean {
+  if (el.localName !== 'a') return false;
+  const roles = `${el.getAttribute('epub:type') ?? ''} ${el.getAttribute('role') ?? ''}`;
+  if (/\b(?:doc-)?noteref\b/.test(roles)) return true;
+  return (
+    (el.getAttribute('href') ?? '').includes('#') &&
+    NOTE_MARK.test((el.textContent ?? '').replace(/\s+/g, ''))
+  );
+}
+
 interface Spot {
   node: Text;
   offset: number;
@@ -80,7 +98,7 @@ function read(block: Element): Reading {
       } else if (child.nodeType === Node.ELEMENT_NODE) {
         const el = child as Element;
         if (el.matches(BLOCKS) || el.localName === 'br') pendSpace(spots[spots.length - 1]);
-        else if (!el.matches(LEFT_OUT)) visit(el);
+        else if (!el.matches(LEFT_OUT) && !isNoteMark(el)) visit(el);
       }
     }
   };
@@ -142,9 +160,11 @@ function pack(parts: Span[], longest = MAX_PIECE): Span[] {
 /**
  * Where a sentence too long for one call may be cut, best first: a semicolon
  * or a colon, a comma, a space. The voice ends each piece as if a sentence
- * ended, so a cut between two words is heard the most.
+ * ended, so a cut between two words is heard the most. A mark with a figure
+ * right after it is inside a time of day or a number, as in 4:35 and 3,000,
+ * and is no place to cut.
  */
-const BREAKS = [/[;:]/g, /,/g, /\s/g];
+const BREAKS = [/[;:](?!\d)/g, /,(?!\d)/g, /\s/g];
 
 /** The level of BREAKS that cuts between words. */
 const SPACES = BREAKS.length - 1;
@@ -172,11 +192,43 @@ function fit(text: string, span: Span, longest = MAX_PIECE, marksOnly = false, l
   );
 }
 
+/**
+ * What a sentence does not end on, though the segmenter ends it there when a capital
+ * follows: a title cut short, as in "Mr. Bennet" and "il sig. Rossi", or the initial of a
+ * name, as in "J. R. R. Tolkien" and "S. Ambrogio". The voice closes each piece as if a
+ * sentence ended and waits before the next, so a piece cut there is heard as a stop in the
+ * middle of a name. In English "I." is left as an ending, which it is far more often.
+ */
+const TITLE: Record<Lang, RegExp> = {
+  en: /(?:^|[^\p{L}])(?:Mr|Mrs|Ms|Messrs|Dr|St|Prof|Capt|Col|Gen|Lieut|Lt|Sgt|Maj|Rev|Hon|Gov|Sen|Mme|Mlle|Mt|vs|viz|cf)\.$/u,
+  it: /(?:^|[^\p{L}])(?:sig|sigg|dott|dr|prof|avv|ing|on|mons|card|cav|comm|cap|ss|cfr|pag|art|vol|fig)\.$/iu,
+};
+
+/** A capital alone before the full stop; a small letter alone is a word or a label. */
+const INITIAL: Record<Lang, RegExp> = {
+  en: /(?:^|[\s"'“‘(.[])(?!I\.)\p{Lu}\.$/u,
+  it: /(?:^|[\s"'“‘«(.[])\p{Lu}\.$/u,
+};
+
+/**
+ * The sentences of a text, each without the spaces around it. One that ends on a title
+ * cut short or on an initial is joined to the next: joined wrongly, the two are read in
+ * one breath, which they would mostly have been anyway.
+ */
 function sentences(text: string, lang: Lang): Span[] {
   const segmenter = new Intl.Segmenter(lang, { granularity: 'sentence' });
-  return [...segmenter.segment(text)].flatMap(({ segment, index }) =>
-    trim(text, [index, index + segment.length]),
-  );
+  const out: Span[] = [];
+  let open = false;
+  for (const { segment, index } of segmenter.segment(text)) {
+    const [span] = trim(text, [index, index + segment.length]);
+    if (span === undefined) continue;
+    const last = out[out.length - 1];
+    if (open && last !== undefined) last[1] = span[1];
+    else out.push(span);
+    const sentence = text.slice(span[0], span[1]);
+    open = TITLE[lang].test(sentence) || INITIAL[lang].test(sentence);
+  }
+  return out;
 }
 
 /** A point in a chapter's read text: a block of `readableBlocks` and an offset into its text. */

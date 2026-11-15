@@ -50,6 +50,26 @@ describe('readable blocks', () => {
     );
     expect(readableBlocks(doc).map((b) => blockText(b))).toEqual(['Didascalia.']);
   });
+
+  it('leaves out a note mark that is not raised, and the mark that leads back from the note', () => {
+    const doc = chapter(
+      '<p>Le Frini e i Duci<a id="a6"></a><a class="fnanchor" href="notes.xhtml#Footnote_6">[6]</a>; turba vana.</p>' +
+        '<p><a href="text.xhtml#a6"><span class="label">[6]</span></a> Una nota.</p>' +
+        '<p>He came<a epub:type="noteref" href="endnotes.xhtml#note-1">1</a>. She left<a role="doc-noteref" href="#n2">2</a>.</p>',
+    );
+    expect(readableBlocks(doc).map((b) => blockText(b))).toEqual([
+      'Le Frini e i Duci; turba vana.',
+      'Una nota.',
+      'He came. She left.',
+    ]);
+  });
+
+  it('still reads a link that is not a note mark, and brackets that are not a link', () => {
+    const doc = chapter(
+      '<p>See <a href="#c2">chapter [2]</a> (pag. <a href="#Page_11">11</a>) and [sic], or <a href="https://example.org/">[1]</a>.</p>',
+    );
+    expect(blockText(readableBlocks(doc)[0]!)).toBe('See chapter [2] (pag. 11) and [sic], or [1].');
+  });
 });
 
 describe('pieces', () => {
@@ -133,6 +153,55 @@ describe('pieces', () => {
     ]);
   });
 
+  it('does not end a piece on a title cut short, in the middle of a name', () => {
+    const sentence = 'He went to see Mr. Bennet and Mrs. Long with Dr. Grant of St. Giles. ';
+    const doc = chapter(`<p>${sentence.repeat(12)}</p>`);
+    const pieces = piecesOf(doc, 'en', 0);
+    expect(pieces).toHaveLength(6);
+    for (const p of pieces) {
+      expect(p.text.length).toBeLessThanOrEqual(MAX_PIECE);
+      expect(p.text.endsWith('Giles.')).toBe(true);
+    }
+    expect(pieces.map((p) => p.text).join(' ')).toBe(sentence.repeat(12).trim());
+  });
+
+  it('does the same in Italian, for titles and for the initial of a saint', () => {
+    const sentence = 'Venne il sig. Rossi col dott. Bianchi e il Prof. Verdi da S. Ambrogio. ';
+    const doc = chapter(`<p>${sentence.repeat(12)}</p>`);
+    const pieces = piecesOf(doc, 'it', 0);
+    expect(pieces).toHaveLength(6);
+    for (const p of pieces) expect(p.text.endsWith('Ambrogio.')).toBe(true);
+    expect(pieces.map((p) => p.text).join(' ')).toBe(sentence.repeat(12).trim());
+  });
+
+  it('cuts a sentence too long for one piece at a comma, not after the title', () => {
+    const text =
+      'It was a truth which everybody in the neighbourhood had long since agreed upon, that Mr. ' +
+      'Bingley of Netherfield, who had come down on Monday in a chaise and four to see the place, ' +
+      'would give a ball before Michaelmas, and that Mrs. Long would be asked to it.';
+    const pieces = piecesOf(chapter(`<p>${text}</p>`), 'en', 0);
+    expect(pieces.length).toBeGreaterThan(1);
+    for (const p of pieces.slice(0, -1)) expect(p.text.endsWith(',')).toBe(true);
+    expect(pieces.map((p) => p.text).join(' ')).toBe(text);
+  });
+
+  it('does not cut a long sentence inside a time of day or a figure', () => {
+    const time =
+      'The woman who had come up by the early train from the north found herself at exactly 4:35 ' +
+      'walking through the lane with a small parcel under her arm and no clear notion of the way ' +
+      'she ought to take in order to reach the office before it closed for the night.';
+    const sum =
+      'The man who had kept the books of the house for thirty years wrote down a sum of 3,000 ' +
+      'pounds against the name of the younger brother and then shut the ledger without a word ' +
+      'to anybody in the room about what he had found in it that morning.';
+    for (const text of [time, sum]) {
+      expect(text.length).toBeGreaterThan(MAX_PIECE);
+      const pieces = piecesOf(chapter(`<p>${text}</p>`), 'en', 0);
+      for (const p of pieces) expect(p.text).not.toMatch(/\d[,:]$/);
+      expect(pieces.map((p) => p.text).join(' ')).toBe(text);
+    }
+  });
+
   it('gives no pieces for a chapter that is only a picture', () => {
     expect(piecesOf(chapter('<p><img src="cover.jpg"></p>'), 'en', 0)).toEqual([]);
   });
@@ -188,6 +257,41 @@ describe('reading from a point', () => {
     const [first] = piecesOf(doc, 'it', 0, { block: 1, offset: 15 });
     expect(first!.start).toBe('Prima frase. '.length);
     expect(rangeOf(doc, first!)!.toString()).toBe(first!.text);
+  });
+
+  it('starts at the head of the sentence from a name that follows a title or initials', () => {
+    const from = (body: string, word: string, lang: 'en' | 'it'): string[] => {
+      const doc = chapter(`<p>${body}</p>`);
+      const offset = blockText(readableBlocks(doc)[0]!).indexOf(word);
+      return piecesOf(doc, lang, 0, { block: 0, offset }).map((p) => p.text);
+    };
+    expect(
+      from('It was late. He agreed with Mr. Bennet at once. She smiled.', 'Bennet', 'en'),
+    ).toEqual(['He agreed with Mr. Bennet at once. She smiled.']);
+    expect(
+      from('It is long. It is by J. R. R. Tolkien and H.G. Wells. Read it.', 'Wells', 'en'),
+    ).toEqual(['It is by J. R. R. Tolkien and H.G. Wells. Read it.']);
+    expect(from('Era tardi. Passò D. Rodrigo col sig. Conte. Poi nulla.', 'Conte', 'it')).toEqual([
+      'Passò D. Rodrigo col sig. Conte. Poi nulla.',
+    ]);
+  });
+
+  it('still ends a sentence after the name, and after an English I', () => {
+    const from = (body: string, word: string): string[] => {
+      const doc = chapter(`<p>${body}</p>`);
+      const offset = blockText(readableBlocks(doc)[0]!).indexOf(word);
+      return piecesOf(doc, 'en', 0, { block: 0, offset }).map((p) => p.text);
+    };
+    expect(from('It was Mr. Bennet. Then he left.', 'Then')).toEqual(['Then he left.']);
+    // A small letter alone is a word or a label, not the initial of a name.
+    const doc = chapter('<p>Segnò sulla carta il punto a. Poi tornò indietro.</p>');
+    const offset = blockText(readableBlocks(doc)[0]!).indexOf('Poi');
+    expect(piecesOf(doc, 'it', 0, { block: 0, offset }).map((p) => p.text)).toEqual([
+      'Poi tornò indietro.',
+    ]);
+    expect(from('She knew it, and so did I. He left at once.', 'He left')).toEqual([
+      'He left at once.',
+    ]);
   });
 
   it('starts at the next sentence from a space after a full stop', () => {
