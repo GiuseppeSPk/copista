@@ -3,7 +3,7 @@ import { DEFAULT_SETTINGS, getSettings, updateSettings, type Settings } from '..
 import { importBook, listShelf, type ShelfBook } from '../rooms/bibliotheca';
 import { hashOf, parseHash, type Route } from './route';
 import { ROOMS } from './rooms';
-import { errorMessage, warningMessage } from './text';
+import { addedSummary, errorMessage, warningMessage } from './text';
 import { stillMotion } from './theme.svelte';
 
 export interface Notice {
@@ -111,26 +111,40 @@ export async function refreshShelf(): Promise<void> {
  */
 const LANDING_MAX = 12;
 
+/** From this many books added at once, one line names them all instead of one line each. */
+const MANY_ADDED = 3;
+
 export async function addFiles(
   files: File[],
   room: 'bibliotheca' | 'lectorium' = 'bibliotheca',
 ): Promise<void> {
   const notices: Notice[] = [];
   const added: string[] = [];
+  // Books added with nothing to say about them; several of them are told in one line.
+  const plain: { notice: Notice; title: string }[] = [];
   for (const file of files) {
     try {
       const result = await importBook(file);
       if (!result.alreadyPresent) added.unshift(result.book.id);
-      notices.push({
+      const notice: Notice = {
         tone: 'ok',
         text: result.alreadyPresent
           ? `“${result.book.title}” is already in the library.`
           : `Added “${result.book.title}”.`,
         details: result.warnings.map(warningMessage),
-      });
+      };
+      notices.push(notice);
+      if (!result.alreadyPresent && result.warnings.length === 0) {
+        plain.push({ notice, title: result.book.title });
+      }
     } catch (error) {
       notices.push({ tone: 'error', text: `${file.name}: ${errorMessage(error)}` });
     }
+  }
+  if (plain.length >= MANY_ADDED) {
+    const [first, ...rest] = plain.map((p) => p.notice);
+    first!.text = addedSummary(plain.map((p) => p.title));
+    for (const notice of rest) notices.splice(notices.indexOf(notice), 1);
   }
   app.libraryNotices = notices;
   app.noticeRoom = room;

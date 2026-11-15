@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { DrmProtectedError, NotAnEpubError } from '../../../src/core/errors';
-import { describeEngine, errorMessage, megabytes, warningMessage } from '../../../src/ui/text';
+import {
+  addedSummary,
+  describeEngine,
+  errorMessage,
+  megabytes,
+  readSoFar,
+  warningMessage,
+} from '../../../src/ui/text';
 
 describe('errorMessage', () => {
   it('passes on the engine messages, which are written for the reader', () => {
@@ -37,10 +44,23 @@ describe('warningMessage', () => {
   });
 });
 
+describe('addedSummary', () => {
+  it('names up to three books and counts the rest', () => {
+    expect(addedSummary(['A', 'B', 'C'])).toBe('3 added: “A”, “B”, “C”.');
+    expect(addedSummary(['A', 'B', 'C', 'D', 'E'])).toBe('5 added: “A”, “B”, “C” and 2 more.');
+  });
+});
+
 describe('megabytes', () => {
   it('shows one decimal', () => {
     expect(megabytes(1048576 * 2.25)).toBe('2.3 MB');
     expect(megabytes(0)).toBe('0.0 MB');
+  });
+
+  it('counts in gigabytes from 1 GB up', () => {
+    expect(megabytes(1048576 * 1023.9)).toBe('1023.9 MB');
+    expect(megabytes(1048576 * 1024 * 1.5)).toBe('1.5 GB');
+    expect(megabytes(1048576 * 10240.1)).toBe('10 GB');
   });
 });
 
@@ -54,5 +74,21 @@ describe('describeEngine', () => {
     expect(describeEngine({ ...wasm, backend: 'webgpu', steps: 16 })).toBe(
       'Graphics chip, 16 steps',
     );
+  });
+});
+
+describe('readSoFar', () => {
+  it('says nothing of a book not begun', () => {
+    expect(readSoFar(undefined)).toBe('');
+    expect(readSoFar(0)).toBe('');
+    expect(readSoFar(0.4)).toBe('');
+  });
+
+  it('gives the whole percent, and says when the book is finished', () => {
+    expect(readSoFar(0.6)).toBe('1% read');
+    expect(readSoFar(34.4)).toBe('34% read');
+    expect(readSoFar(99.4)).toBe('99% read');
+    expect(readSoFar(99.5)).toBe('Finished');
+    expect(readSoFar(100)).toBe('Finished');
   });
 });

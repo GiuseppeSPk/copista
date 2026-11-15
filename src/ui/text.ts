@@ -33,8 +33,28 @@ export function errorMessage(error: unknown): string {
   return `Something went wrong: ${detail}`;
 }
 
+/** One line for several books added at once: how many, and the first few titles. */
+export function addedSummary(titles: string[]): string {
+  const named = titles.slice(0, 3).map((title) => `“${title}”`);
+  const more = titles.length - named.length;
+  const list = more > 0 ? `${named.join(', ')} and ${more} more` : named.join(', ');
+  return `${titles.length} added: ${list}.`;
+}
+
+/** What a book's card says of how far it has been read; nothing for a book not begun. */
+export function readSoFar(percent: number | undefined): string {
+  if (percent === undefined) return '';
+  const whole = Math.round(percent);
+  if (whole <= 0) return '';
+  return whole >= 100 ? 'Finished' : `${whole}% read`;
+}
+
+/** A size in megabytes, or in gigabytes from 1 GB up, where megabytes run to five figures. */
 export function megabytes(bytes: number): string {
-  return `${(bytes / 1048576).toFixed(1)} MB`;
+  const mb = bytes / 1048576;
+  if (mb < 1024) return `${mb.toFixed(1)} MB`;
+  const gb = mb / 1024;
+  return `${gb.toFixed(gb < 10 ? 1 : 0)} GB`;
 }
 
 /** How the voice runs on this device, once loaded, and how fast it has made what it read. */

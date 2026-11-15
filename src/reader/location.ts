@@ -30,6 +30,23 @@ export function bookPercent(pos: Position, chapterLengths: number[]): number {
   return clamp(Math.round((read / all) * 100), 0, 100);
 }
 
+/**
+ * Where each chapter after the first begins, as a percentage of the book, by the same
+ * weights as `bookPercent`.
+ */
+export function chapterStarts(chapterLengths: number[]): number[] {
+  const total = chapterLengths.reduce((sum, length) => sum + length, 0);
+  const lengths = total > 0 ? chapterLengths : chapterLengths.map(() => 1);
+  const all = total > 0 ? total : lengths.length;
+  const starts: number[] = [];
+  let before = 0;
+  for (const length of lengths.slice(0, -1)) {
+    before += length;
+    starts.push((before / all) * 100);
+  }
+  return starts;
+}
+
 /** Pulls a stored position back inside a book with this many chapters. */
 export function clampPosition(pos: Position, chapterCount: number): Position {
   return {

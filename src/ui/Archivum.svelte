@@ -1,7 +1,13 @@
 <script lang="ts">
   import { confirmAction } from './confirm.svelte';
   import { onMount } from 'svelte';
-  import { deleteAllData, storageUsage, type Settings } from '../rooms/archivum';
+  import {
+    deleteAllData,
+    protectStorage,
+    storageProtected,
+    storageUsage,
+    type Settings,
+  } from '../rooms/archivum';
   import Icon from './Icon.svelte';
   import RoomHero from './RoomHero.svelte';
   import { app, changeSettings, loadSettings, refreshShelf } from './state.svelte';
@@ -11,8 +17,20 @@
   let usage = $state<{ usedBytes: number; quotaBytes: number } | null>(null);
   let message = $state<{ tone: 'ok' | 'error'; text: string }>();
 
+  /** Whether the browser has promised to keep the library; null when it will not say. */
+  let safe = $state<boolean | null>(null);
+  let refused = $state(false);
+
   async function measure(): Promise<void> {
-    usage = await storageUsage().catch(() => null);
+    [usage, safe] = await Promise.all([
+      storageUsage().catch(() => null),
+      storageProtected().catch(() => null),
+    ]);
+  }
+
+  async function keepSafe(): Promise<void> {
+    safe = await protectStorage().catch(() => false);
+    refused = !safe;
   }
 
   onMount(() => {
@@ -61,6 +79,28 @@
         The browser does not say.
       {/if}
     </dd>
+    {#if safe !== null}
+      <dt>Kept safe</dt>
+      <dd>
+        <!-- Made anew when the answer changes, so a page the browser translates shows it too. -->
+        {#key `${safe} ${refused}`}
+          {#if safe}
+            <span>Yes. The browser will not clear your books to make room.</span>
+          {:else}
+            <span>
+              Not promised. The browser may clear your books if the device runs short of space.
+            </span>
+            {#if refused}
+              <span class="why" role="status">
+                The browser did not agree this time. Many agree once Copista is installed as an app
+                or has been used for a while.
+              </span>
+            {/if}
+            <button type="button" onclick={keepSafe}>Ask the browser to keep them</button>
+          {/if}
+        {/key}
+      </dd>
+    {/if}
     <dt>Sent anywhere</dt>
     <dd>Nothing. Books never leave this device.</dd>
   </dl>

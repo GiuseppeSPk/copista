@@ -6,6 +6,7 @@ import {
   NOTE_LENGTH,
   addBookmark,
   addNote,
+  chapterMarks,
   openSession,
   progressPercent,
   removeBookmark,
@@ -15,7 +16,7 @@ import {
 } from '../../../src/rooms/lectorium/index';
 import { ReadingController } from '../../../src/rooms/lectorium/controller';
 import { bookPercent } from '../../../src/reader/location';
-import { deleteAllStorage, putBook, putProgress } from '../../../src/storage/db';
+import { deleteAllStorage, getProgress, putBook, putProgress } from '../../../src/storage/db';
 import { EPUB } from '../../fixtures/catalog';
 
 const ID = 'three';
@@ -107,6 +108,21 @@ describe('lectorium', () => {
   it('reopens where the reader left off', async () => {
     await savePosition(ID, { spineIndex: 1, fraction: 0.25 });
     expect((await openSession(ID)).position).toEqual({ spineIndex: 1, fraction: 0.25 });
+  });
+
+  it('keeps how far through the book the place is, when told', async () => {
+    await savePosition(ID, { spineIndex: 1, fraction: 0.25 }, 37.5);
+    expect(await getProgress(ID)).toMatchObject({ spineIndex: 1, fraction: 0.25, percent: 37.5 });
+    await savePosition(ID, { spineIndex: 1, fraction: 0.5 });
+    expect(await getProgress(ID)).not.toHaveProperty('percent');
+  });
+
+  it('marks where the chapters after the first begin', async () => {
+    const { book } = await openSession(ID);
+    const cuts = chapterMarks(book);
+    expect(cuts).toHaveLength(book.chapters.length - 1);
+    expect(Math.round(cuts[0]!)).toBe(progressPercent(book, { spineIndex: 1, fraction: 0 }));
+    expect(Math.round(cuts[1]!)).toBe(progressPercent(book, { spineIndex: 2, fraction: 0 }));
   });
 
   it('stores a bookmark with a short single-line snippet', async () => {

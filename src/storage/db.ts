@@ -17,6 +17,8 @@ export interface ProgressRecord {
   bookId: string;
   spineIndex: number;
   fraction: number;
+  /** How far through the whole book the place is, 0 to 100; absent on places kept before it was. */
+  percent?: number;
   updatedAt: number;
 }
 
@@ -235,6 +237,11 @@ export async function deleteBook(id: string): Promise<void> {
 
 export async function getProgress(bookId: string): Promise<ProgressRecord | undefined> {
   return (await db()).get('progress', bookId);
+}
+
+/** The place kept for every book that has been opened. */
+export async function listProgress(): Promise<ProgressRecord[]> {
+  return (await db()).getAll('progress');
 }
 
 export async function putProgress(rec: ProgressRecord): Promise<void> {

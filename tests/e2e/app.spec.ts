@@ -103,6 +103,100 @@ test('turns a page and resumes there after a reload', async ({ page }) => {
   await expect(page.locator('.where')).toContainText(/Page 2 of \d+/);
 });
 
+test('goes to the first and the last page of the chapter with Home and End', async ({ page }) => {
+  await openReader(page);
+  await page.keyboard.press('End');
+  const where = page.locator('.where');
+  await expect(where).not.toContainText(/Page 1 of/);
+  const [, at, of] = /Page (\d+) of (\d+)/.exec((await where.textContent()) ?? '') ?? [];
+  expect(at).toBe(of);
+  await expect(where).toContainText('chapter 1 of 3');
+  await page.keyboard.press('Home');
+  await expect(where).toContainText(/Page 1 of \d+ · chapter 1 of 3/);
+});
+
+test('offers the way back after a link in the book, until the reader leaves the chapter', async ({
+  page,
+}) => {
+  await page.goto('/#/bibliotheca');
+  await page.getByLabel('Add EPUB books').setInputFiles('tests/fixtures/generated/epub3-nav.epub');
+  await expect(page.getByRole('status')).toContainText('Added “Fixture Three”.');
+  await page.getByRole('button', { name: 'Read Fixture Three' }).click();
+  const where = page.locator('.where');
+  await expect(where).toContainText(/Page 1 of \d+/);
+  const back = page.getByRole('button', { name: 'Back to where you were' });
+  const follow = async () => {
+    await page.getByRole('button', { name: 'Chapter Two' }).click();
+    await expect(where).toContainText('chapter 2 of 3');
+    await expect(back).toBeHidden();
+    const box = await page
+      .frameLocator('.pages iframe')
+      .getByText('next', { exact: true })
+      .boundingBox();
+    await page.mouse.click(box!.x + box!.width / 2, box!.y + box!.height / 2);
+    await expect(where).toContainText('chapter 3 of 3');
+  };
+  await follow();
+  await back.click();
+  await expect(where).toContainText('chapter 2 of 3');
+  await expect(back).toBeHidden();
+
+  await follow();
+  await expect(back).toBeVisible();
+  await page.getByRole('button', { name: 'Chapter One' }).click();
+  await expect(where).toContainText('chapter 1 of 3');
+  await expect(back).toBeHidden();
+});
+
+test('shows on the card and under the page how far the book has been read', async ({ page }) => {
+  await addBook(page);
+  const card = page.locator('.card', { hasText: 'Long Book' });
+  await expect(card.locator('.read-so-far')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Read Long Book' }).click();
+  await expect(page.locator('.where')).toContainText(/Page 1 of \d+/);
+  // One cut for each chapter after the first, and nothing filled on the first page.
+  await expect(page.locator('.book-line .mark')).toHaveCount(2);
+  const filled = async () =>
+    page.locator('.book-line .read').evaluate((el) => el.getBoundingClientRect().width);
+  expect(await filled()).toBe(0);
+  await page.getByRole('button', { name: 'Part 3' }).click();
+  await expect(page.locator('.where')).toContainText('chapter 3 of 3');
+  await expect.poll(filled).toBeGreaterThan(100);
+  await openRoom(page, 'Bibliotheca');
+  await expect(card.locator('.read-so-far')).toHaveText(/^\s*\d+% read\s*$/);
+  // The figure is kept with the place, so it is there on the next visit too.
+  await page.reload();
+  await expect(card.locator('.read-so-far')).toHaveText(/^\s*\d+% read\s*$/);
+});
+
+test('says in the Archivum whether the browser keeps the books, and asks it to', async ({
+  page,
+}) => {
+  await page.goto('/#/archivum');
+  const row = page.locator('dt', { hasText: 'Kept safe' }).locator('+ dd');
+  await expect(row).toContainText(/Yes\. The browser will not clear|Not promised\./);
+  const ask = row.getByRole('button', { name: 'Ask the browser to keep them' });
+  if (await ask.isVisible()) {
+    await ask.click();
+    // Either answer is the browser's to give: it agrees, or the page says it did not.
+    await expect(row).toContainText(/Yes\. The browser will not clear|did not agree this time/);
+  }
+});
+
+test('tells of several books added at once in one line', async ({ page }) => {
+  await page.goto('/#/bibliotheca');
+  await page
+    .getByLabel('Add EPUB books')
+    .setInputFiles([
+      LONG_BOOK,
+      'tests/fixtures/generated/epub3-nav.epub',
+      'tests/fixtures/generated/no-cover.epub',
+    ]);
+  await expect(page.getByRole('status')).toContainText(
+    '3 added: “Long Book”, “Fixture Three”, “No Cover”.',
+  );
+});
+
 test('keeps its words up to date on a page the browser translates', async ({ page }) => {
   // As Google Translate does: each word of the app, once shown, is swapped for a translation
   // in <font> elements of its own, and the words it took away are never seen again.

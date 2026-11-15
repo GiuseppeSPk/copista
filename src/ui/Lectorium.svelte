@@ -6,6 +6,7 @@
     addNote,
     NOTE_LENGTH,
     openSession,
+    chapterMarks,
     progressPercent,
     removeBookmark,
     removeNote,
@@ -60,6 +61,10 @@
   let lookOpen = $state(false);
   let lookBox: HTMLDivElement | undefined = $state();
   let where = $state({ chapter: 0, page: 0, pages: 0, percent: 0 });
+  /** Where the reader was before following a link in the book, and the chapter it led to. */
+  let cameFrom = $state<{ from: { spineIndex: number; fraction: number }; chapter: number } | null>(
+    null,
+  );
   let notes = $state<NoteRecord[]>([]);
   let folded = $state<string[]>([]);
   // The page fills the window and the chrome steps away.
@@ -126,6 +131,9 @@
 
   const scrolling = $derived(app.settings.mode === 'scroll');
   const book = $derived(session?.book);
+  /** Past this many chapters the marks on the line of the book would run into one another. */
+  const MOST_MARKS = 40;
+  const cuts = $derived(book && book.chapters.length <= MOST_MARKS ? chapterMarks(book) : []);
   const contents = $derived<TocEntry[]>(
     !book
       ? []
@@ -164,6 +172,19 @@
       pages: ctrl.pageCount,
       percent: progressPercent(session.book, pos),
     };
+    // The shelf says how far each book has been read, and is not read again on the way back.
+    const kept = app.shelf.find((b) => b.id === session?.bookId);
+    if (kept) kept.percent = where.percent;
+    // The way back from a link is offered as long as the reader stays in the chapter it led to.
+    if (cameFrom && cameFrom.chapter !== pos.spineIndex) cameFrom = null;
+  }
+
+  function goBack(): void {
+    const back = cameFrom?.from;
+    if (!back) return;
+    cameFrom = null;
+    jump(back);
+    host?.focus();
   }
 
   onMount(() => {
@@ -192,6 +213,8 @@
           (p) => (playing = p),
           // The reader turned the page or went elsewhere: the reading follows.
           () => aloud?.restart(),
+          // A note's mark or a cross-reference was followed: the way back is kept.
+          (from) => (cameFrom = { from, chapter: ctrl?.position().spineIndex ?? -1 }),
         );
         await ctrl.open();
         host.focus();
@@ -264,6 +287,11 @@
     } else if (event.key === 'ArrowLeft' || event.key === 'PageUp') {
       event.preventDefault();
       turn(false);
+    } else if (event.key === 'Home' || event.key === 'End') {
+      // The first and the last page of the chapter, as in a document.
+      event.preventDefault();
+      cameFrom = null;
+      jump({ spineIndex: where.chapter, fraction: event.key === 'Home' ? 0 : 1 });
     } else if (event.key === 'f' || event.key === 'F') {
       event.preventDefault();
       fit(!fitted);
@@ -679,6 +707,7 @@
 
   function goTo(chapter: number, fragment?: string): void {
     panelOpen = false;
+    cameFrom = null;
     jump({ spineIndex: chapter, ...(fragment ? { fragment } : {}) });
   }
 
@@ -1256,6 +1285,13 @@
             </div>
           {/if}
 
+          {#if cameFrom}
+            <button type="button" class="way-back" onclick={goBack}>
+              <Icon name="back" size={16} />
+              Back to where you were
+            </button>
+          {/if}
+
           {#if fitted}
             <div class="fit-bar">
               {#if session && where.pages > 0 && !scrolling}
@@ -1269,6 +1305,12 @@
               </button>
             </div>
           {/if}
+        </div>
+        <!-- How far through the whole book, with a mark where each chapter begins; the words
+             below say the same, so this is for the eye only. -->
+        <div class="book-line" aria-hidden="true">
+          <span class="read" style:width="{session ? where.percent : 0}%"></span>
+          {#each cuts as at, i (i)}<span class="mark" style:left="{at}%"></span>{/each}
         </div>
         <div class="page-nav">
           <button type="button" onclick={() => turn(false)} disabled={!session}>

@@ -3,6 +3,7 @@ import { readEpub } from '../../../src/core/epub/read';
 import {
   bookPercent,
   chapterForHref,
+  chapterStarts,
   clampPosition,
   fractionForPage,
   pageForFraction,
@@ -52,5 +53,15 @@ describe('reading positions', () => {
     });
     expect(chapterForHref(book, 'OEBPS/text/ch1.xhtml')).toEqual({ spineIndex: 0 });
     expect(chapterForHref(book, 'OEBPS/text/nope.xhtml')).toBeNull();
+  });
+
+  it('says where each chapter after the first begins, by the same weights as the percent', () => {
+    expect(chapterStarts([100, 100, 200])).toEqual([25, 50]);
+    expect(chapterStarts([100, 100, 200])[1]).toBe(
+      bookPercent({ spineIndex: 2, fraction: 0 }, [100, 100, 200]),
+    );
+    expect(chapterStarts([0, 0])).toEqual([50]);
+    expect(chapterStarts([300])).toEqual([]);
+    expect(chapterStarts([])).toEqual([]);
   });
 });

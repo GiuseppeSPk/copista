@@ -13,6 +13,7 @@
 
   const IN = ['EPUB', 'DOCX', 'MD', 'TXT'];
   const OUT = ['EPUB', 'DOCX', 'MD', 'TXT', 'HTML', 'PDF'];
+  const KEPT = ['Books', 'Bookmarks', 'Notes', 'Settings'];
 
   const lastBook = $derived(app.shelf.find((book) => book.id === app.lastBookId));
   const readHref = $derived(
@@ -131,6 +132,10 @@
         <span class="door-body"
           >Pages that turn like a book, and your place kept for next time.</span
         >
+        <span class="spread" aria-hidden="true">
+          <span class="leaf"></span>
+          <span class="leaf leaf-right"><span class="ribbon"></span></span>
+        </span>
       {/if}
       <span class="door-note">Can read aloud · <span class="beta">Beta</span></span>
       <span class="door-foot">
@@ -184,6 +189,12 @@
       <span class="door-icon"><Icon name="archive" size={22} /></span>
       <span class="door-title" id="door-archivum">{door('archivum').action}</span>
       <span class="door-body">No account, no upload. See what is kept and erase it.</span>
+      <span class="formats" aria-hidden="true">
+        <span class="format-row">
+          {#each KEPT as kind (kind)}<span class="tag">{kind}</span>{/each}
+        </span>
+      </span>
+      <span class="door-note">Kept in this browser, and nowhere else.</span>
       <span class="door-foot">
         <span class="plaque" style:--vt="title-archivum">Archivum</span>
         <span class="door-go"><Icon name="arrow" size={18} /></span>

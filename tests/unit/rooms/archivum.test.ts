@@ -5,7 +5,9 @@ import {
   DEFAULT_SETTINGS,
   deleteAllData,
   getSettings,
+  protectStorage,
   type ReadingMode,
+  storageProtected,
   storageUsage,
   updateSettings,
 } from '../../../src/rooms/archivum/index';
@@ -87,6 +89,28 @@ describe('archivum', () => {
     expect(await storageUsage()).toEqual({ usedBytes: 10, quotaBytes: 100 });
     vi.stubGlobal('navigator', {});
     expect(await storageUsage()).toBeNull();
+  });
+
+  it('says whether the browser has promised to keep the library', async () => {
+    vi.stubGlobal('navigator', { storage: { persisted: async () => true } });
+    expect(await storageProtected()).toBe(true);
+    vi.stubGlobal('navigator', { storage: { persisted: async () => false } });
+    expect(await storageProtected()).toBe(false);
+    vi.stubGlobal('navigator', { storage: {} });
+    expect(await storageProtected()).toBeNull();
+    vi.stubGlobal('navigator', {});
+    expect(await storageProtected()).toBeNull();
+  });
+
+  it('asks the browser for that promise and passes on its answer', async () => {
+    const persist = vi.fn(async () => true);
+    vi.stubGlobal('navigator', { storage: { persist } });
+    expect(await protectStorage()).toBe(true);
+    expect(persist).toHaveBeenCalledTimes(1);
+    vi.stubGlobal('navigator', { storage: { persist: async () => false } });
+    expect(await protectStorage()).toBe(false);
+    vi.stubGlobal('navigator', {});
+    expect(await protectStorage()).toBe(false);
   });
 
   it('deletes every book, setting and cache', async () => {

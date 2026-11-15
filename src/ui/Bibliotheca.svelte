@@ -14,7 +14,7 @@
   import RoomHero from './RoomHero.svelte';
   import { addFiles, app, go, refreshShelf } from './state.svelte';
   import { hashOf } from './route';
-  import { errorMessage } from './text';
+  import { errorMessage, readSoFar } from './text';
 
   let busy = $state(false);
   let removeError = $state('');
@@ -233,6 +233,14 @@
               <p class="authors" translate={book.authors.length ? 'no' : undefined}>
                 {book.authors.join(', ') || 'Unknown author'}
               </p>
+              {#if readSoFar(book.percent)}
+                <p class="read-so-far">
+                  <span class="gauge" aria-hidden="true"
+                    ><span style:width="{Math.min(100, book.percent ?? 0)}%"></span></span
+                  >
+                  {readSoFar(book.percent)}
+                </p>
+              {/if}
             </div>
             <div class="actions">
               <button

@@ -47,6 +47,8 @@ export class ReadingController {
     private readonly onPlaying?: (playing: boolean) => void,
     /** The reader moved through the book, not the reading aloud. */
     private readonly onReaderMove?: () => void,
+    /** The reader followed a link inside the book, from the place given. */
+    private readonly onLinkFollowed?: (from: Position) => void,
   ) {
     this.urls = new ResourceUrls(session.book);
     this.spineIndex = session.position.spineIndex;
@@ -228,7 +230,11 @@ export class ReadingController {
   private makeView(): ChapterView {
     const onInternalLink = (key: string): void => {
       const target = chapterForHref(this.session.book, key);
-      if (target) void this.goTo(target).catch(() => undefined);
+      if (!target) return;
+      const from = this.position();
+      void this.goTo(target)
+        .then(() => this.onLinkFollowed?.(from))
+        .catch(() => undefined);
     };
     if (this.currentMode === 'pages') return new Paginator(this.host, { onInternalLink });
 
@@ -314,7 +320,8 @@ export class ReadingController {
   private async moved(): Promise<void> {
     const pos = this.position();
     this.session.position = pos;
-    await savePosition(this.session.bookId, pos);
-    this.onChange?.(pos, progressPercent(this.session.book, pos));
+    const percent = progressPercent(this.session.book, pos);
+    await savePosition(this.session.bookId, pos, percent);
+    this.onChange?.(pos, percent);
   }
 }

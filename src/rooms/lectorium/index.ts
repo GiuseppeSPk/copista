@@ -1,7 +1,7 @@
 import { readEpub } from '../../core/epub/read';
 import type { Book } from '../../core/model/book';
 import type { Position } from '../../core/model/position';
-import { bookPercent, clampPosition } from '../../reader/location';
+import { bookPercent, chapterStarts, clampPosition } from '../../reader/location';
 import {
   BookNotFoundError,
   deleteBookmark,
@@ -45,11 +45,16 @@ export async function openSession(bookId: string): Promise<ReadingSession> {
   return { bookId, book, position, bookmarks, notes };
 }
 
-export async function savePosition(bookId: string, pos: Position): Promise<void> {
+/**
+ * Keeps the place, and with it how far through the book that is, so the shelf can say so
+ * without opening the book.
+ */
+export async function savePosition(bookId: string, pos: Position, percent?: number): Promise<void> {
   await putProgress({
     bookId,
     spineIndex: pos.spineIndex,
     fraction: pos.fraction,
+    ...(percent === undefined ? {} : { percent }),
     updatedAt: Date.now(),
   });
 }
@@ -105,6 +110,11 @@ export async function saveNote(note: NoteRecord, text: string): Promise<NoteReco
 
 export async function removeNote(id: string): Promise<void> {
   await deleteNote(id);
+}
+
+/** Where the chapters after the first begin, as percentages of the book. */
+export function chapterMarks(book: Book): number[] {
+  return chapterStarts(book.chapters.map((chapter) => chapter.html.length));
 }
 
 /** How far through the book a position is, weighting chapters by their length. */

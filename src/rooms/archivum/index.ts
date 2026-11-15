@@ -85,6 +85,23 @@ export async function storageUsage(): Promise<{ usedBytes: number; quotaBytes: n
   return { usedBytes: usage ?? 0, quotaBytes: quota ?? 0 };
 }
 
+/**
+ * Whether the browser has promised not to clear what this site keeps when the device runs
+ * short of space, or null when it will not say.
+ */
+export async function storageProtected(): Promise<boolean | null> {
+  const persisted = globalThis.navigator?.storage?.persisted;
+  if (typeof persisted !== 'function') return null;
+  return persisted.call(navigator.storage);
+}
+
+/** Asks the browser for that promise; true when it agrees. */
+export async function protectStorage(): Promise<boolean> {
+  const persist = globalThis.navigator?.storage?.persist;
+  if (typeof persist !== 'function') return false;
+  return persist.call(navigator.storage);
+}
+
 /** Removes every book, position, bookmark, note, setting and cached app file. */
 export async function deleteAllData(): Promise<void> {
   await deleteAllStorage();

@@ -8,6 +8,7 @@ import {
   getBook,
   getSetting,
   listBooks,
+  listProgress,
   putBook,
   putSetting,
   type BookRecord,
@@ -20,6 +21,8 @@ export interface ShelfBook {
   authors: string[];
   coverBlob?: Blob;
   addedAt: number;
+  /** How far the reader has got, 0 to 100; absent for a book never opened. */
+  percent?: number;
 }
 
 export interface ImportResult {
@@ -93,9 +96,15 @@ export async function importBook(file: File): Promise<ImportResult> {
   return { book: toShelf(rec), alreadyPresent: false, warnings: book.warnings };
 }
 
-/** The library, newest first. */
+/** The library, newest first, each book with how far it has been read. */
 export async function listShelf(): Promise<ShelfBook[]> {
-  return (await listBooks()).map(toShelf);
+  const [books, progress] = await Promise.all([listBooks(), listProgress()]);
+  const read = new Map(progress.map((rec) => [rec.bookId, rec.percent]));
+  return books.map((rec) => {
+    const book = toShelf(rec);
+    const percent = read.get(rec.id);
+    return percent === undefined ? book : { ...book, percent };
+  });
 }
 
 /** Removes a book with its reading progress and bookmarks. */

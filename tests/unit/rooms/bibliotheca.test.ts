@@ -82,6 +82,25 @@ describe('bibliotheca', () => {
     expect(shelf[0]).not.toHaveProperty('fileBlob');
   });
 
+  it('says how far each book has been read, and nothing of one never opened', async () => {
+    const begun = await importBook(file(EPUB.noCover(), 'b.epub'));
+    const before = await importBook(file(EPUB.epub3Nav(), 'three.epub'));
+    const closed = await importBook(file(EPUB.noTitle(), 'm.epub'));
+    await putProgress({
+      bookId: begun.book.id,
+      spineIndex: 0,
+      fraction: 0.4,
+      percent: 40,
+      updatedAt: 1,
+    });
+    // A place kept before the percent was kept with it.
+    await putProgress({ bookId: before.book.id, spineIndex: 1, fraction: 0.5, updatedAt: 1 });
+    const shelf = new Map((await listShelf()).map((b) => [b.id, b]));
+    expect(shelf.get(begun.book.id)?.percent).toBe(40);
+    expect(shelf.get(before.book.id)).not.toHaveProperty('percent');
+    expect(shelf.get(closed.book.id)).not.toHaveProperty('percent');
+  });
+
   it('imports without a storage manager', async () => {
     Object.defineProperty(navigator, 'storage', { value: undefined, configurable: true });
     const r = await importBook(file(EPUB.noCover(), 'b.epub'));

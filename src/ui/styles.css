@@ -712,6 +712,32 @@ button.link:hover:not(:disabled) {
   white-space: nowrap;
 }
 
+/* How far the book has been read: a hairline that fills, and the figure beside it. */
+.card .read-so-far {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.card .gauge {
+  flex: 1;
+  height: 3px;
+  overflow: hidden;
+  border-radius: 2px;
+  background: var(--line-strong);
+}
+
+.card .gauge span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+}
+
 .card .actions {
   display: grid;
   grid-template-columns: 1fr 1fr auto;
@@ -1454,6 +1480,20 @@ button.link:hover:not(:disabled) {
   max-width: 480px;
 }
 
+/* Whether the browser keeps the books: the answer, then what can be done about it. */
+.archivum .facts .why {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 400;
+}
+
+.archivum .facts dd button {
+  display: block;
+  margin-top: 10px;
+}
+
 /* The voice sheet: hear the two readers, then set up the voice. */
 .sample-langs {
   display: flex;
@@ -2010,9 +2050,42 @@ button.link:hover:not(:disabled) {
 
 .page-area {
   display: grid;
-  grid-template-rows: 1fr auto;
+  grid-template-rows: 1fr auto auto;
   gap: 8px;
   min-height: 0;
+}
+
+/* The line of the book under the page: what is read fills it, and it is cut where each
+   chapter begins, so the end of the chapter is in sight as well as the end of the book. */
+.book-line {
+  position: relative;
+  height: 3px;
+  margin: 0 10px;
+  overflow: hidden;
+  border-radius: 2px;
+  background: var(--line-strong);
+}
+
+.book-line .read {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--accent);
+  transition: width 240ms var(--ease);
+}
+
+.book-line .mark {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--paper);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .book-line .read {
+    transition: none;
+  }
 }
 
 /* The page and what lies on it: the tap hints, the pinned notes, the way out of full page. */
@@ -2260,6 +2333,7 @@ button.link:hover:not(:disabled) {
 
 .lectorium.fitted .reading-bar,
 .lectorium.fitted .reading aside,
+.lectorium.fitted .book-line,
 .lectorium.fitted .page-nav {
   display: none;
 }
@@ -2302,6 +2376,31 @@ button.link:hover:not(:disabled) {
   box-shadow: 0 8px 18px -10px rgb(0 0 0 / 0.4);
   font-size: 13px;
   animation: rise 400ms var(--ease) backwards;
+}
+
+/* The way back after a link in the book: over the top of the page, clear of the bars below. */
+.way-back {
+  position: absolute;
+  top: 12px;
+  left: 0;
+  right: 0;
+  z-index: 3;
+  width: max-content;
+  max-width: calc(100% - 16px);
+  min-height: 36px;
+  margin-inline: auto;
+  padding: 4px 14px 4px 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--card) 92%, transparent);
+  box-shadow: 0 8px 18px -10px rgb(0 0 0 / 0.4);
+  font-size: 13px;
+  animation: rise 400ms var(--ease) backwards;
+}
+
+@media (pointer: coarse) {
+  .way-back {
+    min-height: 44px;
+  }
 }
 
 .fit-where {
@@ -3042,6 +3141,53 @@ button.link:hover:not(:disabled) {
 
 .door-convert:hover .tag-out {
   transition-delay: 60ms;
+}
+
+.door-data:hover .tag {
+  transform: translateY(-2px);
+}
+
+/* The reading room's door, before any book: an open book with the place marked in it. */
+.spread {
+  display: flex;
+  margin: 14px 0 6px;
+  transition: transform 400ms var(--ease);
+}
+
+.leaf {
+  position: relative;
+  width: 58px;
+  height: 76px;
+  border: 1px solid var(--frame-strong);
+  border-radius: 4px 1px 1px 4px;
+  background:
+    repeating-linear-gradient(to bottom, var(--frame-strong) 0 2px, transparent 2px 9px) 9px 12px /
+      38px 54px no-repeat,
+    var(--card);
+}
+
+.leaf-right {
+  margin-left: -1px;
+  border-radius: 1px 4px 4px 1px;
+}
+
+.ribbon {
+  position: absolute;
+  top: -1px;
+  right: 10px;
+  width: 8px;
+  height: 30px;
+  background: var(--accent);
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 78%, 0 100%);
+  transition: height 400ms var(--ease);
+}
+
+.door-read:hover .spread {
+  transform: translateY(-2px);
+}
+
+.door-read:hover .ribbon {
+  height: 38px;
 }
 
 .door-foot {
