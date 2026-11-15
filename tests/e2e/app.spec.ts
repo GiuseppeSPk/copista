@@ -585,6 +585,8 @@ test('shows the page colours as squares and colours the page with the one chosen
     'aria-pressed',
     'false',
   );
+  // The page in the old colour stays until the new one is laid out.
+  await expect(page.locator('.pages iframe')).toHaveCount(1);
   await expect(page.frameLocator('.pages iframe').locator('html')).toHaveCSS(
     'background-color',
     'rgb(244, 236, 216)',
